@@ -24,12 +24,13 @@ import subprocess
 app = Flask(__name__, template_folder='templates')
 app.secret_key = 'your-secret-key-here'
 
-# CORS настройки для AgentFlow
-CORS(app, origins=[
-    "https://agentflow-marketing-hub.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5173"
-], allow_headers=['Content-Type', 'Authorization'], supports_credentials=True)
+# ИСПРАВЛЕННЫЕ CORS НАСТРОЙКИ для AgentFlow
+CORS(app, 
+     origins=['https://agentflow-marketing-hub.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
+     allow_headers=['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     supports_credentials=True
+)
 
 # Создаем необходимые папки
 os.makedirs('output', exist_ok=True)
