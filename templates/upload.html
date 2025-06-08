@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Загрузка шаблонов - SVG Template Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .upload-section {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .upload-type-selector {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: #f8fafc;
+            padding: 0.5rem;
+            border-radius: 12px;
+        }
+
+        .upload-type-btn {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .upload-type-btn.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .upload-type-btn:hover:not(.active) {
+            background: #e2e8f0;
+        }
+
+        .carousel-upload {
+            display: none;
+        }
+
+        .carousel-upload.active {
+            display: block;
+        }
+
+        .carousel-templates {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .template-upload-area {
+            border: 2px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            background: #f8fafc;
+        }
+
+        .template-upload-area:hover {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+
+        .template-upload-area.dragover {
+            border-color: #667eea;
+            background: #e6fffa;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #a0aec0;
+        }
+
+        .upload-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #2d3748;
+        }
+
+        .upload-description {
+            color: #718096;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+        }
+
+        .file-preview {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #e6fffa;
+            border-radius: 8px;
+            border-left: 4px solid #38b2ac;
+            display: none;
+        }
+
+        .file-preview.show {
+            display: block;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-size {
+            color: #718096;
+            font-size: 0.875rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .nav-link {
+            display: inline-block;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 2rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+
+        .success-message {
+            background: #c6f6d5;
+            color: #22543d;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #38a169;
+            display: none;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #742a2a;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #e53e3e;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/templates" class="nav-link">← Назад к шаблонам</a>
+        
+        <div class="header">
+            <h1>📤 Загрузка шаблонов</h1>
+            <p>Загрузите SVG шаблоны для создания карусели недвижимости</p>
+        </div>
+
+        <div class="upload-section">
+            <div class="upload-type-selector">
+                <button class="upload-type-btn active" onclick="switchUploadType('single')">
+                    📄 Одиночный шаблон
+                </button>
+                <button class="upload-type-btn" onclick="switchUploadType('carousel')">
+                    🎠 Карусель (Main + Photo)
+                </button>
+            </div>
+
+            <div id="success-message" class="success-message"></div>
+            <div id="error-message" class="error-message"></div>
+
+            <!-- Одиночный шаблон -->
+            <form id="single-upload-form" method="POST" action="/upload" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label class="form-label">Название шаблона</label>
+                    <input type="text" name="name" class="form-input" placeholder="Например: Modern Open House" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Категория</label>
+                    <select name="category" class="form-select" required>
+                        <option value="">Выберите категорию</option>
+                        <option value="open-house">Open House</option>
+                        <option value="sold">Sold</option>
+                        <option value="for-rent">For Rent</option>
+                        <option value="lease">Lease</option>
+                        <option value="quick-posts">Quick Posts</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Роль шаблона</label>
+                    <select name="template_role" class="form-select" required>
+                        <option value="">Выберите роль</option>
+                        <option value="main">Main (основной слайд)</option>
+                        <option value="photo">Photo (слайд с фото)</option>
+                    </select>
+                </div>
+
+                <div class="template-upload-area" onclick="document.getElementById('single-file').click()">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-title">Выберите SVG файл</div>
+                    <div class="upload-description">Перетащите файл сюда или нажмите для выбора</div>
+                    <button type="button" class="upload-btn">Выбрать файл</button>
+                    <input type="file" id="single-file" name="svg_file" class="file-input" accept=".svg" required>
+                    <div id="single-preview" class="file-preview">
+                        <div class="file-name"></div>
+                        <div class="file-size"></div>
+                    </div>
+                </div>
+
+                <div class="progress-bar" id="single-progress">
+                    <div class="progress-fill"></div>
+                </div>
+
+                <button type="submit" class="submit-btn">
+                    🚀 Загрузить шаблон
+                </button>
+            </form>
+
+            <!-- Карусель шаблонов -->
+            <div id="carousel-upload" class="carousel-upload">
+                <form id="carousel-upload-form" method="POST" action="/upload-carousel" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label class="form-label">Название набора шаблонов</label>
+                        <input type="text" name="carousel_name" class="form-input" placeholder="Например: Modern Real Estate Set" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Категория</label>
+                        <select name="carousel_category" class="form-select" required>
+                            <option value="">Выберите категорию</option>
+                            <option value="open-house">Open House</option>
+                            <option value="sold">Sold</option>
+                            <option value="for-rent">For Rent</option>
+                            <option value="lease">Lease</option>
+                            <option value="quick-posts">Quick Posts</option>
+                        </select>
+                    </div>
+
+                    <div class="carousel-templates">
+                        <div class="template-upload-area" onclick="document.getElementById('main-template').click()">
+                            <div class="upload-icon">🎯</div>
+                            <div class="upload-title">Main Template</div>
+                            <div class="upload-description">Основной шаблон для первого слайда карусели</div>
+                            <button type="button" class="upload-btn">Выбрать Main</button>
+                            <input type="file" id="main-template" name="main_template" class="file-input" accept=".svg" required>
+                            <div id="main-preview" class="file-preview">
+                                <div class="file-name"></div>
+                                <div class="file-size"></div>
+                            </div>
+                        </div>
+
+                        <div class="template-upload-area" onclick="document.getElementById('photo-template').click()">
+                            <div class="upload-icon">📸</div>
+                            <div class="upload-title">Photo Template</div>
+                            <div class="upload-description">Шаблон для последующих слайдов с фотографиями</div>
+                            <button type="button" class="upload-btn">Выбрать Photo</button>
+                            <input type="file" id="photo-template" name="photo_template" class="file-input" accept=".svg" required>
+                            <div id="photo-preview" class="file-preview">
+                                <div class="file-name"></div>
+                                <div class="file-size"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="progress-bar" id="carousel-progress">
+                        <div class="progress-fill"></div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">
+                        🎠 Загрузить набор шаблонов
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Переключение типа загрузки
+        function switchUploadType(type) {
+            const buttons = document.querySelectorAll('.upload-type-btn');
+            const singleForm = document.getElementById('single-upload-form');
+            const carouselForm = document.getElementById('carousel-upload');
+
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            if (type === 'single') {
+                buttons[0].classList.add('active');
+                singleForm.style.display = 'block';
+                carouselForm.classList.remove('active');
+            } else {
+                buttons[1].classList.add('active');
+                singleForm.style.display = 'none';
+                carouselForm.classList.add('active');
+            }
+        }
+
+        // Обработка файлов
+        function setupFileInput(inputId, previewId) {
+            const input = document.getElementById(inputId);
+            const preview = document.getElementById(previewId);
+            const uploadArea = input.closest('.template-upload-area');
+
+            input.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    showFilePreview(file, preview);
+                    uploadArea.style.borderColor = '#38a169';
+                    uploadArea.style.background = '#e6fffa';
+                }
+            });
+
+            // Drag & Drop
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type === 'image/svg+xml') {
+                    input.files = files;
+                    showFilePreview(files[0], preview);
+                    uploadArea.style.borderColor = '#38a169';
+                    uploadArea.style.background = '#e6fffa';
+                }
+            });
+        }
+
+        function showFilePreview(file, preview) {
+            const fileName = preview.querySelector('.file-name');
+            const fileSize = preview.querySelector('.file-size');
+            
+            fileName.textContent = file.name;
+            fileSize.textContent = `${(file.size / 1024).toFixed(1)} KB`;
+            preview.classList.add('show');
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            setupFileInput('single-file', 'single-preview');
+            setupFileInput('main-template', 'main-preview');
+            setupFileInput('photo-template', 'photo-preview');
+
+            // Обработка форм
+            document.getElementById('single-upload-form').addEventListener('submit', function(e) {
+                handleFormSubmit(e, 'single-progress');
+            });
+
+            document.getElementById('carousel-upload-form').addEventListener('submit', function(e) {
+                handleFormSubmit(e, 'carousel-progress');
+            });
+        });
+
+        function handleFormSubmit(e, progressId) {
+            const submitBtn = e.target.querySelector('.submit-btn');
+            const progressBar = document.getElementById(progressId);
+            const progressFill = progressBar.querySelector('.progress-fill');
+
+            submitBtn.disabled = true;
+            submitBtn.classList.add('loading');
+            progressBar.style.display = 'block';
+
+            // Симуляция прогресса
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                progressFill.style.width = progress + '%';
+            }, 200);
+
+            // Очистка при завершении (будет заменено реальной обработкой)
+            setTimeout(() => {
+                clearInterval(interval);
+                progressFill.style.width = '100%';
+                
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('loading');
+                    progressBar.style.display = 'none';
+                    progressFill.style.width = '0%';
+                }, 500);
+            }, 3000);
+        }
+
+        function showMessage(type, text) {
+            const messageEl = document.getElementById(type + '-message');
+            messageEl.textContent = text;
+            messageEl.style.display = 'block';
+            
+            setTimeout(() => {
+                messageEl.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
+
