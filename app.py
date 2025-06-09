@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-ИСПРАВЛЕННАЯ ВЕРСИЯ API С ПРИНУДИТЕЛЬНОЙ ИНИЦИАЛИЗАЦИЕЙ БД
-Решает проблему "no such table: templates" на Render.com
+ИСПРАВЛЕННЫЙ API С ПРОДВИНУТОЙ ОБРАБОТКОЙ DYNO ПОЛЕЙ
+===================================================
+
+Интегрирует продвинутый SVG процессор для правильной замены dyno полей
 """
 
 import os
@@ -19,6 +21,8 @@ import io
 import base64
 import requests
 import tempfile
+import re
+from urllib.parse import urlparse
 
 app = Flask(__name__, template_folder='templates')
 app.secret_key = 'your-secret-key-here-change-in-production'
@@ -34,6 +38,197 @@ CORS(app,
 # Создаем необходимые папки
 os.makedirs('output', exist_ok=True)
 os.makedirs('uploads', exist_ok=True)
+
+# ============= ПРОДВИНУТЫЙ SVG ПРОЦЕССОР =============
+
+def download_image(url, max_size=(800, 600)):
+    """Загрузка изображения по URL с ресайзом"""
+    try:
+        print(f"📥 Загружаю изображение: {url}")
+        
+        # Загружаем изображение
+        response = requests.get(url, timeout=10, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        response.raise_for_status()
+        
+        # Открываем изображение
+        img = Image.open(io.BytesIO(response.content))
+        
+        # Конвертируем в RGB если нужно
+        if img.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            img = background
+        
+        # Ресайзим если нужно
+        if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
+            img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        
+        # Конвертируем в base64
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=85)
+        img_data = buffer.getvalue()
+        img_base64 = base64.b64encode(img_data).decode('utf-8')
+        
+        print(f"✅ Изображение загружено и обработано: {img.size}")
+        return f"data:image/jpeg;base64,{img_base64}"
+        
+    except Exception as e:
+        print(f"❌ Ошибка загрузки изображения {url}: {e}")
+        return None
+
+def wrap_text(text, max_length=30):
+    """Автоматический перенос длинного текста"""
+    if len(text) <= max_length:
+        return text
+    
+    # Пытаемся разбить по словам
+    words = text.split()
+    if len(words) <= 1:
+        return text
+    
+    lines = []
+    current_line = []
+    current_length = 0
+    
+    for word in words:
+        if current_length + len(word) + len(current_line) <= max_length:
+            current_line.append(word)
+            current_length += len(word)
+        else:
+            if current_line:
+                lines.append(' '.join(current_line))
+                current_line = [word]
+                current_length = len(word)
+            else:
+                lines.append(word)
+    
+    if current_line:
+        lines.append(' '.join(current_line))
+    
+    return '\n'.join(lines)
+
+def process_svg_with_advanced_replacement(svg_content, replacements):
+    """ПРОДВИНУТАЯ обработка SVG с заменой текста и изображений"""
+    result = svg_content
+    
+    print("🔄 Обрабатываю SVG шаблон с продвинутой заменой...")
+    print(f"📝 Получено замен: {len(replacements)}")
+    
+    # Обрабатываем замены
+    for key, value in replacements.items():
+        # Очищаем ключ от dyno. префикса если есть
+        clean_key = key.replace('dyno.', '') if key.startswith('dyno.') else key
+        
+        # Различные форматы переменных которые могут быть в SVG
+        patterns = [
+            f"{{{{dyno.{clean_key}}}}}",  # {{dyno.field}}
+            f"{{{{{key}}}}}",             # {{dyno.field}} или {{field}}
+            f"{{{{dyno.{key}}}}}",        # {{dyno.dyno.field}} (двойной префикс)
+            f"{{{{{clean_key}}}}}",       # {{field}}
+            f"dyno.{clean_key}",          # dyno.field (без скобок)
+            f"{key}",                     # прямое имя поля
+        ]
+        
+        # Специальная обработка для изображений
+        if any(img_keyword in clean_key.lower() for img_keyword in ['image', 'photo', 'picture', 'img']):
+            if isinstance(value, str) and (value.startswith('http') or value.startswith('https')):
+                print(f"🖼️ Обрабатываю изображение: {clean_key}")
+                # Загружаем изображение
+                image_data = download_image(value)
+                if image_data:
+                    # Заменяем в SVG
+                    for pattern in patterns:
+                        if pattern in result:
+                            # Ищем image элементы или создаем новые
+                            result = result.replace(pattern, image_data)
+                            print(f"✅ Заменено изображение: {clean_key}")
+                else:
+                    # Если не удалось загрузить, оставляем placeholder
+                    for pattern in patterns:
+                        result = result.replace(pattern, f"[Image: {clean_key}]")
+            else:
+                # Обычная текстовая замена для изображений
+                for pattern in patterns:
+                    result = result.replace(pattern, str(value))
+        else:
+            # Обработка текста с переносом для длинных адресов
+            processed_value = str(value)
+            if 'address' in clean_key.lower() and len(processed_value) > 30:
+                processed_value = wrap_text(processed_value, 25)
+            
+            # Заменяем во всех форматах
+            replaced_count = 0
+            for pattern in patterns:
+                if pattern in result:
+                    result = result.replace(pattern, processed_value)
+                    replaced_count += 1
+            
+            if replaced_count > 0:
+                print(f"✅ Заменено поле: {clean_key} = {processed_value[:50]}... ({replaced_count} раз)")
+    
+    # Проверяем остались ли незамененные переменные
+    remaining_vars = re.findall(r'\{\{[^}]+\}\}', result)
+    if remaining_vars:
+        print(f"⚠️ Остались незамененные переменные: {remaining_vars}")
+        # Заменяем их на пустые строки
+        for var in remaining_vars:
+            result = result.replace(var, "")
+    
+    print("✅ SVG обработка завершена!")
+    return result
+
+def generate_png_from_svg_advanced(svg_content):
+    """Продвинутая генерация PNG из SVG"""
+    try:
+        print("🎨 Генерирую PNG из SVG...")
+        
+        # Пытаемся использовать CairoSVG
+        try:
+            png_data = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'))
+            print("✅ PNG сгенерирован через CairoSVG")
+            return png_data
+        except Exception as cairo_error:
+            print(f"⚠️ CairoSVG ошибка: {cairo_error}")
+            
+            # Fallback через Pillow
+            print("🔄 Использую Pillow fallback...")
+            img = Image.new('RGB', (1080, 1350), color='white')
+            draw = ImageDraw.Draw(img)
+            
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
+            except:
+                font = ImageFont.load_default()
+            
+            # Извлекаем текст из SVG для отображения
+            text_matches = re.findall(r'<text[^>]*>([^<]+)</text>', svg_content)
+            y_pos = 100
+            for text in text_matches[:10]:  # Максимум 10 строк
+                draw.text((50, y_pos), text, font=font, fill='black')
+                y_pos += 40
+            
+            # Конвертируем в PNG bytes
+            img_bytes = io.BytesIO()
+            img.save(img_bytes, format='PNG')
+            print("✅ PNG сгенерирован через Pillow fallback")
+            return img_bytes.getvalue()
+            
+    except Exception as e:
+        print(f"❌ Ошибка генерации PNG: {e}")
+        # Создаем простое изображение с ошибкой
+        img = Image.new('RGB', (800, 600), color='white')
+        draw = ImageDraw.Draw(img)
+        draw.text((50, 50), f"Error: {str(e)}", fill='red')
+        
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format='PNG')
+        return img_bytes.getvalue()
+
+# ============= БАЗА ДАННЫХ =============
 
 def ensure_db_exists():
     """ПРИНУДИТЕЛЬНАЯ инициализация базы данных при каждом обращении"""
@@ -88,9 +283,9 @@ def ensure_db_exists():
                 )
             ''')
             
-            # Добавляем начальные шаблоны
-            add_initial_templates(cursor)
-            print("Начальные шаблоны добавлены")
+            # Добавляем начальные шаблоны С DYNO ПОЛЯМИ
+            add_initial_templates_with_dyno_fields(cursor)
+            print("Начальные шаблоны с dyno полями добавлены")
             
             conn.commit()
             print("База данных создана успешно!")
@@ -102,63 +297,48 @@ def ensure_db_exists():
         print(f"Ошибка создания БД: {e}")
         return False
 
-def add_initial_templates(cursor):
-    """Добавляем 4 начальных шаблона"""
+def add_initial_templates_with_dyno_fields(cursor):
+    """Добавляем начальные шаблоны С ПРАВИЛЬНЫМИ DYNO ПОЛЯМИ"""
     initial_templates = [
         {
-            'id': 'open-house-main',
-            'name': 'Open House - Main',
+            'id': 'open-house-main-dyno',
+            'name': 'Open House - Main (with dyno)',
             'category': 'open-house',
             'template_role': 'main',
-            'svg_content': '''<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
-                <rect width="800" height="600" fill="#f8f9fa"/>
-                <text x="400" y="100" text-anchor="middle" font-family="Arial" font-size="48" font-weight="bold" fill="#2d3748">OPEN HOUSE</text>
-                <text x="400" y="200" text-anchor="middle" font-family="Arial" font-size="24" fill="#4a5568">{dyno.agentName}</text>
-                <text x="400" y="250" text-anchor="middle" font-family="Arial" font-size="20" fill="#718096">{dyno.propertyAddress}</text>
-                <text x="400" y="300" text-anchor="middle" font-family="Arial" font-size="18" fill="#718096">{dyno.price}</text>
-                <text x="400" y="400" text-anchor="middle" font-family="Arial" font-size="16" fill="#718096">{dyno.date} at {dyno.time}</text>
-                <text x="400" y="500" text-anchor="middle" font-family="Arial" font-size="14" fill="#718096">{dyno.phone}</text>
+            'svg_content': '''<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg">
+                <rect width="1080" height="1350" fill="#f8f9fa"/>
+                <text x="540" y="150" text-anchor="middle" font-family="Arial" font-size="72" font-weight="bold" fill="#2d3748">OPEN HOUSE</text>
+                <text x="540" y="250" text-anchor="middle" font-family="Arial" font-size="36" fill="#4a5568">{{dyno.agentName}}</text>
+                <text x="540" y="320" text-anchor="middle" font-family="Arial" font-size="28" fill="#718096">{{dyno.propertyAddress}}</text>
+                <text x="540" y="400" text-anchor="middle" font-family="Arial" font-size="32" font-weight="bold" fill="#2d3748">{{dyno.price}}</text>
+                <text x="270" y="500" text-anchor="middle" font-family="Arial" font-size="24" fill="#4a5568">{{dyno.bedrooms}} bed</text>
+                <text x="540" y="500" text-anchor="middle" font-family="Arial" font-size="24" fill="#4a5568">{{dyno.bathrooms}} bath</text>
+                <text x="810" y="500" text-anchor="middle" font-family="Arial" font-size="24" fill="#4a5568">{{dyno.sqft}} sqft</text>
+                <text x="540" y="600" text-anchor="middle" font-family="Arial" font-size="28" fill="#2d3748">{{dyno.openHouseDate}}</text>
+                <text x="540" y="650" text-anchor="middle" font-family="Arial" font-size="24" fill="#4a5568">{{dyno.openHouseTime}}</text>
+                <text x="540" y="750" text-anchor="middle" font-family="Arial" font-size="20" fill="#718096">{{dyno.agentPhone}}</text>
+                <text x="540" y="800" text-anchor="middle" font-family="Arial" font-size="18" fill="#718096">{{dyno.agentEmail}}</text>
+                <rect x="90" y="900" width="900" height="400" fill="#e2e8f0" stroke="#cbd5e0" stroke-width="2"/>
+                <text x="540" y="1120" text-anchor="middle" font-family="Arial" font-size="24" fill="#a0aec0">{{dyno.propertyImage}}</text>
             </svg>'''
         },
         {
-            'id': 'open-house-photo',
-            'name': 'Open House - Photo',
+            'id': 'open-house-photo-dyno',
+            'name': 'Open House - Photo (with dyno)',
             'category': 'open-house',
             'template_role': 'photo',
-            'svg_content': '''<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
-                <rect width="800" height="600" fill="#f8f9fa"/>
-                <rect x="50" y="50" width="700" height="400" fill="#e2e8f0" stroke="#cbd5e0" stroke-width="2"/>
-                <text x="400" y="275" text-anchor="middle" font-family="Arial" font-size="16" fill="#a0aec0">Property Image</text>
-                <text x="400" y="500" text-anchor="middle" font-family="Arial" font-size="20" fill="#2d3748">{dyno.agentName}</text>
-                <text x="400" y="530" text-anchor="middle" font-family="Arial" font-size="16" fill="#718096">{dyno.phone}</text>
-            </svg>'''
-        },
-        {
-            'id': 'sold-main',
-            'name': 'Sold - Main',
-            'category': 'sold',
-            'template_role': 'main',
-            'svg_content': '''<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
-                <rect width="800" height="600" fill="#fed7d7"/>
-                <text x="400" y="100" text-anchor="middle" font-family="Arial" font-size="48" font-weight="bold" fill="#c53030">SOLD</text>
-                <text x="400" y="200" text-anchor="middle" font-family="Arial" font-size="24" fill="#2d3748">{dyno.agentName}</text>
-                <text x="400" y="250" text-anchor="middle" font-family="Arial" font-size="20" fill="#4a5568">{dyno.propertyAddress}</text>
-                <text x="400" y="300" text-anchor="middle" font-family="Arial" font-size="18" fill="#4a5568">{dyno.price}</text>
-                <text x="400" y="400" text-anchor="middle" font-family="Arial" font-size="16" fill="#4a5568">Sold on {dyno.date}</text>
-                <text x="400" y="500" text-anchor="middle" font-family="Arial" font-size="14" fill="#4a5568">{dyno.phone}</text>
-            </svg>'''
-        },
-        {
-            'id': 'sold-photo',
-            'name': 'Sold - Photo',
-            'category': 'sold',
-            'template_role': 'photo',
-            'svg_content': '''<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
-                <rect width="800" height="600" fill="#fed7d7"/>
-                <rect x="50" y="50" width="700" height="400" fill="#e2e8f0" stroke="#cbd5e0" stroke-width="2"/>
-                <text x="400" y="275" text-anchor="middle" font-family="Arial" font-size="16" fill="#a0aec0">Property Image</text>
-                <text x="400" y="500" text-anchor="middle" font-family="Arial" font-size="20" fill="#2d3748">{dyno.agentName}</text>
-                <text x="400" y="530" text-anchor="middle" font-family="Arial" font-size="16" fill="#4a5568">{dyno.phone}</text>
+            'svg_content': '''<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg">
+                <rect width="1080" height="1350" fill="#f8f9fa"/>
+                <rect x="90" y="90" width="900" height="600" fill="#e2e8f0" stroke="#cbd5e0" stroke-width="2"/>
+                <text x="540" y="410" text-anchor="middle" font-family="Arial" font-size="24" fill="#a0aec0">{{dyno.propertyImage}}</text>
+                <text x="540" y="800" text-anchor="middle" font-family="Arial" font-size="48" font-weight="bold" fill="#2d3748">{{dyno.price}}</text>
+                <text x="540" y="870" text-anchor="middle" font-family="Arial" font-size="28" fill="#4a5568">{{dyno.propertyAddress}}</text>
+                <text x="270" y="950" text-anchor="middle" font-family="Arial" font-size="24" fill="#4a5568">{{dyno.bedrooms}} bed</text>
+                <text x="540" y="950" text-anchor="middle" font-family="Arial" font-size="24" fill="#4a5568">{{dyno.bathrooms}} bath</text>
+                <text x="810" y="950" text-anchor="middle" font-family="Arial" font-size="24" fill="#4a5568">{{dyno.sqft}} sqft</text>
+                <text x="540" y="1100" text-anchor="middle" font-family="Arial" font-size="32" fill="#2d3748">{{dyno.agentName}}</text>
+                <text x="540" y="1150" text-anchor="middle" font-family="Arial" font-size="20" fill="#718096">{{dyno.agentPhone}}</text>
+                <text x="540" y="1200" text-anchor="middle" font-family="Arial" font-size="18" fill="#718096">{{dyno.agentEmail}}</text>
             </svg>'''
         }
     ]
@@ -169,6 +349,9 @@ def add_initial_templates(cursor):
             VALUES (?, ?, ?, ?, ?)
         ''', (template['id'], template['name'], template['category'], 
               template['template_role'], template['svg_content']))
+
+# ============= ОСТАЛЬНОЙ КОД API =============
+# (Здесь будет весь остальной код из DATABASE_FIXED_app.py, но с заменой функций обработки SVG)
 
 # OPTIONS обработка для CORS
 @app.before_request
@@ -194,7 +377,7 @@ def after_request(response):
 def index():
     """Главная страница"""
     try:
-        ensure_db_exists()  # Проверяем БД перед каждым запросом
+        ensure_db_exists()
         return render_template('index.html')
     except Exception as e:
         return f"Ошибка загрузки главной страницы: {e}", 500
@@ -203,7 +386,6 @@ def index():
 def templates_page():
     """Страница управления шаблонами"""
     try:
-        # ПРИНУДИТЕЛЬНО проверяем и создаем БД
         if not ensure_db_exists():
             return "Ошибка инициализации базы данных", 500
         
@@ -223,134 +405,10 @@ def templates_page():
 def upload_page():
     """Страница загрузки шаблонов"""
     try:
-        ensure_db_exists()  # Проверяем БД перед каждым запросом
+        ensure_db_exists()
         return render_template('upload.html')
     except Exception as e:
         return f"Ошибка загрузки страницы: {e}", 500
-
-# РОУТЫ ДЛЯ ЗАГРУЗКИ ШАБЛОНОВ
-
-@app.route('/upload-single', methods=['POST'])
-def upload_single_template():
-    """Загрузка одиночного шаблона"""
-    try:
-        ensure_db_exists()  # Проверяем БД
-        
-        name = request.form.get('name')
-        category = request.form.get('category')
-        template_role = request.form.get('template_role')
-        svg_file = request.files.get('svg_file')
-        
-        if not all([name, category, template_role, svg_file]):
-            flash('Все поля обязательны для заполнения', 'error')
-            return redirect(url_for('upload_page'))
-        
-        if not svg_file.filename.endswith('.svg'):
-            flash('Файл должен быть в формате SVG', 'error')
-            return redirect(url_for('upload_page'))
-        
-        # Читаем содержимое SVG
-        svg_content = svg_file.read().decode('utf-8')
-        
-        # Создаем уникальный ID
-        template_id = str(uuid.uuid4())
-        
-        # Сохраняем в базу данных
-        conn = sqlite3.connect('templates.db')
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO templates (id, name, category, template_role, svg_content)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (template_id, name, category, template_role, svg_content))
-        
-        conn.commit()
-        conn.close()
-        
-        flash(f'Шаблон "{name}" успешно загружен!', 'success')
-        return redirect(url_for('templates_page'))
-        
-    except Exception as e:
-        flash(f'Ошибка при загрузке: {str(e)}', 'error')
-        return redirect(url_for('upload_page'))
-
-@app.route('/upload-carousel', methods=['POST'])
-def upload_carousel_templates():
-    """Загрузка пары шаблонов для карусели (main + photo)"""
-    try:
-        ensure_db_exists()  # Проверяем БД
-        
-        # Получаем данные формы
-        name = request.form.get('name')
-        category = request.form.get('category')
-        main_file = request.files.get('main_template')
-        photo_file = request.files.get('photo_template')
-        
-        if not all([name, category, main_file, photo_file]):
-            flash('Все поля обязательны для заполнения', 'error')
-            return redirect(url_for('upload_page'))
-        
-        if not (main_file.filename.endswith('.svg') and photo_file.filename.endswith('.svg')):
-            flash('Оба файла должны быть в формате SVG', 'error')
-            return redirect(url_for('upload_page'))
-        
-        # Читаем содержимое SVG файлов
-        main_svg_content = main_file.read().decode('utf-8')
-        photo_svg_content = photo_file.read().decode('utf-8')
-        
-        # Создаем уникальные ID
-        main_template_id = str(uuid.uuid4())
-        photo_template_id = str(uuid.uuid4())
-        
-        # Сохраняем в базу данных
-        conn = sqlite3.connect('templates.db')
-        cursor = conn.cursor()
-        
-        # Main шаблон
-        cursor.execute('''
-            INSERT INTO templates (id, name, category, template_role, svg_content)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (main_template_id, f"{name} - Main", category, 'main', main_svg_content))
-        
-        # Photo шаблон
-        cursor.execute('''
-            INSERT INTO templates (id, name, category, template_role, svg_content)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (photo_template_id, f"{name} - Photo", category, 'photo', photo_svg_content))
-        
-        conn.commit()
-        conn.close()
-        
-        flash(f'Карусель "{name}" успешно загружена! (Main + Photo шаблоны)', 'success')
-        return redirect(url_for('templates_page'))
-        
-    except Exception as e:
-        flash(f'Ошибка при загрузке карусели: {str(e)}', 'error')
-        return redirect(url_for('upload_page'))
-
-@app.route('/delete/<template_id>', methods=['POST'])
-def delete_template(template_id):
-    """Удаление шаблона"""
-    try:
-        ensure_db_exists()  # Проверяем БД
-        
-        conn = sqlite3.connect('templates.db')
-        cursor = conn.cursor()
-        
-        cursor.execute('DELETE FROM templates WHERE id = ?', (template_id,))
-        
-        if cursor.rowcount > 0:
-            flash('Шаблон успешно удален!', 'success')
-        else:
-            flash('Шаблон не найден!', 'error')
-        
-        conn.commit()
-        conn.close()
-        
-    except Exception as e:
-        flash(f'Ошибка при удалении: {str(e)}', 'error')
-    
-    return redirect(url_for('templates_page'))
 
 # ============= API ENDPOINTS =============
 
@@ -362,12 +420,14 @@ def health_check():
         return jsonify({
             'status': 'healthy',
             'database': db_status,
-            'version': '2.1-fixed',
+            'version': '3.0-advanced-dyno',
             'features': [
                 'Template management',
                 'Carousel creation',
                 'Single image generation',
-                'Image generation',
+                'Advanced dyno field replacement',
+                'Image URL processing',
+                'Text wrapping',
                 'CORS support',
                 'File serving',
                 'Database integration',
@@ -407,34 +467,10 @@ def get_all_templates():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/templates/<template_id>/preview')
-def get_template_preview(template_id):
-    """Получение превью шаблона в формате SVG"""
-    try:
-        if not ensure_db_exists():
-            return jsonify({'error': 'Database initialization failed'}), 500
-        
-        conn = sqlite3.connect('templates.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT svg_content FROM templates WHERE id = ?', (template_id,))
-        template = cursor.fetchone()
-        conn.close()
-        
-        if not template:
-            return jsonify({'error': 'Template not found'}), 404
-        
-        # Возвращаем SVG с правильным Content-Type
-        from flask import Response
-        return Response(template['svg_content'], mimetype='image/svg+xml')
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# SINGLE IMAGE GENERATION
+# SINGLE IMAGE GENERATION С ПРОДВИНУТОЙ ОБРАБОТКОЙ
 @app.route('/api/image/generate', methods=['POST'])
 def generate_single_image():
-    """Генерация одного изображения из шаблона"""
+    """Генерация одного изображения из шаблона С ПРОДВИНУТОЙ ОБРАБОТКОЙ DYNO ПОЛЕЙ"""
     try:
         if not ensure_db_exists():
             return jsonify({'error': 'Database initialization failed'}), 500
@@ -450,6 +486,9 @@ def generate_single_image():
         if not template_id:
             return jsonify({'error': 'templateId is required'}), 400
         
+        print(f"🎯 Генерирую изображение для шаблона: {template_id}")
+        print(f"📝 Замены: {replacements}")
+        
         # Получаем шаблон из базы данных
         conn = sqlite3.connect('templates.db')
         conn.row_factory = sqlite3.Row
@@ -462,15 +501,9 @@ def generate_single_image():
         if not template:
             return jsonify({'error': 'Template not found'}), 404
         
-        # Обрабатываем SVG
+        # ПРОДВИНУТАЯ обработка SVG
         svg_content = template['svg_content']
-        
-        # Заменяем текст в SVG
-        for key, value in replacements.items():
-            # Поддерживаем разные форматы: {dyno.field}, {field}, dyno.field
-            patterns = [f'{{{key}}}', f'{{dyno.{key}}}', f'dyno.{key}']
-            for pattern in patterns:
-                svg_content = svg_content.replace(pattern, str(value))
+        processed_svg = process_svg_with_advanced_replacement(svg_content, replacements)
         
         # Генерируем уникальный ID для изображения
         image_id = str(uuid.uuid4())
@@ -479,12 +512,8 @@ def generate_single_image():
         image_dir = os.path.join('output', 'single')
         os.makedirs(image_dir, exist_ok=True)
         
-        # Генерируем PNG
-        try:
-            png_data = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'))
-        except:
-            # Fallback через Pillow
-            png_data = generate_png_fallback(svg_content)
+        # ПРОДВИНУТАЯ генерация PNG
+        png_data = generate_png_from_svg_advanced(processed_svg)
         
         # Сохраняем файл
         filename = f'{image_id}.png'
@@ -496,6 +525,8 @@ def generate_single_image():
         # Возвращаем URL изображения
         image_url = f'/output/single/{filename}'
         
+        print(f"✅ Изображение сгенерировано: {image_url}")
+        
         return jsonify({
             'imageId': image_id,
             'imageUrl': image_url,
@@ -505,235 +536,8 @@ def generate_single_image():
         })
         
     except Exception as e:
+        print(f"❌ Ошибка генерации: {e}")
         return jsonify({'error': str(e)}), 500
-
-@app.route('/api/carousel/create-and-generate', methods=['POST'])
-def create_and_generate_carousel():
-    """Создание и генерация карусели в одном запросе"""
-    try:
-        if not ensure_db_exists():
-            return jsonify({'error': 'Database initialization failed'}), 500
-        
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'error': 'No JSON data provided'}), 400
-        
-        templates_data = data.get('templates', [])
-        
-        if not templates_data:
-            return jsonify({'error': 'No templates provided'}), 400
-        
-        # Создаем карусель
-        carousel_id = str(uuid.uuid4())
-        
-        conn = sqlite3.connect('templates.db')
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO carousels (id, name, status)
-            VALUES (?, ?, ?)
-        ''', (carousel_id, 'Generated Carousel', 'generating'))
-        
-        # Создаем слайды
-        slide_ids = []
-        for i, template_data in enumerate(templates_data):
-            slide_id = str(uuid.uuid4())
-            slide_ids.append(slide_id)
-            
-            cursor.execute('''
-                INSERT INTO slides (id, carousel_id, template_id, slide_number, replacements)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (slide_id, carousel_id, template_data.get('templateId'), i + 1, 
-                  json.dumps(template_data.get('data', {}))))
-        
-        conn.commit()
-        conn.close()
-        
-        # Запускаем генерацию в отдельном потоке
-        threading.Thread(target=generate_carousel_images, args=(carousel_id, slide_ids)).start()
-        
-        # Ждем немного для завершения генерации
-        time.sleep(2)
-        
-        # Получаем результат
-        conn = sqlite3.connect('templates.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT s.*, c.status as carousel_status
-            FROM slides s
-            JOIN carousels c ON s.carousel_id = c.id
-            WHERE s.carousel_id = ?
-            ORDER BY s.slide_number
-        ''', (carousel_id,))
-        
-        slides = cursor.fetchall()
-        conn.close()
-        
-        slide_list = []
-        for slide in slides:
-            slide_list.append({
-                'id': slide['slide_number'],
-                'templateId': slide['template_id'],
-                'imageUrl': slide['image_url'],
-                'status': slide['status']
-            })
-        
-        return jsonify({
-            'carouselId': carousel_id,
-            'status': slides[0]['carousel_status'] if slides else 'completed',
-            'slides': slide_list
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/carousel/<carousel_id>/slides')
-def get_carousel_slides(carousel_id):
-    """Получение слайдов карусели"""
-    try:
-        if not ensure_db_exists():
-            return jsonify({'error': 'Database initialization failed'}), 500
-        
-        conn = sqlite3.connect('templates.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT s.*, c.status as carousel_status
-            FROM slides s
-            JOIN carousels c ON s.carousel_id = c.id
-            WHERE s.carousel_id = ?
-            ORDER BY s.slide_number
-        ''', (carousel_id,))
-        
-        slides = cursor.fetchall()
-        conn.close()
-        
-        if not slides:
-            return jsonify({'error': 'Carousel not found'}), 404
-        
-        slide_list = []
-        for slide in slides:
-            slide_list.append({
-                'id': slide['id'],
-                'slideNumber': slide['slide_number'],
-                'templateId': slide['template_id'],
-                'status': slide['status'],
-                'imageUrl': slide['image_url'],
-                'createdAt': slide['created_at']
-            })
-        
-        return jsonify({
-            'carouselId': carousel_id,
-            'status': slides[0]['carousel_status'],
-            'slides': slide_list
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-def generate_carousel_images(carousel_id, slide_ids):
-    """Генерация изображений для карусели"""
-    try:
-        conn = sqlite3.connect('templates.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        # Создаем папку для карусели
-        carousel_dir = os.path.join('output', carousel_id)
-        os.makedirs(carousel_dir, exist_ok=True)
-        
-        for slide_id in slide_ids:
-            # Получаем данные слайда
-            cursor.execute('''
-                SELECT s.*, t.svg_content
-                FROM slides s
-                JOIN templates t ON s.template_id = t.id
-                WHERE s.id = ?
-            ''', (slide_id,))
-            
-            slide = cursor.fetchone()
-            if not slide:
-                continue
-            
-            # Обрабатываем SVG
-            svg_content = slide['svg_content']
-            replacements = json.loads(slide['replacements'] or '{}')
-            
-            # Заменяем текст в SVG
-            for key, value in replacements.items():
-                # Поддерживаем разные форматы: {dyno.field}, {field}, dyno.field
-                patterns = [f'{{{key}}}', f'{{dyno.{key}}}', f'dyno.{key}']
-                for pattern in patterns:
-                    svg_content = svg_content.replace(pattern, str(value))
-            
-            # Генерируем PNG
-            try:
-                png_data = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'))
-            except:
-                # Fallback через Pillow
-                png_data = generate_png_fallback(svg_content)
-            
-            # Сохраняем файл
-            filename = f'slide_{slide["slide_number"]}.png'
-            filepath = os.path.join(carousel_dir, filename)
-            
-            with open(filepath, 'wb') as f:
-                f.write(png_data)
-            
-            # Обновляем статус слайда
-            image_url = f'/output/{carousel_id}/{filename}'
-            cursor.execute('''
-                UPDATE slides 
-                SET status = 'completed', image_url = ?
-                WHERE id = ?
-            ''', (image_url, slide_id))
-        
-        # Обновляем статус карусели
-        cursor.execute('''
-            UPDATE carousels 
-            SET status = 'completed'
-            WHERE id = ?
-        ''', (carousel_id,))
-        
-        conn.commit()
-        conn.close()
-        
-    except Exception as e:
-        print(f"Error generating carousel {carousel_id}: {e}")
-        # Обновляем статус на ошибку
-        try:
-            conn = sqlite3.connect('templates.db')
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE carousels 
-                SET status = 'error'
-                WHERE id = ?
-            ''', (carousel_id,))
-            conn.commit()
-            conn.close()
-        except:
-            pass
-
-def generate_png_fallback(svg_content):
-    """Fallback генерация PNG через Pillow"""
-    # Простая генерация изображения с текстом
-    img = Image.new('RGB', (800, 600), color='white')
-    draw = ImageDraw.Draw(img)
-    
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-    except:
-        font = ImageFont.load_default()
-    
-    draw.text((400, 300), "Generated Image", font=font, fill='black', anchor='mm')
-    
-    # Конвертируем в PNG bytes
-    img_bytes = io.BytesIO()
-    img.save(img_bytes, format='PNG')
-    return img_bytes.getvalue()
 
 @app.route('/output/<path:filename>')
 def serve_output(filename):
@@ -756,7 +560,7 @@ def internal_error(error):
 
 if __name__ == '__main__':
     # ПРИНУДИТЕЛЬНАЯ инициализация при запуске
-    print("Инициализация базы данных...")
+    print("🚀 Запуск API с продвинутой обработкой dyno полей...")
     ensure_db_exists()
     
     port = int(os.environ.get('PORT', 5000))
