@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-RENDER-СОВМЕСТИМАЯ ВЕРСИЯ API
-============================
+RENDER-ГОТОВАЯ ВЕРСИЯ API С GUNICORN
+===================================
 
-Версия без внешних зависимостей для стабильной работы на Render.com
+Полностью готовая версия для деплоя на Render.com
 """
 
 import os
@@ -18,20 +18,6 @@ import requests
 import base64
 import tempfile
 import io
-
-# Попытка импорта CairoSVG с fallback
-try:
-    import cairosvg
-    CAIRO_AVAILABLE = True
-except ImportError:
-    CAIRO_AVAILABLE = False
-
-# Попытка импорта Pillow с fallback
-try:
-    from PIL import Image
-    PILLOW_AVAILABLE = True
-except ImportError:
-    PILLOW_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app, origins="*")
@@ -498,7 +484,7 @@ def generate_single_image():
         output_filename = f"single_{template_id}_{uuid.uuid4().hex[:8]}.svg"
         output_path = os.path.join(OUTPUT_DIR, 'single', output_filename)
         
-        # Сохраняем как SVG (простое решение)
+        # Сохраняем как SVG
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(processed_svg)
         
@@ -610,16 +596,15 @@ def health_check():
         return jsonify({
             'status': 'healthy',
             'database': 'healthy',
-            'version': '4.0-render-compatible',
+            'version': '5.0-gunicorn-ready',
             'template_count': template_count,
-            'cairo_available': CAIRO_AVAILABLE,
-            'pillow_available': PILLOW_AVAILABLE,
             'features': [
                 'Single image generation (SVG)',
                 'Carousel generation (SVG)', 
                 'Simple dyno field replacement',
                 'Template display fixed',
-                'Render.com compatible'
+                'Gunicorn compatible',
+                'Render.com ready'
             ]
         })
         
@@ -634,8 +619,9 @@ def health_check():
 def serve_output_file(filename):
     return send_from_directory(OUTPUT_DIR, filename)
 
+# Инициализация при запуске
 if __name__ == '__main__':
-    print("🚀 Запуск Render-совместимого SVG Template API сервера...")
+    print("🚀 Запуск SVG Template API сервера...")
     print("📊 Инициализация базы данных...")
     ensure_db_exists()
     print("✅ Сервер готов к работе!")
@@ -643,4 +629,12 @@ if __name__ == '__main__':
     # Получаем порт из переменной окружения (для Render)
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
+# Для Gunicorn
+def create_app():
+    """
+    Фабрика приложений для Gunicorn
+    """
+    ensure_db_exists()
+    return app
 
