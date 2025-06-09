@@ -85,13 +85,15 @@ def extract_dyno_fields_simple(svg_content):
         'has_dyno': len(all_fields) > 0
     }
 
-def process_svg_fixed_complete(svg_content, replacements):
+def process_svg_ultimate_fixed(svg_content, replacements):
     """
-    ИСПРАВЛЕННАЯ функция обработки SVG с правильной заменой property image
+    ОКОНЧАТЕЛЬНО ИСПРАВЛЕННАЯ функция обработки SVG:
+    1. Заменяет ВСЕ pattern для property image (pattern0_294_4 И pattern0_332_4)
+    2. ПОЛНОСТЬЮ сохраняет шрифты при замене текста
     """
     processed_svg = svg_content
     
-    print("🔧 Начинаю обработку SVG...")
+    print("🔧 Начинаю ОКОНЧАТЕЛЬНУЮ обработку SVG...")
     
     for field, value in replacements.items():
         if field.startswith('dyno.'):
@@ -106,20 +108,21 @@ def process_svg_fixed_complete(svg_content, replacements):
                 
                 # СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ PROPERTY IMAGE
                 if 'propertyimage' in field.lower():
-                    print("   🎯 Это property image - ищем pattern0_294_4")
+                    print("   🎯 Это property image - заменяю ВСЕ возможные patterns")
                     
-                    # Заменяем pattern0_294_4 напрямую (независимо от rect id)
-                    pattern_replacement = f'''<pattern id="pattern0_294_4" patternContentUnits="objectBoundingBox" width="1" height="1">
+                    # Список всех возможных pattern ID для property image
+                    property_patterns = ['pattern0_294_4', 'pattern0_332_4', 'pattern0_294_5', 'pattern0_332_5']
+                    
+                    for pattern_id in property_patterns:
+                        pattern_replacement = f'''<pattern id="{pattern_id}" patternContentUnits="objectBoundingBox" width="1" height="1">
 <image href="{safe_value}" x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice"/>
 </pattern>'''
-                    
-                    # Ищем и заменяем старый pattern0_294_4
-                    old_pattern_regex = r'<pattern id="pattern0_294_4"[^>]*>.*?</pattern>'
-                    if re.search(old_pattern_regex, processed_svg, flags=re.DOTALL):
-                        processed_svg = re.sub(old_pattern_regex, pattern_replacement, processed_svg, flags=re.DOTALL)
-                        print("   ✅ Property image заменен в pattern0_294_4!")
-                    else:
-                        print("   ⚠️ pattern0_294_4 не найден")
+                        
+                        # Ищем и заменяем этот pattern если он существует
+                        old_pattern_regex = f'<pattern id="{pattern_id}"[^>]*>.*?</pattern>'
+                        if re.search(old_pattern_regex, processed_svg, flags=re.DOTALL):
+                            processed_svg = re.sub(old_pattern_regex, pattern_replacement, processed_svg, flags=re.DOTALL)
+                            print(f"   ✅ Property image заменен в {pattern_id}!")
                 
                 # ОБРАБОТКА ДРУГИХ ИЗОБРАЖЕНИЙ (logo, headshot)
                 else:
@@ -144,33 +147,35 @@ def process_svg_fixed_complete(svg_content, replacements):
                         print(f"   ⚠️ Pattern не найден для {field}")
                 
             else:
-                # ДЛЯ ТЕКСТА - ОСТОРОЖНАЯ замена БЕЗ изменения шрифтов
+                # ДЛЯ ТЕКСТА - МАКСИМАЛЬНО ОСТОРОЖНАЯ замена с ПОЛНЫМ сохранением шрифтов
                 print(f"📝 Обрабатываю текст: {field}")
                 
                 # Ищем text элемент с нужным id
-                text_start = processed_svg.find(f'id="{field}"')
-                if text_start != -1:
-                    # Ищем следующий <tspan> после этого id
-                    tspan_start = processed_svg.find('<tspan', text_start)
-                    if tspan_start != -1:
-                        # Ищем закрывающий >
-                        content_start = processed_svg.find('>', tspan_start) + 1
-                        # Ищем закрывающий </tspan>
-                        content_end = processed_svg.find('</tspan>', content_start)
+                text_pattern = f'<text[^>]*id="{field}"[^>]*>'
+                text_match = re.search(text_pattern, processed_svg)
+                
+                if text_match:
+                    text_element_start = text_match.end()
+                    
+                    # Ищем первый tspan внутри этого text элемента
+                    tspan_pattern = r'<tspan[^>]*>([^<]*)</tspan>'
+                    tspan_match = re.search(tspan_pattern, processed_svg[text_element_start:])
+                    
+                    if tspan_match:
+                        # Вычисляем позицию в полном SVG
+                        tspan_content_start = text_element_start + tspan_match.start(1)
+                        tspan_content_end = text_element_start + tspan_match.end(1)
                         
-                        if content_start > 0 and content_end != -1:
-                            # ОСТОРОЖНО заменяем ТОЛЬКО содержимое, НЕ ТРОГАЯ атрибуты
-                            old_content = processed_svg[content_start:content_end]
-                            processed_svg = processed_svg[:content_start] + safe_value + processed_svg[content_end:]
-                            print(f"   ✅ Заменено: '{old_content}' → '{safe_value}' (шрифты сохранены)")
-                        else:
-                            print(f"   ⚠️ Не найден tspan для {field}")
+                        # Заменяем ТОЛЬКО содержимое tspan, НЕ ТРОГАЯ атрибуты
+                        old_content = processed_svg[tspan_content_start:tspan_content_end]
+                        processed_svg = processed_svg[:tspan_content_start] + safe_value + processed_svg[tspan_content_end:]
+                        print(f"   ✅ Заменено: '{old_content}' → '{safe_value}' (ВСЕ атрибуты сохранены)")
                     else:
-                        print(f"   ⚠️ Не найден tspan после id {field}")
+                        print(f"   ⚠️ Не найден tspan в text элементе для {field}")
                 else:
-                    print(f"   ⚠️ Не найден элемент с id {field}")
+                    print(f"   ⚠️ Не найден text элемент с id {field}")
     
-    print("✅ Обработка SVG завершена!")
+    print("✅ ОКОНЧАТЕЛЬНАЯ обработка SVG завершена!")
     return processed_svg
 
 def ensure_db_exists():
@@ -513,7 +518,7 @@ def generate_single_image():
         template_name, svg_content = result
         
         # Обрабатываем SVG с ИСПРАВЛЕННОЙ функцией
-        processed_svg = process_svg_fixed_complete(svg_content, replacements)
+        processed_svg = process_svg_ultimate_fixed(svg_content, replacements)
         
         # Сохраняем результат
         output_filename = f'single_{template_id}_{uuid.uuid4().hex[:8]}.svg'
@@ -573,10 +578,10 @@ def create_and_generate_carousel():
         
         # Обрабатываем шаблоны с ИСПРАВЛЕННОЙ функцией
         print("🔧 Обрабатываю main template...")
-        processed_main = process_svg_fixed_complete(main_svg, replacements)
+        pro        processed_main = process_svg_ultimate_fixed(main_svg, replacements)
         
-        print("🔧 Обрабатываю photo template...")
-        processed_photo = process_svg_fixed_complete(photo_svg, replacements)
+        # Обрабатываем photo template
+        processed_photo = process_svg_ultimate_fixed(photo_svg, replacements)
         
         # Сохраняем результаты
         main_filename = f'carousel_{carousel_id}_main.svg'
