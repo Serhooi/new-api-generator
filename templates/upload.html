@@ -348,7 +348,7 @@
                     <div class="upload-icon">📁</div>
                     <div class="upload-title">Выберите SVG файл</div>
                     <div class="upload-description">Перетащите файл сюда или нажмите для выбора</div>
-                    <button type="button" class="upload-btn">Выбрать файл</button>
+                    <button type="button" class="upload-btn" onclick="document.getElementById('single-file').click()">Выбрать файл</button>
                     <input type="file" id="single-file" name="svg_file" class="file-input" accept=".svg" required>
                     <div id="single-preview" class="file-preview">
                         <div class="file-name"></div>
@@ -390,7 +390,7 @@
                             <div class="upload-icon">🎯</div>
                             <div class="upload-title">Main Template</div>
                             <div class="upload-description">Основной шаблон для первого слайда карусели</div>
-                            <button type="button" class="upload-btn">Выбрать Main</button>
+                            <button type="button" class="upload-btn" onclick="document.getElementById('main-template').click()">Выбрать Main</button>
                             <input type="file" id="main-template" name="main_template" class="file-input" accept=".svg" required>
                             <div id="main-preview" class="file-preview">
                                 <div class="file-name"></div>
@@ -402,7 +402,7 @@
                             <div class="upload-icon">📸</div>
                             <div class="upload-title">Photo Template</div>
                             <div class="upload-description">Шаблон для последующих слайдов с фотографиями</div>
-                            <button type="button" class="upload-btn">Выбрать Photo</button>
+                            <button type="button" class="upload-btn" onclick="document.getElementById('photo-template').click()">Выбрать Photo</button>
                             <input type="file" id="photo-template" name="photo_template" class="file-input" accept=".svg" required>
                             <div id="photo-preview" class="file-preview">
                                 <div class="file-name"></div>
