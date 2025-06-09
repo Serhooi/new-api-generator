@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-RENDER-ГОТОВАЯ ВЕРСИЯ API С GUNICORN
-===================================
+ИСПРАВЛЕННАЯ ВЕРСИЯ API С ПРАВИЛЬНОЙ ОБРАБОТКОЙ ИЗОБРАЖЕНИЙ
+==========================================================
 
-Полностью готовая версия для деплоя на Render.com
+Версия 6.0 - Исправлена замена изображений и сохранение шрифтов
 """
 
 import os
@@ -85,36 +85,62 @@ def extract_dyno_fields_simple(svg_content):
         'has_dyno': len(all_fields) > 0
     }
 
-def process_svg_simple(svg_content, replacements):
+def process_svg_advanced(svg_content, replacements):
     """
-    Простая обработка SVG с заменой dyno полей
+    ИСПРАВЛЕННАЯ функция обработки SVG с правильной заменой изображений и сохранением шрифтов
     """
     processed_svg = svg_content
     
     for field, value in replacements.items():
-        # Заменяем в id атрибутах
         if field.startswith('dyno.'):
-            # Ищем элементы с этим id
-            id_pattern = f'id="{field}"'
-            if id_pattern in processed_svg:
-                # Определяем тип поля
-                if any(img_keyword in field.lower() for img_keyword in ['image', 'photo', 'picture', 'logo', 'headshot']):
-                    # Это изображение - заменяем href
-                    href_pattern = f'(<[^>]*id="{field}"[^>]*href=")[^"]*(")'
-                    processed_svg = re.sub(href_pattern, f'\\1{value}\\2', processed_svg)
-                else:
-                    # Это текст - заменяем содержимое
-                    text_pattern = f'(<[^>]*id="{field}"[^>]*>)[^<]*(</[^>]*>)'
-                    processed_svg = re.sub(text_pattern, f'\\1{value}\\2', processed_svg)
-        
-        # Заменяем текстовые вхождения
-        text_patterns = [
-            f'{{{{{field}}}}}',  # {{dyno.field}}
-            f'{{{field}}}',      # {dyno.field}
-        ]
-        
-        for pattern in text_patterns:
-            processed_svg = processed_svg.replace(pattern, str(value))
+            # Безопасное экранирование значения
+            safe_value = str(value).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            
+            # Определяем тип поля
+            is_image = any(img_keyword in field.lower() for img_keyword in ['image', 'photo', 'picture', 'logo', 'headshot'])
+            
+            if is_image:
+                # ДЛЯ ИЗОБРАЖЕНИЙ - заменяем в pattern definitions
+                print(f"🖼️ Обрабатываю изображение: {field}")
+                
+                # Ищем rect с этим id и получаем pattern id
+                rect_pattern = f'<rect[^>]*id="{field}"[^>]*fill="url\\(#([^)]+)\\)"'
+                rect_match = re.search(rect_pattern, processed_svg)
+                
+                if rect_match:
+                    pattern_id = rect_match.group(1)
+                    print(f"   Найден pattern: {pattern_id}")
+                    
+                    # Заменяем pattern definition на простое изображение
+                    pattern_replacement = f'''<pattern id="{pattern_id}" patternContentUnits="objectBoundingBox" width="1" height="1">
+<image href="{safe_value}" width="1" height="1" preserveAspectRatio="xMidYMid slice"/>
+</pattern>'''
+                    
+                    # Ищем и заменяем старый pattern
+                    old_pattern = f'<pattern id="{pattern_id}"[^>]*>.*?</pattern>'
+                    processed_svg = re.sub(old_pattern, pattern_replacement, processed_svg, flags=re.DOTALL)
+                    print(f"   ✅ Заменен pattern {pattern_id}")
+                
+            else:
+                # ДЛЯ ТЕКСТА - простая замена содержимого
+                print(f"📝 Обрабатываю текст: {field}")
+                
+                # Ищем text элемент с нужным id
+                text_start = processed_svg.find(f'id="{field}"')
+                if text_start != -1:
+                    # Ищем следующий <tspan> после этого id
+                    tspan_start = processed_svg.find('<tspan', text_start)
+                    if tspan_start != -1:
+                        # Ищем закрывающий >
+                        content_start = processed_svg.find('>', tspan_start) + 1
+                        # Ищем закрывающий </tspan>
+                        content_end = processed_svg.find('</tspan>', content_start)
+                        
+                        if content_start > 0 and content_end != -1:
+                            # Заменяем содержимое
+                            old_content = processed_svg[content_start:content_end]
+                            processed_svg = processed_svg[:content_start] + safe_value + processed_svg[content_end:]
+                            print(f"   ✅ Заменено: '{old_content}' → '{safe_value}'")
     
     return processed_svg
 
@@ -477,8 +503,8 @@ def generate_single_image():
         svg_content, template_name = result
         conn.close()
         
-        # Обрабатываем SVG с заменами
-        processed_svg = process_svg_simple(svg_content, replacements)
+        # Обрабатываем SVG с заменами (ИСПРАВЛЕННАЯ ФУНКЦИЯ)
+        processed_svg = process_svg_advanced(svg_content, replacements)
         
         # Генерируем файл
         output_filename = f"single_{template_id}_{uuid.uuid4().hex[:8]}.svg"
@@ -533,9 +559,9 @@ def create_and_generate_carousel():
         photo_svg_content, photo_name = photo_result
         conn.close()
         
-        # Обрабатываем SVG с заменами
-        processed_main_svg = process_svg_simple(main_svg_content, replacements)
-        processed_photo_svg = process_svg_simple(photo_svg_content, replacements)
+        # Обрабатываем SVG с заменами (ИСПРАВЛЕННАЯ ФУНКЦИЯ)
+        processed_main_svg = process_svg_advanced(main_svg_content, replacements)
+        processed_photo_svg = process_svg_advanced(photo_svg_content, replacements)
         
         # Генерируем файлы
         carousel_id = str(uuid.uuid4())
@@ -596,13 +622,14 @@ def health_check():
         return jsonify({
             'status': 'healthy',
             'database': 'healthy',
-            'version': '5.0-gunicorn-ready',
+            'version': '6.0-images-fixed',
             'template_count': template_count,
             'features': [
                 'Single image generation (SVG)',
                 'Carousel generation (SVG)', 
-                'Simple dyno field replacement',
-                'Template display fixed',
+                'FIXED: Image replacement in patterns',
+                'FIXED: Font preservation',
+                'Template display working',
                 'Gunicorn compatible',
                 'Render.com ready'
             ]
@@ -621,7 +648,7 @@ def serve_output_file(filename):
 
 # Инициализация при запуске
 if __name__ == '__main__':
-    print("🚀 Запуск SVG Template API сервера...")
+    print("🚀 Запуск ИСПРАВЛЕННОГО SVG Template API сервера...")
     print("📊 Инициализация базы данных...")
     ensure_db_exists()
     print("✅ Сервер готов к работе!")
