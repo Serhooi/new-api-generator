@@ -317,7 +317,7 @@
             <div id="error-message" class="error-message"></div>
 
             <!-- Одиночный шаблон -->
-            <form id="single-upload-form" method="POST" action="/upload" enctype="multipart/form-data">
+            <form id="single-upload-form" method="POST" action="/upload-single" enctype="multipart/form-data">
                 <div class="form-group">
                     <label class="form-label">Название шаблона</label>
                     <input type="text" name="name" class="form-input" placeholder="Например: Modern Open House" required>
@@ -370,12 +370,12 @@
                 <form id="carousel-upload-form" method="POST" action="/upload-carousel" enctype="multipart/form-data">
                     <div class="form-group">
                         <label class="form-label">Название набора шаблонов</label>
-                        <input type="text" name="carousel_name" class="form-input" placeholder="Например: Modern Real Estate Set" required>
+                        <input type="text" name="name" class="form-input" placeholder="Например: Modern Real Estate Set" required>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Категория</label>
-                        <select name="carousel_category" class="form-select" required>
+                        <select name="category" class="form-select" required>
                             <option value="">Выберите категорию</option>
                             <option value="open-house">Open House</option>
                             <option value="sold">Sold</option>

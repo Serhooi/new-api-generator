@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-ЕДИНОЕ ПРИЛОЖЕНИЕ: API + ВЕБ-ИНТЕРФЕЙС
+ЕДИНОЕ ПРИЛОЖЕНИЕ: API + ВЕБ-ИНТЕРФЕЙС (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 Объединяет API для AgentFlow и веб-интерфейс для управления шаблонами
++ Добавлен single image endpoint
++ Исправлены роуты для загрузки шаблонов
 """
 
 import os
@@ -198,9 +200,11 @@ def upload_page():
     """Страница загрузки шаблонов"""
     return render_template('upload.html')
 
-@app.route('/upload', methods=['POST'])
-def upload_template():
-    """Загрузка нового шаблона"""
+# ИСПРАВЛЕННЫЕ РОУТЫ ДЛЯ ЗАГРУЗКИ ШАБЛОНОВ
+
+@app.route('/upload-single', methods=['POST'])
+def upload_single_template():
+    """Загрузка одиночного шаблона"""
     try:
         name = request.form.get('name')
         category = request.form.get('category')
@@ -240,6 +244,58 @@ def upload_template():
         flash(f'Ошибка при загрузке: {str(e)}', 'error')
         return redirect(url_for('upload_page'))
 
+@app.route('/upload-carousel', methods=['POST'])
+def upload_carousel_templates():
+    """Загрузка пары шаблонов для карусели (main + photo)"""
+    try:
+        # Получаем данные формы
+        name = request.form.get('name')
+        category = request.form.get('category')
+        main_file = request.files.get('main_template')
+        photo_file = request.files.get('photo_template')
+        
+        if not all([name, category, main_file, photo_file]):
+            flash('Все поля обязательны для заполнения', 'error')
+            return redirect(url_for('upload_page'))
+        
+        if not (main_file.filename.endswith('.svg') and photo_file.filename.endswith('.svg')):
+            flash('Оба файла должны быть в формате SVG', 'error')
+            return redirect(url_for('upload_page'))
+        
+        # Читаем содержимое SVG файлов
+        main_svg_content = main_file.read().decode('utf-8')
+        photo_svg_content = photo_file.read().decode('utf-8')
+        
+        # Создаем уникальные ID
+        main_template_id = str(uuid.uuid4())
+        photo_template_id = str(uuid.uuid4())
+        
+        # Сохраняем в базу данных
+        conn = sqlite3.connect('templates.db')
+        cursor = conn.cursor()
+        
+        # Main шаблон
+        cursor.execute('''
+            INSERT INTO templates (id, name, category, template_role, svg_content)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (main_template_id, f"{name} - Main", category, 'main', main_svg_content))
+        
+        # Photo шаблон
+        cursor.execute('''
+            INSERT INTO templates (id, name, category, template_role, svg_content)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (photo_template_id, f"{name} - Photo", category, 'photo', photo_svg_content))
+        
+        conn.commit()
+        conn.close()
+        
+        flash(f'Карусель "{name}" успешно загружена! (Main + Photo шаблоны)', 'success')
+        return redirect(url_for('templates_page'))
+        
+    except Exception as e:
+        flash(f'Ошибка при загрузке карусели: {str(e)}', 'error')
+        return redirect(url_for('upload_page'))
+
 @app.route('/delete/<template_id>', methods=['POST'])
 def delete_template(template_id):
     """Удаление шаблона"""
@@ -248,10 +304,15 @@ def delete_template(template_id):
         cursor = conn.cursor()
         
         cursor.execute('DELETE FROM templates WHERE id = ?', (template_id,))
+        
+        if cursor.rowcount > 0:
+            flash('Шаблон успешно удален!', 'success')
+        else:
+            flash('Шаблон не найден!', 'error')
+        
         conn.commit()
         conn.close()
         
-        flash('Шаблон успешно удален!', 'success')
     except Exception as e:
         flash(f'Ошибка при удалении: {str(e)}', 'error')
     
@@ -259,31 +320,30 @@ def delete_template(template_id):
 
 # ============= API ENDPOINTS =============
 
-@app.route('/health')
-def health():
-    """Проверка статуса API"""
+@app.route('/api/health')
+def health_check():
+    """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'message': 'SVG Template API Server is running',
         'features': [
-            'Template Management',
-            'Carousel Generation', 
-            'Image Processing',
-            'Web Interface',
-            'CORS Support',
-            'Database Storage'
-        ],
-        'timestamp': datetime.now().isoformat()
+            'Template management',
+            'Carousel creation',
+            'Single image generation',  # НОВАЯ ФУНКЦИЯ
+            'Image generation',
+            'CORS support',
+            'File serving',
+            'Database integration'
+        ]
     })
 
 @app.route('/api/templates/all-previews')
 def get_all_templates():
-    """Получение всех шаблонов"""
+    """Получение всех шаблонов с превью"""
     conn = sqlite3.connect('templates.db')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    cursor.execute('SELECT id, name, category, template_role, created_at FROM templates')
+    cursor.execute('SELECT * FROM templates ORDER BY category, template_role, name')
     templates = cursor.fetchall()
     conn.close()
     
@@ -293,16 +353,16 @@ def get_all_templates():
             'id': template['id'],
             'name': template['name'],
             'category': template['category'],
-            'template_role': template['template_role'],
-            'preview_url': f'/api/templates/{template["id"]}/preview',
-            'created_at': template['created_at']
+            'templateRole': template['template_role'],
+            'previewUrl': f'/api/templates/{template["id"]}/preview',
+            'createdAt': template['created_at']
         })
     
-    return jsonify({'templates': template_list})
+    return jsonify(template_list)
 
 @app.route('/api/templates/<template_id>/preview')
 def get_template_preview(template_id):
-    """Получение превью шаблона"""
+    """Получение превью шаблона в формате SVG"""
     conn = sqlite3.connect('templates.db')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -314,47 +374,129 @@ def get_template_preview(template_id):
     if not template:
         return jsonify({'error': 'Template not found'}), 404
     
-    # Возвращаем SVG как изображение
-    response = app.response_class(
-        template['svg_content'],
-        mimetype='image/svg+xml'
-    )
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    return response
+    # Возвращаем SVG с правильным Content-Type
+    from flask import Response
+    return Response(template['svg_content'], mimetype='image/svg+xml')
+
+# НОВЫЙ ENDPOINT: SINGLE IMAGE GENERATION
+@app.route('/api/image/generate', methods=['POST'])
+def generate_single_image():
+    """Генерация одного изображения из шаблона"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        template_id = data.get('templateId')
+        replacements = data.get('data', {})
+        
+        if not template_id:
+            return jsonify({'error': 'templateId is required'}), 400
+        
+        # Получаем шаблон из базы данных
+        conn = sqlite3.connect('templates.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM templates WHERE id = ?', (template_id,))
+        template = cursor.fetchone()
+        conn.close()
+        
+        if not template:
+            return jsonify({'error': 'Template not found'}), 404
+        
+        # Обрабатываем SVG
+        svg_content = template['svg_content']
+        
+        # Заменяем текст в SVG
+        for key, value in replacements.items():
+            # Поддерживаем разные форматы: {dyno.field}, {field}, dyno.field
+            patterns = [f'{{{key}}}', f'{{dyno.{key}}}', f'dyno.{key}']
+            for pattern in patterns:
+                svg_content = svg_content.replace(pattern, str(value))
+        
+        # Генерируем уникальный ID для изображения
+        image_id = str(uuid.uuid4())
+        
+        # Создаем папку для изображения
+        image_dir = os.path.join('output', 'single')
+        os.makedirs(image_dir, exist_ok=True)
+        
+        # Генерируем PNG
+        try:
+            png_data = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'))
+        except:
+            # Fallback через Pillow
+            png_data = generate_png_fallback(svg_content)
+        
+        # Сохраняем файл
+        filename = f'{image_id}.png'
+        filepath = os.path.join(image_dir, filename)
+        
+        with open(filepath, 'wb') as f:
+            f.write(png_data)
+        
+        # Возвращаем URL изображения
+        image_url = f'/output/single/{filename}'
+        
+        return jsonify({
+            'imageId': image_id,
+            'imageUrl': image_url,
+            'templateId': template_id,
+            'status': 'completed',
+            'createdAt': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/carousel', methods=['POST'])
 def create_carousel():
-    """Создание карусели"""
+    """Создание новой карусели"""
     try:
         data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        name = data.get('name', 'Untitled Carousel')
+        slides_data = data.get('slides', [])
+        
+        if not slides_data:
+            return jsonify({'error': 'No slides provided'}), 400
+        
+        # Создаем карусель
         carousel_id = str(uuid.uuid4())
         
         conn = sqlite3.connect('templates.db')
         cursor = conn.cursor()
         
-        # Создаем карусель
         cursor.execute('''
             INSERT INTO carousels (id, name, status)
             VALUES (?, ?, ?)
-        ''', (carousel_id, data.get('name', 'Untitled Carousel'), 'pending'))
+        ''', (carousel_id, name, 'pending'))
         
         # Создаем слайды
-        for i, slide_data in enumerate(data.get('slides', [])):
+        slide_ids = []
+        for i, slide_data in enumerate(slides_data):
             slide_id = str(uuid.uuid4())
+            slide_ids.append(slide_id)
+            
             cursor.execute('''
-                INSERT INTO slides (id, carousel_id, template_id, slide_number, replacements, image_path, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (slide_id, carousel_id, slide_data.get('templateId'), i + 1,
-                  json.dumps(slide_data.get('replacements', {})),
-                  slide_data.get('imagePath'), 'pending'))
+                INSERT INTO slides (id, carousel_id, template_id, slide_number, replacements, image_path)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (slide_id, carousel_id, slide_data.get('templateId'), i + 1, 
+                  json.dumps(slide_data.get('replacements', {})), 
+                  slide_data.get('imagePath')))
         
         conn.commit()
         conn.close()
         
         return jsonify({
             'carouselId': carousel_id,
-            'status': 'created',
-            'message': 'Carousel created successfully'
+            'status': 'pending',
+            'slideIds': slide_ids
         })
         
     except Exception as e:
@@ -362,31 +504,40 @@ def create_carousel():
 
 @app.route('/api/carousel/create-and-generate', methods=['POST'])
 def create_and_generate_carousel():
-    """Создание и генерация карусели"""
+    """Создание и генерация карусели в одном запросе"""
     try:
         data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        templates_data = data.get('templates', [])
+        
+        if not templates_data:
+            return jsonify({'error': 'No templates provided'}), 400
+        
+        # Создаем карусель
         carousel_id = str(uuid.uuid4())
         
         conn = sqlite3.connect('templates.db')
         cursor = conn.cursor()
         
-        # Создаем карусель
         cursor.execute('''
             INSERT INTO carousels (id, name, status)
             VALUES (?, ?, ?)
-        ''', (carousel_id, data.get('name', 'Untitled Carousel'), 'generating'))
+        ''', (carousel_id, 'Generated Carousel', 'generating'))
         
         # Создаем слайды
         slide_ids = []
-        for i, slide_data in enumerate(data.get('slides', [])):
+        for i, template_data in enumerate(templates_data):
             slide_id = str(uuid.uuid4())
             slide_ids.append(slide_id)
+            
             cursor.execute('''
-                INSERT INTO slides (id, carousel_id, template_id, slide_number, replacements, image_path, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (slide_id, carousel_id, slide_data.get('templateId'), i + 1,
-                  json.dumps(slide_data.get('replacements', {})),
-                  slide_data.get('imagePath'), 'generating'))
+                INSERT INTO slides (id, carousel_id, template_id, slide_number, replacements)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (slide_id, carousel_id, template_data.get('templateId'), i + 1, 
+                  json.dumps(template_data.get('data', {}))))
         
         conn.commit()
         conn.close()
@@ -394,10 +545,38 @@ def create_and_generate_carousel():
         # Запускаем генерацию в отдельном потоке
         threading.Thread(target=generate_carousel_images, args=(carousel_id, slide_ids)).start()
         
+        # Ждем немного для завершения генерации
+        time.sleep(2)
+        
+        # Получаем результат
+        conn = sqlite3.connect('templates.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT s.*, c.status as carousel_status
+            FROM slides s
+            JOIN carousels c ON s.carousel_id = c.id
+            WHERE s.carousel_id = ?
+            ORDER BY s.slide_number
+        ''', (carousel_id,))
+        
+        slides = cursor.fetchall()
+        conn.close()
+        
+        slide_list = []
+        for slide in slides:
+            slide_list.append({
+                'id': slide['slide_number'],
+                'templateId': slide['template_id'],
+                'imageUrl': slide['image_url'],
+                'status': slide['status']
+            })
+        
         return jsonify({
             'carouselId': carousel_id,
-            'status': 'generating',
-            'message': 'Carousel generation started'
+            'status': slides[0]['carousel_status'] if slides else 'completed',
+            'slides': slide_list
         })
         
     except Exception as e:
