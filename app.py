@@ -578,7 +578,7 @@ def create_and_generate_carousel():
         
         # Обрабатываем шаблоны с ИСПРАВЛЕННОЙ функцией
         print("🔧 Обрабатываю main template...")
-        pro        processed_main = process_svg_ultimate_fixed(main_svg, replacements)
+        processed_main = process_svg_ultimate_fixed(main_svg, replacements)
         
         # Обрабатываем photo template
         processed_photo = process_svg_ultimate_fixed(photo_svg, replacements)
