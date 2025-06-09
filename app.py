@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ API
-Исправлены все ошибки Internal Server Error
+ИСПРАВЛЕННАЯ ВЕРСИЯ API С ПРИНУДИТЕЛЬНОЙ ИНИЦИАЛИЗАЦИЕЙ БД
+Решает проблему "no such table: templates" на Render.com
 """
 
 import os
@@ -35,64 +35,72 @@ CORS(app,
 os.makedirs('output', exist_ok=True)
 os.makedirs('uploads', exist_ok=True)
 
-def init_db():
-    """Инициализация базы данных с проверкой ошибок"""
+def ensure_db_exists():
+    """ПРИНУДИТЕЛЬНАЯ инициализация базы данных при каждом обращении"""
     try:
         conn = sqlite3.connect('templates.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
-        # Создаем таблицы
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS templates (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                category TEXT NOT NULL,
-                template_role TEXT NOT NULL,
-                svg_content TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        # Проверяем существование таблицы templates
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='templates'
+        """)
         
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS carousels (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                status TEXT DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS slides (
-                id TEXT PRIMARY KEY,
-                carousel_id TEXT NOT NULL,
-                template_id TEXT NOT NULL,
-                slide_number INTEGER NOT NULL,
-                replacements TEXT,
-                image_path TEXT,
-                image_url TEXT,
-                status TEXT DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (carousel_id) REFERENCES carousels (id),
-                FOREIGN KEY (template_id) REFERENCES templates (id)
-            )
-        ''')
-        
-        # Проверяем есть ли шаблоны
-        cursor.execute('SELECT COUNT(*) FROM templates')
-        count = cursor.fetchone()[0]
-        
-        if count == 0:
+        if not cursor.fetchone():
+            print("Таблица templates не найдена. Создаем...")
+            
+            # Создаем таблицы
+            cursor.execute('''
+                CREATE TABLE templates (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    template_role TEXT NOT NULL,
+                    svg_content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE carousels (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE slides (
+                    id TEXT PRIMARY KEY,
+                    carousel_id TEXT NOT NULL,
+                    template_id TEXT NOT NULL,
+                    slide_number INTEGER NOT NULL,
+                    replacements TEXT,
+                    image_path TEXT,
+                    image_url TEXT,
+                    status TEXT DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (carousel_id) REFERENCES carousels (id),
+                    FOREIGN KEY (template_id) REFERENCES templates (id)
+                )
+            ''')
+            
+            # Добавляем начальные шаблоны
             add_initial_templates(cursor)
-            print("Добавлены начальные шаблоны")
+            print("Начальные шаблоны добавлены")
+            
+            conn.commit()
+            print("База данных создана успешно!")
         
-        conn.commit()
         conn.close()
-        print("База данных инициализирована успешно")
+        return True
         
     except Exception as e:
-        print(f"Ошибка инициализации БД: {e}")
+        print(f"Ошибка создания БД: {e}")
+        return False
 
 def add_initial_templates(cursor):
     """Добавляем 4 начальных шаблона"""
@@ -186,6 +194,7 @@ def after_request(response):
 def index():
     """Главная страница"""
     try:
+        ensure_db_exists()  # Проверяем БД перед каждым запросом
         return render_template('index.html')
     except Exception as e:
         return f"Ошибка загрузки главной страницы: {e}", 500
@@ -194,6 +203,10 @@ def index():
 def templates_page():
     """Страница управления шаблонами"""
     try:
+        # ПРИНУДИТЕЛЬНО проверяем и создаем БД
+        if not ensure_db_exists():
+            return "Ошибка инициализации базы данных", 500
+        
         conn = sqlite3.connect('templates.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -210,6 +223,7 @@ def templates_page():
 def upload_page():
     """Страница загрузки шаблонов"""
     try:
+        ensure_db_exists()  # Проверяем БД перед каждым запросом
         return render_template('upload.html')
     except Exception as e:
         return f"Ошибка загрузки страницы: {e}", 500
@@ -220,6 +234,8 @@ def upload_page():
 def upload_single_template():
     """Загрузка одиночного шаблона"""
     try:
+        ensure_db_exists()  # Проверяем БД
+        
         name = request.form.get('name')
         category = request.form.get('category')
         template_role = request.form.get('template_role')
@@ -262,6 +278,8 @@ def upload_single_template():
 def upload_carousel_templates():
     """Загрузка пары шаблонов для карусели (main + photo)"""
     try:
+        ensure_db_exists()  # Проверяем БД
+        
         # Получаем данные формы
         name = request.form.get('name')
         category = request.form.get('category')
@@ -314,6 +332,8 @@ def upload_carousel_templates():
 def delete_template(template_id):
     """Удаление шаблона"""
     try:
+        ensure_db_exists()  # Проверяем БД
+        
         conn = sqlite3.connect('templates.db')
         cursor = conn.cursor()
         
@@ -337,24 +357,33 @@ def delete_template(template_id):
 @app.route('/api/health')
 def health_check():
     """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'version': '2.0',
-        'features': [
-            'Template management',
-            'Carousel creation',
-            'Single image generation',
-            'Image generation',
-            'CORS support',
-            'File serving',
-            'Database integration'
-        ]
-    })
+    try:
+        db_status = "healthy" if ensure_db_exists() else "error"
+        return jsonify({
+            'status': 'healthy',
+            'database': db_status,
+            'version': '2.1-fixed',
+            'features': [
+                'Template management',
+                'Carousel creation',
+                'Single image generation',
+                'Image generation',
+                'CORS support',
+                'File serving',
+                'Database integration',
+                'Auto DB initialization'
+            ]
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500
 
 @app.route('/api/templates/all-previews')
 def get_all_templates():
     """Получение всех шаблонов с превью"""
     try:
+        if not ensure_db_exists():
+            return jsonify({'error': 'Database initialization failed'}), 500
+        
         conn = sqlite3.connect('templates.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -382,6 +411,9 @@ def get_all_templates():
 def get_template_preview(template_id):
     """Получение превью шаблона в формате SVG"""
     try:
+        if not ensure_db_exists():
+            return jsonify({'error': 'Database initialization failed'}), 500
+        
         conn = sqlite3.connect('templates.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -404,6 +436,9 @@ def get_template_preview(template_id):
 def generate_single_image():
     """Генерация одного изображения из шаблона"""
     try:
+        if not ensure_db_exists():
+            return jsonify({'error': 'Database initialization failed'}), 500
+        
         data = request.get_json()
         
         if not data:
@@ -476,6 +511,9 @@ def generate_single_image():
 def create_and_generate_carousel():
     """Создание и генерация карусели в одном запросе"""
     try:
+        if not ensure_db_exists():
+            return jsonify({'error': 'Database initialization failed'}), 500
+        
         data = request.get_json()
         
         if not data:
@@ -556,6 +594,9 @@ def create_and_generate_carousel():
 def get_carousel_slides(carousel_id):
     """Получение слайдов карусели"""
     try:
+        if not ensure_db_exists():
+            return jsonify({'error': 'Database initialization failed'}), 500
+        
         conn = sqlite3.connect('templates.db')
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -714,7 +755,10 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
-    init_db()
+    # ПРИНУДИТЕЛЬНАЯ инициализация при запуске
+    print("Инициализация базы данных...")
+    ensure_db_exists()
+    
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
 
