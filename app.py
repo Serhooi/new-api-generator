@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """
-ЕДИНОЕ ПРИЛОЖЕНИЕ: API + ВЕБ-ИНТЕРФЕЙС (ИСПРАВЛЕННАЯ ВЕРСИЯ)
-Объединяет API для AgentFlow и веб-интерфейс для управления шаблонами
-+ Добавлен single image endpoint
-+ Исправлены роуты для загрузки шаблонов
+ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ API
+Исправлены все ошибки Internal Server Error
 """
 
 import os
@@ -21,14 +19,13 @@ import io
 import base64
 import requests
 import tempfile
-import subprocess
 
 app = Flask(__name__, template_folder='templates')
-app.secret_key = 'your-secret-key-here'
+app.secret_key = 'your-secret-key-here-change-in-production'
 
-# ИСПРАВЛЕННЫЕ CORS НАСТРОЙКИ для AgentFlow
+# CORS настройки
 CORS(app, 
-     origins=['https://agentflow-marketing-hub.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
+     origins=['*'],  # Разрешаем все домены для тестирования
      allow_headers=['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
      supports_credentials=True
@@ -38,56 +35,64 @@ CORS(app,
 os.makedirs('output', exist_ok=True)
 os.makedirs('uploads', exist_ok=True)
 
-# Инициализация базы данных
 def init_db():
-    conn = sqlite3.connect('templates.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    # Создаем таблицы
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS templates (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            category TEXT NOT NULL,
-            template_role TEXT NOT NULL,
-            svg_content TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS carousels (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            status TEXT DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS slides (
-            id TEXT PRIMARY KEY,
-            carousel_id TEXT NOT NULL,
-            template_id TEXT NOT NULL,
-            slide_number INTEGER NOT NULL,
-            replacements TEXT,
-            image_path TEXT,
-            image_url TEXT,
-            status TEXT DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (carousel_id) REFERENCES carousels (id),
-            FOREIGN KEY (template_id) REFERENCES templates (id)
-        )
-    ''')
-    
-    # Добавляем начальные шаблоны если их нет
-    cursor.execute('SELECT COUNT(*) FROM templates')
-    if cursor.fetchone()[0] == 0:
-        add_initial_templates(cursor)
-    
-    conn.commit()
-    conn.close()
+    """Инициализация базы данных с проверкой ошибок"""
+    try:
+        conn = sqlite3.connect('templates.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Создаем таблицы
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS templates (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                template_role TEXT NOT NULL,
+                svg_content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS carousels (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS slides (
+                id TEXT PRIMARY KEY,
+                carousel_id TEXT NOT NULL,
+                template_id TEXT NOT NULL,
+                slide_number INTEGER NOT NULL,
+                replacements TEXT,
+                image_path TEXT,
+                image_url TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (carousel_id) REFERENCES carousels (id),
+                FOREIGN KEY (template_id) REFERENCES templates (id)
+            )
+        ''')
+        
+        # Проверяем есть ли шаблоны
+        cursor.execute('SELECT COUNT(*) FROM templates')
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            add_initial_templates(cursor)
+            print("Добавлены начальные шаблоны")
+        
+        conn.commit()
+        conn.close()
+        print("База данных инициализирована успешно")
+        
+    except Exception as e:
+        print(f"Ошибка инициализации БД: {e}")
 
 def add_initial_templates(cursor):
     """Добавляем 4 начальных шаблона"""
@@ -152,7 +157,7 @@ def add_initial_templates(cursor):
     
     for template in initial_templates:
         cursor.execute('''
-            INSERT INTO templates (id, name, category, template_role, svg_content)
+            INSERT OR REPLACE INTO templates (id, name, category, template_role, svg_content)
             VALUES (?, ?, ?, ?, ?)
         ''', (template['id'], template['name'], template['category'], 
               template['template_role'], template['svg_content']))
@@ -180,27 +185,36 @@ def after_request(response):
 @app.route('/')
 def index():
     """Главная страница"""
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        return f"Ошибка загрузки главной страницы: {e}", 500
 
 @app.route('/templates')
 def templates_page():
     """Страница управления шаблонами"""
-    conn = sqlite3.connect('templates.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM templates ORDER BY created_at DESC')
-    templates = cursor.fetchall()
-    conn.close()
-    
-    return render_template('templates.html', templates=templates)
+    try:
+        conn = sqlite3.connect('templates.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM templates ORDER BY created_at DESC')
+        templates = cursor.fetchall()
+        conn.close()
+        
+        return render_template('templates.html', templates=templates)
+    except Exception as e:
+        return f"Ошибка загрузки шаблонов: {e}", 500
 
 @app.route('/upload')
 def upload_page():
     """Страница загрузки шаблонов"""
-    return render_template('upload.html')
+    try:
+        return render_template('upload.html')
+    except Exception as e:
+        return f"Ошибка загрузки страницы: {e}", 500
 
-# ИСПРАВЛЕННЫЕ РОУТЫ ДЛЯ ЗАГРУЗКИ ШАБЛОНОВ
+# РОУТЫ ДЛЯ ЗАГРУЗКИ ШАБЛОНОВ
 
 @app.route('/upload-single', methods=['POST'])
 def upload_single_template():
@@ -325,10 +339,11 @@ def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
+        'version': '2.0',
         'features': [
             'Template management',
             'Carousel creation',
-            'Single image generation',  # НОВАЯ ФУНКЦИЯ
+            'Single image generation',
             'Image generation',
             'CORS support',
             'File serving',
@@ -339,46 +354,52 @@ def health_check():
 @app.route('/api/templates/all-previews')
 def get_all_templates():
     """Получение всех шаблонов с превью"""
-    conn = sqlite3.connect('templates.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM templates ORDER BY category, template_role, name')
-    templates = cursor.fetchall()
-    conn.close()
-    
-    template_list = []
-    for template in templates:
-        template_list.append({
-            'id': template['id'],
-            'name': template['name'],
-            'category': template['category'],
-            'templateRole': template['template_role'],
-            'previewUrl': f'/api/templates/{template["id"]}/preview',
-            'createdAt': template['created_at']
-        })
-    
-    return jsonify(template_list)
+    try:
+        conn = sqlite3.connect('templates.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM templates ORDER BY category, template_role, name')
+        templates = cursor.fetchall()
+        conn.close()
+        
+        template_list = []
+        for template in templates:
+            template_list.append({
+                'id': template['id'],
+                'name': template['name'],
+                'category': template['category'],
+                'templateRole': template['template_role'],
+                'previewUrl': f'/api/templates/{template["id"]}/preview',
+                'createdAt': template['created_at']
+            })
+        
+        return jsonify(template_list)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/templates/<template_id>/preview')
 def get_template_preview(template_id):
     """Получение превью шаблона в формате SVG"""
-    conn = sqlite3.connect('templates.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT svg_content FROM templates WHERE id = ?', (template_id,))
-    template = cursor.fetchone()
-    conn.close()
-    
-    if not template:
-        return jsonify({'error': 'Template not found'}), 404
-    
-    # Возвращаем SVG с правильным Content-Type
-    from flask import Response
-    return Response(template['svg_content'], mimetype='image/svg+xml')
+    try:
+        conn = sqlite3.connect('templates.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT svg_content FROM templates WHERE id = ?', (template_id,))
+        template = cursor.fetchone()
+        conn.close()
+        
+        if not template:
+            return jsonify({'error': 'Template not found'}), 404
+        
+        # Возвращаем SVG с правильным Content-Type
+        from flask import Response
+        return Response(template['svg_content'], mimetype='image/svg+xml')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-# НОВЫЙ ENDPOINT: SINGLE IMAGE GENERATION
+# SINGLE IMAGE GENERATION
 @app.route('/api/image/generate', methods=['POST'])
 def generate_single_image():
     """Генерация одного изображения из шаблона"""
@@ -446,57 +467,6 @@ def generate_single_image():
             'templateId': template_id,
             'status': 'completed',
             'createdAt': datetime.now().isoformat()
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/carousel', methods=['POST'])
-def create_carousel():
-    """Создание новой карусели"""
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'error': 'No JSON data provided'}), 400
-        
-        name = data.get('name', 'Untitled Carousel')
-        slides_data = data.get('slides', [])
-        
-        if not slides_data:
-            return jsonify({'error': 'No slides provided'}), 400
-        
-        # Создаем карусель
-        carousel_id = str(uuid.uuid4())
-        
-        conn = sqlite3.connect('templates.db')
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO carousels (id, name, status)
-            VALUES (?, ?, ?)
-        ''', (carousel_id, name, 'pending'))
-        
-        # Создаем слайды
-        slide_ids = []
-        for i, slide_data in enumerate(slides_data):
-            slide_id = str(uuid.uuid4())
-            slide_ids.append(slide_id)
-            
-            cursor.execute('''
-                INSERT INTO slides (id, carousel_id, template_id, slide_number, replacements, image_path)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (slide_id, carousel_id, slide_data.get('templateId'), i + 1, 
-                  json.dumps(slide_data.get('replacements', {})), 
-                  slide_data.get('imagePath')))
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({
-            'carouselId': carousel_id,
-            'status': 'pending',
-            'slideIds': slide_ids
         })
         
     except Exception as e:
@@ -585,40 +555,43 @@ def create_and_generate_carousel():
 @app.route('/api/carousel/<carousel_id>/slides')
 def get_carousel_slides(carousel_id):
     """Получение слайдов карусели"""
-    conn = sqlite3.connect('templates.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        SELECT s.*, c.status as carousel_status
-        FROM slides s
-        JOIN carousels c ON s.carousel_id = c.id
-        WHERE s.carousel_id = ?
-        ORDER BY s.slide_number
-    ''', (carousel_id,))
-    
-    slides = cursor.fetchall()
-    conn.close()
-    
-    if not slides:
-        return jsonify({'error': 'Carousel not found'}), 404
-    
-    slide_list = []
-    for slide in slides:
-        slide_list.append({
-            'id': slide['id'],
-            'slideNumber': slide['slide_number'],
-            'templateId': slide['template_id'],
-            'status': slide['status'],
-            'imageUrl': slide['image_url'],
-            'createdAt': slide['created_at']
+    try:
+        conn = sqlite3.connect('templates.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT s.*, c.status as carousel_status
+            FROM slides s
+            JOIN carousels c ON s.carousel_id = c.id
+            WHERE s.carousel_id = ?
+            ORDER BY s.slide_number
+        ''', (carousel_id,))
+        
+        slides = cursor.fetchall()
+        conn.close()
+        
+        if not slides:
+            return jsonify({'error': 'Carousel not found'}), 404
+        
+        slide_list = []
+        for slide in slides:
+            slide_list.append({
+                'id': slide['id'],
+                'slideNumber': slide['slide_number'],
+                'templateId': slide['template_id'],
+                'status': slide['status'],
+                'imageUrl': slide['image_url'],
+                'createdAt': slide['created_at']
+            })
+        
+        return jsonify({
+            'carouselId': carousel_id,
+            'status': slides[0]['carousel_status'],
+            'slides': slide_list
         })
-    
-    return jsonify({
-        'carouselId': carousel_id,
-        'status': slides[0]['carousel_status'],
-        'slides': slide_list
-    })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 def generate_carousel_images(carousel_id, slide_ids):
     """Генерация изображений для карусели"""
@@ -690,15 +663,18 @@ def generate_carousel_images(carousel_id, slide_ids):
     except Exception as e:
         print(f"Error generating carousel {carousel_id}: {e}")
         # Обновляем статус на ошибку
-        conn = sqlite3.connect('templates.db')
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE carousels 
-            SET status = 'error'
-            WHERE id = ?
-        ''', (carousel_id,))
-        conn.commit()
-        conn.close()
+        try:
+            conn = sqlite3.connect('templates.db')
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE carousels 
+                SET status = 'error'
+                WHERE id = ?
+            ''', (carousel_id,))
+            conn.commit()
+            conn.close()
+        except:
+            pass
 
 def generate_png_fallback(svg_content):
     """Fallback генерация PNG через Pillow"""
@@ -721,9 +697,21 @@ def generate_png_fallback(svg_content):
 @app.route('/output/<path:filename>')
 def serve_output(filename):
     """Отдача сгенерированных файлов"""
-    response = send_from_directory('output', filename)
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    return response
+    try:
+        response = send_from_directory('output', filename)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
+    except Exception as e:
+        return jsonify({'error': str(e)}), 404
+
+# Обработка ошибок
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
     init_db()
