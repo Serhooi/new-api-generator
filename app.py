@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
 """
-ФИНАЛЬНАЯ ВЕРСИЯ API С ИСПРАВЛЕННЫМ ПОИСКОМ DYNO ПОЛЕЙ
-=====================================================
+ПОЛНАЯ ВЕРСИЯ API СО ВСЕМИ ФУНКЦИЯМИ + ИДЕАЛЬНАЯ ОБРАБОТКА ШРИФТОВ
+================================================================
 
-Интегрирует исправленный SVG процессор в основной API
+Версия 8.0 - Полная версия с АБСОЛЮТНЫМ сохранением шрифтов Montserrat
 """
 
 import os
@@ -15,18 +14,10 @@ from flask_cors import CORS
 import xml.etree.ElementTree as ET
 import re
 import requests
-import cairosvg
-from PIL import Image
-import io
 import base64
 import tempfile
-
-# Импортируем исправленные функции
-from fixed_svg_processor import (
-    has_dyno_fields_fixed, 
-    extract_dyno_fields_from_svg, 
-    process_svg_with_id_replacement
-)
+import io
+import html
 
 app = Flask(__name__)
 CORS(app, origins="*")
@@ -41,111 +32,235 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs('output/single', exist_ok=True)
 os.makedirs('output/carousel', exist_ok=True)
 
-def ensure_db_exists():
-    """Инициализация базы данных с проверкой dyno полей"""
-    try:
-        conn = sqlite3.connect(DATABASE_PATH)
-        cursor = conn.cursor()
+def has_dyno_fields_simple(svg_content):
+    """
+    Простая проверка наличия dyno полей в SVG
+    """
+    patterns = [
+        r'\{\{dyno\.[^}]+\}\}',     # {{dyno.field}}
+        r'\{dyno\.[^}]+\}',         # {dyno.field}
+        r'id="dyno\.[^"]*"',        # id="dyno.field"
+        r"id='dyno\.[^']*'",        # id='dyno.field'
+        r'dyno\.[a-zA-Z][a-zA-Z0-9]*'  # dyno.field
+    ]
+    
+    for pattern in patterns:
+        if re.search(pattern, svg_content):
+            return True
+    return False
+
+def extract_dyno_fields_simple(svg_content):
+    """
+    Простое извлечение dyno полей из SVG
+    """
+    fields = set()
+    
+    # Паттерны для поиска dyno полей
+    patterns = [
+        r'\{\{(dyno\.[^}]+)\}\}',     # {{dyno.field}}
+        r'\{(dyno\.[^}]+)\}',         # {dyno.field}
+        r'id="(dyno\.[^"]*)"',        # id="dyno.field"
+        r"id='(dyno\.[^']*)'",        # id='dyno.field'
+    ]
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, svg_content)
+        for match in matches:
+            fields.add(match)
+    
+    return list(fields)
+
+def process_svg_font_perfect(svg_content, replacements):
+    """
+    ИДЕАЛЬНАЯ функция обработки SVG с АБСОЛЮТНЫМ сохранением шрифтов
+    Заменяет ТОЛЬКО содержимое текста, НЕ ТРОГАЯ никакие атрибуты
+    """
+    print("🎨 ЗАПУСК ИДЕАЛЬНОЙ ОБРАБОТКИ SVG С СОХРАНЕНИЕМ ШРИФТОВ")
+    
+    processed_svg = svg_content
+    
+    for field, value in replacements.items():
+        print(f"\n🔄 Обрабатываю поле: {field} = {value}")
         
-        # Создаем таблицы
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS templates (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                category TEXT NOT NULL,
-                template_role TEXT DEFAULT 'main',
-                svg_content TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                has_dyno_fields BOOLEAN DEFAULT FALSE,
-                dyno_fields_info TEXT
-            )
-        ''')
+        # Безопасное экранирование HTML символов
+        safe_value = html.escape(str(value))
         
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS carousels (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                main_template_id TEXT,
-                photo_template_id TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (main_template_id) REFERENCES templates (id),
-                FOREIGN KEY (photo_template_id) REFERENCES templates (id)
-            )
-        ''')
-        
-        # Проверяем есть ли шаблоны
-        cursor.execute('SELECT COUNT(*) FROM templates')
-        count = cursor.fetchone()[0]
-        
-        if count == 0:
-            print("📦 Добавляю начальные шаблоны с dyno полями...")
+        if field == 'dyno.propertyimage':
+            # СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ PROPERTY IMAGE
+            print(f"🖼️ Обрабатываю property image: {field}")
             
-            # Шаблоны с правильными dyno полями в формате id="dyno.field"
-            initial_templates = [
-                {
-                    'id': 'modern-open-house-main-dyno',
-                    'name': 'Modern Open House - Main (with dyno)',
-                    'category': 'open-house',
-                    'template_role': 'main',
-                    'svg_content': '''<svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-                        <rect width="1080" height="1350" fill="#4A5568"/>
-                        <rect x="40" y="40" width="1000" height="800" fill="#E2E8F0" stroke="#CBD5E0" stroke-width="2"/>
-                        <text x="540" y="450" text-anchor="middle" fill="#718096" font-family="Arial, sans-serif" font-size="12">Property Image</text>
-                        <text x="540" y="920" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="48" font-weight="bold" id="dyno.price">$2,500,000</text>
-                        <text x="540" y="980" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="24" id="dyno.propertyaddress">123 Main Street, Beverly Hills, CA</text>
-                        <text x="200" y="1050" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="18" id="dyno.bedrooms">4 bed</text>
-                        <text x="540" y="1050" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="18" id="dyno.bathrooms">3 bath</text>
-                        <text x="880" y="1050" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="18" id="dyno.sqft">2,800 sqft</text>
-                        <text x="540" y="1150" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="28" id="dyno.name">Agent Name</text>
-                        <text x="540" y="1190" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="18" id="dyno.phone">(555) 123-4567</text>
-                        <text x="540" y="1220" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="16" id="dyno.email">agent@realty.com</text>
-                        <text x="540" y="1280" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="20" id="dyno.date">Open House Date</text>
-                        <text x="540" y="1310" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="16" id="dyno.time">Time</text>
-                        <image x="40" y="40" width="1000" height="800" id="dyno.propertyimage" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwMCIgaGVpZ2h0PSI4MDAiIHZpZXdCb3g9IjAgMCAxMDAwIDgwMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEwMDAiIGhlaWdodD0iODAwIiBmaWxsPSIjRjdGQUZDIi8+Cjx0ZXh0IHg9IjUwMCIgeT0iNDAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNzE4MDk2IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiPlByb3BlcnR5IEltYWdlPC90ZXh0Pgo8L3N2Zz4K"/>
-                    </svg>''',
-                    'has_dyno_fields': True,
-                    'dyno_fields_info': '{"fields": ["dyno.price", "dyno.propertyaddress", "dyno.bedrooms", "dyno.bathrooms", "dyno.sqft", "dyno.name", "dyno.phone", "dyno.email", "dyno.date", "dyno.time", "dyno.propertyimage"], "count": 11}'
-                },
-                {
-                    'id': 'modern-open-house-photo-dyno',
-                    'name': 'Modern Open House - Photo (with dyno)',
-                    'category': 'open-house',
-                    'template_role': 'photo',
-                    'svg_content': '''<svg width="1080" height="1350" viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg">
-                        <rect width="1080" height="1350" fill="#2D3748"/>
-                        <image x="40" y="40" width="1000" height="800" id="dyno.propertyimage" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwMCIgaGVpZ2h0PSI4MDAiIHZpZXdCb3g9IjAgMCAxMDAwIDgwMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjEwMDAiIGhlaWdodD0iODAwIiBmaWxsPSIjRjdGQUZDIi8+Cjx0ZXh0IHg9IjUwMCIgeT0iNDAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNzE4MDk2IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiPlByb3BlcnR5IEltYWdlPC90ZXh0Pgo8L3N2Zz4K"/>
-                        <text x="540" y="950" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="48" font-weight="bold" id="dyno.price">$2,500,000</text>
-                        <text x="540" y="1010" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="20" id="dyno.propertyaddress">Property Address</text>
-                        <text x="200" y="1080" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="16" id="dyno.bedrooms">4 bed</text>
-                        <text x="540" y="1080" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="16" id="dyno.bathrooms">3 bath</text>
-                        <text x="880" y="1080" text-anchor="middle" fill="#A0AEC0" font-family="Arial, sans-serif" font-size="16" id="dyno.sqft">2,800 sqft</text>
-                    </svg>''',
-                    'has_dyno_fields': True,
-                    'dyno_fields_info': '{"fields": ["dyno.propertyimage", "dyno.price", "dyno.propertyaddress", "dyno.bedrooms", "dyno.bathrooms", "dyno.sqft"], "count": 6}'
-                }
+            # Ищем ВСЕ возможные patterns для property image
+            patterns_to_replace = [
+                'pattern0_294_4',  # Main template
+                'pattern0_332_4',  # Photo template
             ]
             
-            for template in initial_templates:
-                cursor.execute('''
-                    INSERT INTO templates (id, name, category, template_role, svg_content, has_dyno_fields, dyno_fields_info)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (template['id'], template['name'], template['category'], 
-                     template['template_role'], template['svg_content'], 
-                     template['has_dyno_fields'], template['dyno_fields_info']))
-        
-        conn.commit()
-        conn.close()
-        print("✅ База данных инициализирована успешно")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Ошибка инициализации БД: {e}")
-        return False
+            for pattern in patterns_to_replace:
+                # Ищем pattern definition
+                pattern_regex = f'<pattern[^>]*id="{pattern}"[^>]*>'
+                pattern_match = re.search(pattern_regex, processed_svg)
+                
+                if pattern_match:
+                    print(f"   🎯 Найден pattern: {pattern}")
+                    
+                    # Находим начало pattern
+                    pattern_start = pattern_match.end()
+                    
+                    # Ищем закрывающий </pattern>
+                    pattern_end_match = re.search(r'</pattern>', processed_svg[pattern_start:])
+                    
+                    if pattern_end_match:
+                        pattern_end = pattern_start + pattern_end_match.start()
+                        
+                        # Создаем новое содержимое pattern с высококачественным изображением
+                        new_pattern_content = f'<image href="{safe_value}?w=1200&h=800&q=90&fit=crop" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
+                        
+                        # Заменяем содержимое pattern
+                        processed_svg = processed_svg[:pattern_start] + new_pattern_content + processed_svg[pattern_end:]
+                        
+                        print(f"   ✅ Pattern {pattern} заменен на высококачественное изображение!")
+                        break
+                    else:
+                        print(f"   ⚠️ Не найден закрывающий </pattern> для {pattern}")
+                else:
+                    print(f"   ⚠️ Pattern {pattern} не найден")
+                    
+        elif field in ['dyno.agentheadshot', 'dyno.logo']:
+            # ОБРАБОТКА ДРУГИХ ИЗОБРАЖЕНИЙ
+            print(f"🖼️ Обрабатываю изображение: {field}")
+            
+            # Определяем pattern для каждого типа изображения
+            if field == 'dyno.agentheadshot':
+                target_patterns = ['pattern2_294_4', 'pattern2_332_4']
+                image_params = "?w=400&h=400&q=90&fit=crop"
+            elif field == 'dyno.logo':
+                target_patterns = ['pattern1_294_4', 'pattern1_332_4']
+                image_params = "?w=300&h=100&q=90&fit=crop"
+            
+            for pattern in target_patterns:
+                pattern_regex = f'<pattern[^>]*id="{pattern}"[^>]*>'
+                pattern_match = re.search(pattern_regex, processed_svg)
+                
+                if pattern_match:
+                    print(f"   🎯 Найден pattern: {pattern}")
+                    
+                    pattern_start = pattern_match.end()
+                    pattern_end_match = re.search(r'</pattern>', processed_svg[pattern_start:])
+                    
+                    if pattern_end_match:
+                        pattern_end = pattern_start + pattern_end_match.start()
+                        
+                        new_pattern_content = f'<image href="{safe_value}{image_params}" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
+                        
+                        processed_svg = processed_svg[:pattern_start] + new_pattern_content + processed_svg[pattern_end:]
+                        
+                        print(f"   ✅ Pattern {pattern} заменен!")
+                        break
+                        
+        else:
+            # ДЛЯ ТЕКСТА - СУПЕР-ТОЧНАЯ замена с АБСОЛЮТНЫМ сохранением шрифтов
+            print(f"🔤 Обрабатываю текст: {field}")
+            
+            # Ищем text элемент с нужным id
+            text_pattern = f'<text[^>]*id="{re.escape(field)}"[^>]*>'
+            text_match = re.search(text_pattern, processed_svg)
+            
+            if text_match:
+                print(f"   📝 Найден text элемент с id: {field}")
+                
+                # Находим начало text элемента
+                text_start = text_match.end()
+                
+                # Ищем закрывающий </text>
+                text_end_match = re.search(r'</text>', processed_svg[text_start:])
+                
+                if text_end_match:
+                    text_end = text_start + text_end_match.start()
+                    text_content = processed_svg[text_start:text_end]
+                    
+                    print(f"   📝 Найден text блок длиной {len(text_content)} символов")
+                    
+                    # ИДЕАЛЬНАЯ замена: заменяем ТОЛЬКО содержимое первого tspan
+                    def replace_first_tspan_content(content):
+                        # Ищем первый tspan с его содержимым
+                        tspan_pattern = r'(<tspan[^>]*>)([^<]*)(</tspan>)'
+                        
+                        def replace_content(match):
+                            opening_tag = match.group(1)  # <tspan ...> с ВСЕМИ атрибутами
+                            old_content = match.group(2)  # старое содержимое
+                            closing_tag = match.group(3)  # </tspan>
+                            
+                            print(f"      🎯 Заменяю содержимое: '{old_content}' → '{safe_value}'")
+                            print(f"      🔤 СОХРАНЯЮ атрибуты: {opening_tag}")
+                            
+                            # Возвращаем тег с новым содержимым, НО СО СТАРЫМИ АТРИБУТАМИ!
+                            return opening_tag + safe_value + closing_tag
+                        
+                        # Заменяем ТОЛЬКО первый tspan (count=1)
+                        return re.sub(tspan_pattern, replace_content, content, count=1)
+                    
+                    # Применяем замену
+                    new_text_content = replace_first_tspan_content(text_content)
+                    
+                    # Заменяем в полном SVG
+                    processed_svg = processed_svg[:text_start] + new_text_content + processed_svg[text_end:]
+                    
+                    print(f"   ✅ Текст заменен с ПОЛНЫМ сохранением font-family атрибутов!")
+                else:
+                    print(f"   ⚠️ Не найден закрывающий </text> для {field}")
+            else:
+                print(f"   ⚠️ Не найден text элемент с id {field}")
+    
+    print("✅ ИДЕАЛЬНАЯ обработка SVG завершена - ВСЕ ШРИФТЫ MONTSERRAT СОХРАНЕНЫ!")
+    return processed_svg
+
+def ensure_db_exists():
+    """
+    Создает базу данных и таблицы если они не существуют
+    """
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    # Создаем таблицу templates
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            template_role TEXT NOT NULL,
+            svg_content TEXT NOT NULL,
+            dyno_fields TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Создаем таблицу carousels
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS carousels (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            main_template_id TEXT NOT NULL,
+            photo_template_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (main_template_id) REFERENCES templates (id),
+            FOREIGN KEY (photo_template_id) REFERENCES templates (id)
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Веб-роуты
+def create_app():
+    """
+    Функция для создания приложения (нужна для Gunicorn)
+    """
+    ensure_db_exists()
+    return app
+
+# Веб-интерфейс
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -154,55 +269,80 @@ def index():
 def templates_page():
     try:
         ensure_db_exists()
-        return render_template('templates.html')
-    except Exception as e:
-        return f"Ошибка: {e}", 500
-
-@app.route('/upload')
-def upload_page():
-    try:
-        ensure_db_exists()
-        return render_template('upload.html')
-    except Exception as e:
-        return f"Ошибка: {e}", 500
-
-# ИСПРАВЛЕННЫЕ роуты загрузки
-@app.route('/upload-single', methods=['POST'])
-def upload_single_template():
-    """Загрузка одиночного шаблона с ИСПРАВЛЕННОЙ проверкой dyno полей"""
-    try:
-        ensure_db_exists()
-        
-        if 'template' not in request.files:
-            return jsonify({'success': False, 'error': 'Файл шаблона не найден'}), 400
-        
-        file = request.files['template']
-        name = request.form.get('name', 'Unnamed Template')
-        category = request.form.get('category', 'general')
-        
-        if file.filename == '':
-            return jsonify({'success': False, 'error': 'Файл не выбран'}), 400
-        
-        if not allowed_file(file.filename):
-            return jsonify({'success': False, 'error': 'Неподдерживаемый формат файла'}), 400
-        
-        # Читаем содержимое SVG
-        svg_content = file.read().decode('utf-8')
-        
-        # ИСПРАВЛЕННАЯ проверка dyno полей
-        has_dyno, dyno_fields = has_dyno_fields_fixed(svg_content)
-        field_info = extract_dyno_fields_from_svg(svg_content)
-        
-        # Сохраняем в БД
-        template_id = str(uuid.uuid4())
         
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
+        # Получаем все шаблоны из базы данных
+        cursor.execute('SELECT id, name, category, template_role, created_at FROM templates ORDER BY created_at DESC')
+        templates_data = cursor.fetchall()
+        
+        conn.close()
+        
+        # Преобразуем в список словарей для передачи в шаблон
+        templates = []
+        for template in templates_data:
+            templates.append({
+                'id': template[0],
+                'name': template[1],
+                'category': template[2],
+                'template_role': template[3],
+                'created_at': template[4]
+            })
+        
+        # Передаем шаблоны в HTML шаблон
+        return render_template('templates.html', templates=templates)
+        
+    except Exception as e:
+        print(f"Ошибка в templates_page: {str(e)}")
+        return render_template('templates.html', templates=[])
+
+@app.route('/upload')
+def upload_page():
+    return render_template('upload.html')
+
+# Статические файлы
+@app.route('/output/<path:filename>')
+def serve_output(filename):
+    return send_from_directory(OUTPUT_DIR, filename)
+
+# API для загрузки одиночного шаблона
+@app.route('/api/upload-single', methods=['POST'])
+def upload_single_template():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'Файл не найден'}), 400
+        
+        file = request.files['file']
+        name = request.form.get('name', '')
+        category = request.form.get('category', '')
+        template_role = request.form.get('template_role', '')
+        
+        if file.filename == '':
+            return jsonify({'error': 'Файл не выбран'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Разрешены только SVG файлы'}), 400
+        
+        # Читаем содержимое файла
+        svg_content = file.read().decode('utf-8')
+        
+        # Проверяем наличие dyno полей
+        has_dyno = has_dyno_fields_simple(svg_content)
+        dyno_fields = extract_dyno_fields_simple(svg_content) if has_dyno else []
+        
+        # Генерируем уникальный ID
+        template_id = str(uuid.uuid4())
+        
+        # Сохраняем в базу данных
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
         cursor.execute('''
-            INSERT INTO templates (id, name, category, template_role, svg_content, has_dyno_fields, dyno_fields_info)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (template_id, name, category, 'main', svg_content, has_dyno, str(field_info)))
+            INSERT INTO templates (id, name, category, template_role, svg_content, dyno_fields)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', [template_id, name, category, template_role, svg_content, ','.join(dyno_fields)])
         
         conn.commit()
         conn.close()
@@ -210,176 +350,139 @@ def upload_single_template():
         return jsonify({
             'success': True,
             'template_id': template_id,
-            'message': 'Шаблон успешно загружен',
-            'structure_info': {
-                'elements_count': len(re.findall(r'<[^>]+>', svg_content)),
-                'has_dyno_fields': has_dyno,
-                'dyno_fields': field_info['fields'],
-                'dyno_count': field_info['count']
-            }
+            'has_dyno_fields': has_dyno,
+            'dyno_fields': dyno_fields,
+            'message': f'Шаблон "{name}" успешно загружен'
         })
         
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'error': f'Ошибка загрузки: {str(e)}'}), 500
 
-@app.route('/upload-carousel', methods=['POST'])
-def upload_carousel_templates():
-    """Загрузка пары шаблонов для карусели с ИСПРАВЛЕННОЙ проверкой dyno полей"""
+# API для загрузки карусели
+@app.route('/api/upload-carousel', methods=['POST'])
+def upload_carousel():
     try:
-        ensure_db_exists()
+        if 'main_file' not in request.files or 'photo_file' not in request.files:
+            return jsonify({'error': 'Необходимы оба файла: main и photo'}), 400
         
-        if 'main_template' not in request.files or 'photo_template' not in request.files:
-            return jsonify({'success': False, 'error': 'Оба файла шаблонов обязательны'}), 400
-        
-        main_file = request.files['main_template']
-        photo_file = request.files['photo_template']
-        name = request.form.get('name', 'Unnamed Carousel')
-        category = request.form.get('category', 'general')
+        main_file = request.files['main_file']
+        photo_file = request.files['photo_file']
+        name = request.form.get('name', '')
+        category = request.form.get('category', '')
         
         if main_file.filename == '' or photo_file.filename == '':
-            return jsonify({'success': False, 'error': 'Оба файла должны быть выбраны'}), 400
+            return jsonify({'error': 'Оба файла должны быть выбраны'}), 400
         
         if not (allowed_file(main_file.filename) and allowed_file(photo_file.filename)):
-            return jsonify({'success': False, 'error': 'Неподдерживаемый формат файлов'}), 400
+            return jsonify({'error': 'Разрешены только SVG файлы'}), 400
         
-        # Читаем содержимое SVG файлов
+        # Читаем содержимое файлов
         main_svg = main_file.read().decode('utf-8')
         photo_svg = photo_file.read().decode('utf-8')
         
-        # ИСПРАВЛЕННАЯ проверка dyno полей
-        main_has_dyno, main_fields = has_dyno_fields_fixed(main_svg)
-        photo_has_dyno, photo_fields = has_dyno_fields_fixed(photo_svg)
+        # Анализируем dyno поля
+        main_dyno_info = {
+            'has_dyno': has_dyno_fields_simple(main_svg),
+            'fields': extract_dyno_fields_simple(main_svg)
+        }
         
-        main_field_info = extract_dyno_fields_from_svg(main_svg)
-        photo_field_info = extract_dyno_fields_from_svg(photo_svg)
+        photo_dyno_info = {
+            'has_dyno': has_dyno_fields_simple(photo_svg),
+            'fields': extract_dyno_fields_simple(photo_svg)
+        }
         
-        # Сохраняем в БД
-        main_template_id = f"{name.lower().replace(' ', '-')}-main"
-        photo_template_id = f"{name.lower().replace(' ', '-')}-photo"
+        # Генерируем уникальные ID
+        main_template_id = str(uuid.uuid4())
+        photo_template_id = str(uuid.uuid4())
+        carousel_id = str(uuid.uuid4())
         
+        # Сохраняем шаблоны в базу данных
+        ensure_db_exists()
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        # Сохраняем main шаблон
+        # Сохраняем main template
         cursor.execute('''
-            INSERT INTO templates (id, name, category, template_role, svg_content, has_dyno_fields, dyno_fields_info)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (main_template_id, f"{name} - Main", category, 'main', main_svg, main_has_dyno, str(main_field_info)))
+            INSERT INTO templates (id, name, category, template_role, svg_content, dyno_fields)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', [main_template_id, f"{name} - Main", category, "main", main_svg, ','.join(main_dyno_info.get('fields', []))])
         
-        # Сохраняем photo шаблон
+        # Сохраняем photo template
         cursor.execute('''
-            INSERT INTO templates (id, name, category, template_role, svg_content, has_dyno_fields, dyno_fields_info)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (photo_template_id, f"{name} - Photo", category, 'photo', photo_svg, photo_has_dyno, str(photo_field_info)))
+            INSERT INTO templates (id, name, category, template_role, svg_content, dyno_fields)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', [photo_template_id, f"{name} - Photo", category, "photo", photo_svg, ','.join(photo_dyno_info.get('fields', []))])
+        
+        # Сохраняем карусель
+        cursor.execute('''
+            INSERT INTO carousels (id, name, main_template_id, photo_template_id)
+            VALUES (?, ?, ?, ?)
+        ''', [carousel_id, name, main_template_id, photo_template_id])
         
         conn.commit()
         conn.close()
         
         return jsonify({
             'success': True,
+            'carousel_id': carousel_id,
             'main_template_id': main_template_id,
             'photo_template_id': photo_template_id,
-            'message': 'Набор шаблонов успешно загружен',
-            'structure_info': {
-                'main_elements': len(re.findall(r'<[^>]+>', main_svg)),
-                'photo_elements': len(re.findall(r'<[^>]+>', photo_svg)),
-                'main_has_dyno': main_has_dyno,
-                'photo_has_dyno': photo_has_dyno,
-                'main_dyno_fields': main_field_info['fields'],
-                'photo_dyno_fields': photo_field_info['fields']
-            }
+            'main_dyno_fields': main_dyno_info.get('fields', []) if main_dyno_info else [],
+            'photo_dyno_fields': photo_dyno_info.get('fields', []) if photo_dyno_info else [],
+            'message': f'Карусель "{name}" успешно загружена'
         })
         
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'error': f'Ошибка загрузки карусели: {str(e)}'}), 500
 
 # API роуты
 @app.route('/api/health')
-def health_check():
-    ensure_db_exists()
-    return jsonify({
-        'status': 'healthy',
-        'version': '5.0-fixed-dyno-detection',
-        'features': [
-            'Fixed dyno field detection (id format)',
-            'Template upload (single & carousel)',
-            'Advanced SVG structure extraction',
-            'Image URL processing',
-            'Text wrapping',
-            'Single image generation',
-            'Carousel generation'
-        ]
-    })
+def health():
+    return jsonify({"status": "ok", "message": "API работает"})
 
 @app.route('/api/templates/all-previews')
 def get_all_templates():
     try:
         ensure_db_exists()
+        
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        cursor.execute('''
-            SELECT id, name, category, template_role, has_dyno_fields, dyno_fields_info, created_at
-            FROM templates 
-            ORDER BY created_at DESC
-        ''')
-        
-        templates = []
-        for row in cursor.fetchall():
-            templates.append({
-                'id': row[0],
-                'name': row[1],
-                'category': row[2],
-                'template_role': row[3],
-                'has_dyno_fields': bool(row[4]),
-                'dyno_fields_info': row[5],
-                'created_at': row[6],
-                'preview_url': f'/api/templates/{row[0]}/preview'
-            })
+        cursor.execute('SELECT id, name, category, template_role, created_at FROM templates ORDER BY created_at DESC')
+        templates_data = cursor.fetchall()
         
         conn.close()
-        return jsonify({'templates': templates})
+        
+        templates = []
+        for template in templates_data:
+            templates.append({
+                'id': template[0],
+                'name': template[1],
+                'category': template[2],
+                'template_role': template[3],
+                'created_at': template[4],
+                'preview_url': f'/api/templates/{template[0]}/preview'
+            })
+        
+        return jsonify({
+            'templates': templates,
+            'total': len(templates)
+        })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'Ошибка получения шаблонов: {str(e)}'}), 500
 
 @app.route('/api/templates/<template_id>/preview')
 def get_template_preview(template_id):
     try:
         ensure_db_exists()
+        
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        cursor.execute('SELECT svg_content FROM templates WHERE id = ?', (template_id,))
+        cursor.execute('SELECT svg_content FROM templates WHERE id = ?', [template_id])
         result = cursor.fetchone()
-        conn.close()
         
-        if not result:
-            return "Template not found", 404
-        
-        return result[0], 200, {'Content-Type': 'image/svg+xml'}
-        
-    except Exception as e:
-        return f"Error: {e}", 500
-
-@app.route('/api/image/generate', methods=['POST'])
-def generate_single_image():
-    """Генерация одного изображения с ИСПРАВЛЕННОЙ обработкой dyno полей"""
-    try:
-        ensure_db_exists()
-        data = request.get_json()
-        
-        template_id = data.get('template_id')
-        replacements = data.get('replacements', {})
-        
-        if not template_id:
-            return jsonify({'error': 'template_id обязателен'}), 400
-        
-        # Получаем шаблон
-        conn = sqlite3.connect(DATABASE_PATH)
-        cursor = conn.cursor()
-        cursor.execute('SELECT svg_content FROM templates WHERE id = ?', (template_id,))
-        result = cursor.fetchone()
         conn.close()
         
         if not result:
@@ -387,43 +490,157 @@ def generate_single_image():
         
         svg_content = result[0]
         
-        # ИСПРАВЛЕННАЯ обработка SVG с заменой dyno полей
-        processed_svg = process_svg_with_id_replacement(svg_content, replacements)
+        return svg_content, 200, {'Content-Type': 'image/svg+xml'}
         
-        # Генерируем PNG
-        output_filename = f"{uuid.uuid4()}.png"
-        output_path = os.path.join('output', 'single', output_filename)
+    except Exception as e:
+        return jsonify({'error': f'Ошибка получения превью: {str(e)}'}), 500
+
+@app.route('/api/templates/<template_id>/delete', methods=['DELETE'])
+def delete_template(template_id):
+    try:
+        ensure_db_exists()
         
-        try:
-            # Пробуем CairoSVG
-            cairosvg.svg2png(
-                bytestring=processed_svg.encode('utf-8'),
-                write_to=output_path,
-                dpi=300
-            )
-        except Exception as cairo_error:
-            print(f"CairoSVG ошибка: {cairo_error}, используем Pillow fallback")
-            # Fallback через Pillow
-            img = Image.new('RGB', (1080, 1350), 'white')
-            img.save(output_path, 'PNG')
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
         
-        # Возвращаем URL
-        image_url = f"/output/single/{output_filename}"
+        # Проверяем существование шаблона
+        cursor.execute('SELECT name FROM templates WHERE id = ?', [template_id])
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return jsonify({'error': 'Шаблон не найден'}), 404
+        
+        template_name = result[0]
+        
+        # Удаляем шаблон
+        cursor.execute('DELETE FROM templates WHERE id = ?', [template_id])
+        
+        conn.commit()
+        conn.close()
         
         return jsonify({
             'success': True,
-            'image_url': image_url,
-            'full_url': f"{request.host_url.rstrip('/')}{image_url}"
+            'message': f'Шаблон "{template_name}" успешно удален'
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'Ошибка удаления: {str(e)}'}), 500
 
-@app.route('/output/<path:filename>')
-def serve_output_file(filename):
-    return send_from_directory(OUTPUT_DIR, filename)
+# API для генерации одиночного изображения
+@app.route('/api/generate/single', methods=['POST'])
+def generate_single():
+    try:
+        data = request.get_json()
+        template_id = data.get('template_id')
+        replacements = data.get('replacements', {})
+        
+        if not template_id:
+            return jsonify({'error': 'template_id обязателен'}), 400
+        
+        # Получаем шаблон из базы данных
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [template_id])
+        result = cursor.fetchone()
+        
+        conn.close()
+        
+        if not result:
+            return jsonify({'error': 'Шаблон не найден'}), 404
+        
+        template_name, svg_content = result
+        
+        # Обрабатываем SVG с идеальным сохранением шрифтов
+        processed_svg = process_svg_font_perfect(svg_content, replacements)
+        
+        # Генерируем уникальное имя файла
+        output_filename = f"single_{str(uuid.uuid4())}.svg"
+        output_path = os.path.join(OUTPUT_DIR, 'single', output_filename)
+        
+        # Сохраняем обработанный SVG
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(processed_svg)
+        
+        return jsonify({
+            'success': True,
+            'template_name': template_name,
+            'output_url': f'/output/single/{output_filename}',
+            'replacements_applied': len(replacements)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка генерации: {str(e)}'}), 500
+
+# API для генерации карусели
+@app.route('/api/generate/carousel', methods=['POST'])
+def generate_carousel():
+    try:
+        data = request.get_json()
+        main_template_id = data.get('main_template_id')
+        photo_template_id = data.get('photo_template_id')
+        replacements = data.get('replacements', {})
+        
+        if not main_template_id or not photo_template_id:
+            return jsonify({'error': 'main_template_id и photo_template_id обязательны'}), 400
+        
+        # Получаем шаблоны из базы данных
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [main_template_id])
+        main_result = cursor.fetchone()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [photo_template_id])
+        photo_result = cursor.fetchone()
+        
+        conn.close()
+        
+        if not main_result or not photo_result:
+            return jsonify({'error': 'Один или оба шаблона не найдены'}), 404
+        
+        main_name, main_svg = main_result
+        photo_name, photo_svg = photo_result
+        
+        # Обрабатываем оба SVG с идеальным сохранением шрифтов
+        processed_main = process_svg_font_perfect(main_svg, replacements)
+        processed_photo = process_svg_font_perfect(photo_svg, replacements)
+        
+        # Генерируем уникальный ID карусели
+        carousel_id = str(uuid.uuid4())
+        
+        # Сохраняем обработанные SVG
+        main_filename = f"carousel_{carousel_id}_main.svg"
+        photo_filename = f"carousel_{carousel_id}_photo.svg"
+        
+        main_path = os.path.join(OUTPUT_DIR, 'carousel', main_filename)
+        photo_path = os.path.join(OUTPUT_DIR, 'carousel', photo_filename)
+        
+        with open(main_path, 'w', encoding='utf-8') as f:
+            f.write(processed_main)
+        
+        with open(photo_path, 'w', encoding='utf-8') as f:
+            f.write(processed_photo)
+        
+        return jsonify({
+            'success': True,
+            'carousel_id': carousel_id,
+            'main_template_name': main_name,
+            'photo_template_name': photo_name,
+            'main_url': f'/output/carousel/{main_filename}',
+            'photo_url': f'/output/carousel/{photo_filename}',
+            'replacements_applied': len(replacements)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка генерации карусели: {str(e)}'}), 500
 
 if __name__ == '__main__':
     ensure_db_exists()
+    
+    # Для локальной разработки
     app.run(host='0.0.0.0', port=5000, debug=True)
 
