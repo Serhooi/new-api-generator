@@ -1,171 +1,125 @@
 #!/usr/bin/env python3
 """
-ИСПРАВЛЕННЫЙ SVG ПРОЦЕССОР С ПРАВИЛЬНЫМ ПОИСКОМ DYNO ПОЛЕЙ
-=========================================================
-
-Исправляет проблему с обнаружением dyno полей в формате id="dyno.field"
+ИСПРАВЛЕННАЯ ФУНКЦИЯ ОБРАБОТКИ SVG
+Полностью переписанная функция для правильной замены dyno полей
 """
 
 import re
+import html
 
-def has_dyno_fields_fixed(svg_content):
-    """
-    ИСПРАВЛЕННАЯ функция проверки наличия dyno полей в SVG
+def safe_escape_for_svg_fixed(text):
+    """Безопасное экранирование для SVG - ИСПРАВЛЕННАЯ ВЕРСИЯ"""
+    if not text:
+        return text
     
-    Ищет dyno поля в разных форматах:
-    1. {{dyno.field}} - в тексте
-    2. {dyno.field} - в тексте  
-    3. id="dyno.field" - в атрибутах элементов
-    4. dyno.field - в любом месте
-    """
+    # Заменяем & ПЕРВЫМ (важно!)
+    text = text.replace('&', '&amp;')
+    text = text.replace('<', '&lt;')
+    text = text.replace('>', '&gt;')
+    text = text.replace('"', '&quot;')
+    text = text.replace("'", '&apos;')
     
-    patterns = [
-        r'\{\{dyno\.[^}]+\}\}',     # {{dyno.field}}
-        r'\{dyno\.[^}]+\}',         # {dyno.field}
-        r'id="dyno\.[^"]*"',        # id="dyno.field"
-        r"id='dyno\.[^']*'",        # id='dyno.field'
-        r'dyno\.[a-zA-Z][a-zA-Z0-9]*'  # dyno.field (как ID или в тексте)
-    ]
+    # Дополнительно экранируем специальные символы
+    text = text.replace('"', '&quot;')  # Правая двойная кавычка
+    text = text.replace('"', '&quot;')  # Левая двойная кавычка
+    text = text.replace('—', '&mdash;')  # Длинное тире
+    text = text.replace('–', '&ndash;')  # Короткое тире
     
-    found_fields = []
-    
-    for pattern in patterns:
-        matches = re.findall(pattern, svg_content)
-        if matches:
-            found_fields.extend(matches)
-    
-    return len(found_fields) > 0, found_fields
+    return text
 
-def extract_dyno_fields_from_svg(svg_content):
+def process_svg_completely_fixed(svg_content, replacements):
     """
-    Извлекает все dyno поля из SVG с их типами
-    """
-    
-    # Ищем dyno поля в id атрибутах
-    id_pattern = r'id="(dyno\.[^"]*)"'
-    id_matches = re.findall(id_pattern, svg_content)
-    
-    # Ищем dyno поля в тексте
-    text_patterns = [
-        r'\{\{(dyno\.[^}]+)\}\}',
-        r'\{(dyno\.[^}]+)\}'
-    ]
-    
-    text_matches = []
-    for pattern in text_patterns:
-        text_matches.extend(re.findall(pattern, svg_content))
-    
-    # Объединяем все найденные поля
-    all_fields = list(set(id_matches + text_matches))
-    
-    # Определяем типы полей
-    field_types = {}
-    for field in all_fields:
-        if any(img_keyword in field.lower() for img_keyword in ['image', 'photo', 'picture', 'logo', 'headshot']):
-            field_types[field] = 'image'
-        else:
-            field_types[field] = 'text'
-    
-    return {
-        'fields': all_fields,
-        'types': field_types,
-        'count': len(all_fields),
-        'has_dyno': len(all_fields) > 0
-    }
-
-def process_svg_with_id_replacement(svg_content, replacements):
-    """
-    Обрабатывает SVG с заменой dyno полей в формате id="dyno.field"
+    ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ обработка SVG
+    Заменяет ВСЕ dyno поля правильно
     """
     
-    result = svg_content
+    processed_svg = svg_content
     
-    print("🔄 Обрабатываю SVG с ID заменами...")
-    
-    for key, value in replacements.items():
-        # Убираем префикс dyno. если он есть
-        clean_key = key.replace('dyno.', '')
+    # 1. ЗАМЕНА ТЕКСТОВЫХ ПОЛЕЙ В TSPAN
+    def replace_tspan_content(match):
+        full_match = match.group(0)
+        tspan_content = match.group(1)
         
-        # Формируем возможные варианты ключей
-        possible_keys = [
-            f'dyno.{clean_key}',
-            f'dyno.{key}',
-            key,
-            clean_key
-        ]
+        # Ищем dyno поле в содержимом
+        for dyno_field, replacement in replacements.items():
+            if dyno_field in tspan_content:
+                # Заменяем ТОЛЬКО содержимое, сохраняя все атрибуты
+                safe_replacement = safe_escape_for_svg_fixed(str(replacement))
+                new_content = tspan_content.replace(dyno_field, safe_replacement)
+                return full_match.replace(tspan_content, new_content)
         
-        for possible_key in possible_keys:
-            # Заменяем в id атрибутах
-            id_pattern = f'id="{possible_key}"'
-            if id_pattern in result:
-                print(f"✅ Найден элемент с id='{possible_key}', заменяю...")
-                
-                # Для изображений
-                if any(img_keyword in possible_key.lower() for img_keyword in ['image', 'photo', 'picture', 'logo', 'headshot']):
-                    # Заменяем href или xlink:href в элементах image
-                    image_pattern = f'<image[^>]*id="{possible_key}"[^>]*>'
-                    image_match = re.search(image_pattern, result)
-                    if image_match:
-                        image_element = image_match.group(0)
-                        # Заменяем href на новое изображение
-                        new_image = re.sub(r'(href|xlink:href)="[^"]*"', f'href="{value}"', image_element)
-                        result = result.replace(image_element, new_image)
-                        print(f"   🖼️ Заменено изображение: {possible_key}")
-                
-                # Для текста
-                else:
-                    # Ищем текстовые элементы с этим id
-                    text_pattern = f'<text[^>]*id="{possible_key}"[^>]*>([^<]*)</text>'
-                    text_match = re.search(text_pattern, result)
-                    if text_match:
-                        old_text_element = text_match.group(0)
-                        old_text_content = text_match.group(1)
-                        new_text_element = old_text_element.replace(old_text_content, str(value))
-                        result = result.replace(old_text_element, new_text_element)
-                        print(f"   📝 Заменен текст: {possible_key} -> {value}")
-                    
-                    # Также ищем в tspan элементах
-                    tspan_pattern = f'<tspan[^>]*>([^<]*)</tspan>'
-                    parent_pattern = f'<text[^>]*id="{possible_key}"[^>]*>(.*?)</text>'
-                    parent_match = re.search(parent_pattern, result, re.DOTALL)
-                    if parent_match:
-                        parent_content = parent_match.group(1)
-                        tspan_matches = re.findall(tspan_pattern, parent_content)
-                        if tspan_matches:
-                            # Заменяем содержимое первого tspan
-                            new_parent_content = re.sub(tspan_pattern, f'<tspan>{value}</tspan>', parent_content, count=1)
-                            result = result.replace(parent_content, new_parent_content)
-                            print(f"   📝 Заменен tspan: {possible_key} -> {value}")
+        return full_match
     
-    print("✅ SVG обработан")
-    return result
+    # Паттерн для поиска <tspan>содержимое</tspan>
+    tspan_pattern = r'<tspan[^>]*>(.*?)</tspan>'
+    processed_svg = re.sub(tspan_pattern, replace_tspan_content, processed_svg, flags=re.DOTALL)
+    
+    # 2. ЗАМЕНА ТЕКСТОВЫХ ПОЛЕЙ В TEXT (если не в tspan)
+    def replace_text_content(match):
+        full_match = match.group(0)
+        text_content = match.group(1)
+        
+        # Ищем dyno поле в содержимом
+        for dyno_field, replacement in replacements.items():
+            if dyno_field in text_content:
+                safe_replacement = safe_escape_for_svg_fixed(str(replacement))
+                new_content = text_content.replace(dyno_field, safe_replacement)
+                return full_match.replace(text_content, new_content)
+        
+        return full_match
+    
+    # Паттерн для text элементов без tspan
+    text_pattern = r'<text[^>]*>([^<]*)</text>'
+    processed_svg = re.sub(text_pattern, replace_text_content, processed_svg, flags=re.DOTALL)
+    
+    # 3. ЗАМЕНА ID АТРИБУТОВ (для полей которые не заменились)
+    for dyno_field, replacement in replacements.items():
+        # Ищем элементы с id="dyno.field"
+        id_pattern = f'id="{dyno_field}"'
+        if id_pattern in processed_svg:
+            print(f"🔍 Найден элемент с id: {dyno_field}")
+            
+            # Для текстовых элементов - заменяем содержимое
+            if 'image' not in dyno_field.lower() and 'headshot' not in dyno_field.lower() and 'logo' not in dyno_field.lower():
+                # Ищем текстовый элемент с этим ID
+                element_pattern = f'<text[^>]*id="{dyno_field}"[^>]*>(.*?)</text>'
+                def replace_element_content(match):
+                    safe_replacement = safe_escape_for_svg_fixed(str(replacement))
+                    return match.group(0).replace(match.group(1), safe_replacement)
+                
+                processed_svg = re.sub(element_pattern, replace_element_content, processed_svg, flags=re.DOTALL)
+    
+    # 4. ЗАМЕНА ИЗОБРАЖЕНИЙ В PATTERNS
+    for dyno_field, replacement in replacements.items():
+        if 'image' in dyno_field.lower() or 'headshot' in dyno_field.lower() or 'logo' in dyno_field.lower():
+            # Простые URL без параметров для избежания XML ошибок
+            simple_url = str(replacement).split('?')[0]
+            
+            # Заменяем в pattern элементах
+            pattern_regex = r'<image[^>]*href="[^"]*"[^>]*>'
+            def replace_image_href(match):
+                return re.sub(r'href="[^"]*"', f'href="{simple_url}"', match.group(0))
+            
+            processed_svg = re.sub(pattern_regex, replace_image_href, processed_svg)
+    
+    return processed_svg
 
+# Тестирование функции
 if __name__ == "__main__":
-    # Тестируем на примере
+    # Тестовые данные
     test_svg = '''
-    <svg>
-        <text id="dyno.headline">Test Headline</text>
-        <text id="dyno.price">$500,000</text>
-        <image id="dyno.logo" href="old-logo.jpg"/>
-    </svg>
+    <text id="dyno.date"><tspan>MAY 17 2025</tspan></text>
+    <text id="dyno.price"><tspan>$5.000.000</tspan></text>
+    <text id="dyno.propertyaddress"><tspan>Address</tspan></text>
     '''
     
-    # Проверяем поиск dyno полей
-    has_dyno, fields = has_dyno_fields_fixed(test_svg)
-    print(f"Has dyno: {has_dyno}")
-    print(f"Fields: {fields}")
-    
-    # Извлекаем детальную информацию
-    field_info = extract_dyno_fields_from_svg(test_svg)
-    print(f"Field info: {field_info}")
-    
-    # Тестируем замену
-    replacements = {
-        'dyno.headline': 'New Headline',
-        'dyno.price': '$750,000',
-        'dyno.logo': 'new-logo.jpg'
+    test_replacements = {
+        'dyno.date': 'DECEMBER 15, 2025',
+        'dyno.price': '$3,250,000',
+        'dyno.propertyaddress': '2468 Ocean View Drive, Malibu, CA 90265'
     }
     
-    processed = process_svg_with_id_replacement(test_svg, replacements)
-    print(f"Processed SVG: {processed}")
+    result = process_svg_completely_fixed(test_svg, test_replacements)
+    print("Результат обработки:")
+    print(result)
 
