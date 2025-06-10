@@ -636,10 +636,10 @@ def generate_carousel():
         photo_path = os.path.join(OUTPUT_DIR, 'carousel', photo_filename)
         
         with open(main_path, 'w', encoding='utf-8') as f:
-            f.write(processed_main)
+            f.write(processed_main_svg)
         
         with open(photo_path, 'w', encoding='utf-8') as f:
-            f.write(processed_photo)
+            f.write(processed_photo_svg)
         
         return jsonify({
             'success': True,
