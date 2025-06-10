@@ -129,8 +129,11 @@ def process_svg_font_perfect(svg_content, replacements):
                     if pattern_end_match:
                         pattern_end = pattern_start + pattern_end_match.start()
                         
+                        # Определяем правильный разделитель для параметров URL
+                        url_separator = "&" if "?" in safe_value else "?"
+                        
                         # Создаем новое содержимое pattern с высококачественным изображением
-                        new_pattern_content = f'<image href="{safe_value}?w=1200&h=800&q=90&fit=crop" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
+                        new_pattern_content = f'<image href="{safe_value}{url_separator}w=1200&h=800&q=90&fit=crop" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
                         
                         # Заменяем содержимое pattern
                         processed_svg = processed_svg[:pattern_start] + new_pattern_content + processed_svg[pattern_end:]
