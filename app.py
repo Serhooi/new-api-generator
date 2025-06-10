@@ -89,153 +89,77 @@ def safe_escape_for_svg(text):
 
 def process_svg_font_perfect(svg_content, replacements):
     """
-    ИДЕАЛЬНАЯ функция обработки SVG с АБСОЛЮТНЫМ сохранением шрифтов
-    Заменяет ТОЛЬКО содержимое текста, НЕ ТРОГАЯ никакие атрибуты
+    ПРАВИЛЬНО ИСПРАВЛЕННАЯ функция обработки SVG
+    Ищет элементы по id="dyno.field" и заменяет их содержимое
     """
-    print("🎨 ЗАПУСК ИДЕАЛЬНОЙ ОБРАБОТКИ SVG С СОХРАНЕНИЕМ ШРИФТОВ")
+    print("🎨 ЗАПУСК ПРАВИЛЬНО ИСПРАВЛЕННОЙ ОБРАБОТКИ SVG")
     
     processed_svg = svg_content
     
-    for field, value in replacements.items():
-        print(f"\n🔄 Обрабатываю поле: {field} = {value}")
+    for dyno_field, replacement in replacements.items():
+        print(f"\n🔄 Обрабатываю поле: {dyno_field} = {replacement}")
         
-        # Безопасное экранирование HTML символов
-        safe_value = html.escape(str(value))
+        # Безопасное экранирование
+        safe_replacement = safe_escape_for_svg(str(replacement))
         
-        if field == 'dyno.propertyimage':
-            # СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ PROPERTY IMAGE
-            print(f"🖼️ Обрабатываю property image: {field}")
+        if 'image' in dyno_field.lower() or 'headshot' in dyno_field.lower() or 'logo' in dyno_field.lower():
+            # ОБРАБОТКА ИЗОБРАЖЕНИЙ
+            print(f"🖼️ Обрабатываю изображение: {dyno_field}")
             
-            # Ищем ВСЕ возможные patterns для property image
-            patterns_to_replace = [
-                'pattern0_294_4',  # Main template
-                'pattern0_332_4',  # Photo template
-            ]
+            # Экранируем & символы в URL для XML
+            safe_url = str(replacement).replace('&', '&amp;')
             
-            for pattern in patterns_to_replace:
-                # Ищем pattern definition
-                pattern_regex = f'<pattern[^>]*id="{pattern}"[^>]*>'
-                pattern_match = re.search(pattern_regex, processed_svg)
-                
-                if pattern_match:
-                    print(f"   🎯 Найден pattern: {pattern}")
-                    
-                    # Находим начало pattern
-                    pattern_start = pattern_match.end()
-                    
-                    # Ищем закрывающий </pattern>
-                    pattern_end_match = re.search(r'</pattern>', processed_svg[pattern_start:])
-                    
-                    if pattern_end_match:
-                        pattern_end = pattern_start + pattern_end_match.start()
-                        
-                        # Определяем правильный разделитель для параметров URL
-                        url_separator = "&" if "?" in safe_value else "?"
-                        
-                        # Создаем новое содержимое pattern с высококачественным изображением
-                        new_pattern_content = f'<image href="{safe_value}{url_separator}w=1200&h=800&q=90&fit=crop" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
-                        
-                        # Заменяем содержимое pattern
-                        processed_svg = processed_svg[:pattern_start] + new_pattern_content + processed_svg[pattern_end:]
-                        
-                        print(f"   ✅ Pattern {pattern} заменен на высококачественное изображение!")
-                        break
-                    else:
-                        print(f"   ⚠️ Не найден закрывающий </pattern> для {pattern}")
-                else:
-                    print(f"   ⚠️ Pattern {pattern} не найден")
-                    
-        elif field in ['dyno.agentheadshot', 'dyno.logo']:
-            # ОБРАБОТКА ДРУГИХ ИЗОБРАЖЕНИЙ
-            print(f"🖼️ Обрабатываю изображение: {field}")
+            # Заменяем в pattern элементах
+            pattern_regex = r'<image[^>]*href="[^"]*"[^>]*>'
+            def replace_image_href(match):
+                result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', match.group(0))
+                print(f"✅ Заменено изображение: {safe_url}")
+                return result
             
-            # Определяем pattern для каждого типа изображения
-            if field == 'dyno.agentheadshot':
-                target_patterns = ['pattern2_294_4', 'pattern2_332_4']
-                base_params = "w=400&h=400&q=90&fit=crop"
-            elif field == 'dyno.logo':
-                target_patterns = ['pattern1_294_4', 'pattern1_332_4']
-                base_params = "w=300&h=100&q=90&fit=crop"
+            processed_svg = re.sub(pattern_regex, replace_image_href, processed_svg)
             
-            for pattern in target_patterns:
-                pattern_regex = f'<pattern[^>]*id="{pattern}"[^>]*>'
-                pattern_match = re.search(pattern_regex, processed_svg)
-                
-                if pattern_match:
-                    print(f"   🎯 Найден pattern: {pattern}")
-                    
-                    pattern_start = pattern_match.end()
-                    pattern_end_match = re.search(r'</pattern>', processed_svg[pattern_start:])
-                    
-                    if pattern_end_match:
-                        pattern_end = pattern_start + pattern_end_match.start()
-                        
-                        # Определяем правильный разделитель для параметров URL
-                        url_separator = "&" if "?" in safe_value else "?"
-                        image_params = f"{url_separator}{base_params}"
-                        
-                        new_pattern_content = f'<image href="{safe_value}{image_params}" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
-                        
-                        processed_svg = processed_svg[:pattern_start] + new_pattern_content + processed_svg[pattern_end:]
-                        
-                        print(f"   ✅ Pattern {pattern} заменен!")
-                        break
-                        
         else:
-            # ДЛЯ ТЕКСТА - СУПЕР-ТОЧНАЯ замена с АБСОЛЮТНЫМ сохранением шрифтов
-            print(f"🔤 Обрабатываю текст: {field}")
+            # ОБРАБОТКА ТЕКСТОВЫХ ПОЛЕЙ
+            print(f"🔤 Обрабатываю текстовое поле: {dyno_field}")
             
-            # Ищем text элемент с нужным id
-            text_pattern = f'<text[^>]*id="{re.escape(field)}"[^>]*>'
-            text_match = re.search(text_pattern, processed_svg)
+            # Ищем элемент с id="dyno.field"
+            element_pattern = f'<text[^>]*id="{re.escape(dyno_field)}"[^>]*>(.*?)</text>'
             
-            if text_match:
-                print(f"   📝 Найден text элемент с id: {field}")
+            def replace_element_content(match):
+                full_element = match.group(0)
+                element_content = match.group(1)
                 
-                # Находим начало text элемента
-                text_start = text_match.end()
+                print(f"   📝 Найден элемент с id: {dyno_field}")
+                print(f"   📝 Содержимое: {element_content[:100]}...")
                 
-                # Ищем закрывающий </text>
-                text_end_match = re.search(r'</text>', processed_svg[text_start:])
+                # Заменяем содержимое первого tspan
+                def replace_tspan_content(tspan_match):
+                    opening_tag = tspan_match.group(1)  # <tspan ...>
+                    old_content = tspan_match.group(2)  # старое содержимое
+                    closing_tag = tspan_match.group(3)  # </tspan>
+                    
+                    print(f"      🎯 Заменяю: '{old_content}' → '{safe_replacement}'")
+                    print(f"      🔤 Сохраняю атрибуты: {opening_tag}")
+                    
+                    return opening_tag + safe_replacement + closing_tag
                 
-                if text_end_match:
-                    text_end = text_start + text_end_match.start()
-                    text_content = processed_svg[text_start:text_end]
-                    
-                    print(f"   📝 Найден text блок длиной {len(text_content)} символов")
-                    
-                    # ИДЕАЛЬНАЯ замена: заменяем ТОЛЬКО содержимое первого tspan
-                    def replace_first_tspan_content(content):
-                        # Ищем первый tspan с его содержимым
-                        tspan_pattern = r'(<tspan[^>]*>)([^<]*)(</tspan>)'
-                        
-                        def replace_content(match):
-                            opening_tag = match.group(1)  # <tspan ...> с ВСЕМИ атрибутами
-                            old_content = match.group(2)  # старое содержимое
-                            closing_tag = match.group(3)  # </tspan>
-                            
-                            print(f"      🎯 Заменяю содержимое: '{old_content}' → '{safe_value}'")
-                            print(f"      🔤 СОХРАНЯЮ атрибуты: {opening_tag}")
-                            
-                            # Возвращаем тег с новым содержимым, НО СО СТАРЫМИ АТРИБУТАМИ!
-                            return opening_tag + safe_value + closing_tag
-                        
-                        # Заменяем ТОЛЬКО первый tspan (count=1)
-                        return re.sub(tspan_pattern, replace_content, content, count=1)
-                    
-                    # Применяем замену
-                    new_text_content = replace_first_tspan_content(text_content)
-                    
-                    # Заменяем в полном SVG
-                    processed_svg = processed_svg[:text_start] + new_text_content + processed_svg[text_end:]
-                    
-                    print(f"   ✅ Текст заменен с ПОЛНЫМ сохранением font-family атрибутов!")
-                else:
-                    print(f"   ⚠️ Не найден закрывающий </text> для {field}")
+                # Паттерн для первого tspan
+                tspan_pattern = r'(<tspan[^>]*>)([^<]*)(</tspan>)'
+                new_content = re.sub(tspan_pattern, replace_tspan_content, element_content, count=1)
+                
+                print(f"   ✅ Содержимое заменено!")
+                return full_element.replace(element_content, new_content)
+            
+            # Применяем замену
+            new_svg = re.sub(element_pattern, replace_element_content, processed_svg, flags=re.DOTALL)
+            
+            if new_svg != processed_svg:
+                processed_svg = new_svg
+                print(f"   ✅ Поле {dyno_field} успешно заменено!")
             else:
-                print(f"   ⚠️ Не найден text элемент с id {field}")
+                print(f"   ⚠️ Элемент с id='{dyno_field}' не найден")
     
-    print("✅ ИДЕАЛЬНАЯ обработка SVG завершена - ВСЕ ШРИФТЫ MONTSERRAT СОХРАНЕНЫ!")
+    print("🎉 ПРАВИЛЬНАЯ обработка SVG завершена!")
     return processed_svg
 
 def ensure_db_exists():
