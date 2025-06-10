@@ -109,14 +109,25 @@ def process_svg_font_perfect(svg_content, replacements):
             # Экранируем & символы в URL для XML
             safe_url = str(replacement).replace('&', '&amp;')
             
-            # Заменяем в pattern элементах
-            pattern_regex = r'<image[^>]*href="[^"]*"[^>]*>'
-            def replace_image_href(match):
-                result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', match.group(0))
-                print(f"✅ Заменено изображение: {safe_url}")
-                return result
+            # Ищем элемент с id="dyno.field" и извлекаем его pattern
+            element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
+            match = re.search(element_pattern, processed_svg)
             
-            processed_svg = re.sub(pattern_regex, replace_image_href, processed_svg)
+            if match:
+                pattern_id = match.group(1)
+                image_id = pattern_id.replace("pattern", "image")
+                print(f"   🎯 Найден pattern: {pattern_id} → image: {image_id}")
+                
+                # Заменяем ТОЛЬКО соответствующий image элемент
+                image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*href="[^"]*"[^>]*>'
+                def replace_specific_image(img_match):
+                    result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', img_match.group(0))
+                    print(f"   ✅ Заменено изображение {image_id}: {safe_url[:50]}...")
+                    return result
+                
+                processed_svg = re.sub(image_pattern, replace_specific_image, processed_svg)
+            else:
+                print(f"   ⚠️ Элемент с id='{dyno_field}' не найден")
             
         else:
             # ОБРАБОТКА ТЕКСТОВЫХ ПОЛЕЙ
@@ -163,6 +174,23 @@ def process_svg_font_perfect(svg_content, replacements):
     print("🔤 Заменяю все шрифты на Montserrat...")
     processed_svg = re.sub(r'font-family="[^"]*"', 'font-family="Montserrat"', processed_svg)
     print("✅ Все шрифты заменены на Montserrat!")
+    
+    # ДОБАВЛЯЕМ GOOGLE FONTS ИМПОРТ ДЛЯ MONTSERRAT
+    print("📥 Добавляю Google Fonts импорт для Montserrat...")
+    
+    # Ищем тег <defs> или создаем его
+    if '<defs>' in processed_svg:
+        # Добавляем стиль в существующий <defs>
+        defs_pattern = r'(<defs>)'
+        font_style = r'\1\n<style>@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&amp;display=swap");</style>'
+        processed_svg = re.sub(defs_pattern, font_style, processed_svg)
+    else:
+        # Создаем новый <defs> после открывающего <svg>
+        svg_pattern = r'(<svg[^>]*>)'
+        font_defs = r'\1\n<defs>\n<style>@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&amp;display=swap");</style>\n</defs>'
+        processed_svg = re.sub(svg_pattern, font_defs, processed_svg)
+    
+    print("✅ Google Fonts импорт добавлен!")
     
     print("🎉 ПРАВИЛЬНАЯ обработка SVG завершена!")
     return processed_svg
