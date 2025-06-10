@@ -72,17 +72,18 @@ def extract_dyno_fields_simple(svg_content):
 
 def safe_escape_for_svg(text):
     """
-    Безопасное экранирование для SVG - только самые опасные символы
+    Безопасное экранирование для SVG - ВСЕ опасные символы включая &
     """
     if not text:
         return text
     
-    # Заменяем только действительно опасные символы
+    # Заменяем ВСЕ опасные символы для XML/SVG
     text = str(text)
+    text = text.replace('&', '&amp;')  # ВАЖНО: & должен быть первым!
     text = text.replace('<', '&lt;')
     text = text.replace('>', '&gt;')
     text = text.replace('"', '&quot;')
-    # НЕ экранируем & чтобы избежать двойного экранирования
+    text = text.replace("'", '&apos;')
     
     return text
 
