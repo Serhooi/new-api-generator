@@ -70,6 +70,22 @@ def extract_dyno_fields_simple(svg_content):
     
     return list(fields)
 
+def safe_escape_for_svg(text):
+    """
+    Безопасное экранирование для SVG - только самые опасные символы
+    """
+    if not text:
+        return text
+    
+    # Заменяем только действительно опасные символы
+    text = str(text)
+    text = text.replace('<', '&lt;')
+    text = text.replace('>', '&gt;')
+    text = text.replace('"', '&quot;')
+    # НЕ экранируем & чтобы избежать двойного экранирования
+    
+    return text
+
 def process_svg_font_perfect(svg_content, replacements):
     """
     ИДЕАЛЬНАЯ функция обработки SVG с АБСОЛЮТНЫМ сохранением шрифтов
@@ -553,8 +569,8 @@ def generate_single():
         
         template_name, svg_content = result
         
-        # Обрабатываем SVG с идеальным сохранением шрифтов
-        processed_svg = process_svg_font_perfect(svg_content, replacements)
+        # Обрабатываем SVG с безопасным экранированием
+        processed_svg = process_svg_safe_escape(svg_content, replacements)
         
         # Генерируем уникальное имя файла
         output_filename = f"single_{str(uuid.uuid4())}.svg"
@@ -602,12 +618,12 @@ def generate_carousel():
         if not main_result or not photo_result:
             return jsonify({'error': 'Один или оба шаблона не найдены'}), 404
         
-        main_name, main_svg = main_result
-        photo_name, photo_svg = photo_result
+        main_name, main_svg_content = main_result
+        photo_name, photo_svg_content = photo_result
         
-        # Обрабатываем оба SVG с идеальным сохранением шрифтов
-        processed_main = process_svg_font_perfect(main_svg, replacements)
-        processed_photo = process_svg_font_perfect(photo_svg, replacements)
+        # Обрабатываем SVG с безопасным экранированием
+        processed_main_svg = process_svg_safe_escape(main_svg_content, replacements)
+        processed_photo_svg = process_svg_safe_escape(photo_svg_content, replacements)
         
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
