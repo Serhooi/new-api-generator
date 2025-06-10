@@ -72,17 +72,18 @@ def extract_dyno_fields_simple(svg_content):
 
 def safe_escape_for_svg(text):
     """
-    Безопасное экранирование для SVG - только самые опасные символы
+    Безопасное экранирование для SVG - ВСЕ опасные символы включая &
     """
     if not text:
         return text
     
-    # Заменяем только действительно опасные символы
+    # Заменяем ВСЕ опасные символы для XML/SVG
     text = str(text)
+    text = text.replace('&', '&amp;')  # ВАЖНО: & должен быть первым!
     text = text.replace('<', '&lt;')
     text = text.replace('>', '&gt;')
     text = text.replace('"', '&quot;')
-    # НЕ экранируем & чтобы избежать двойного экранирования
+    text = text.replace("'", '&apos;')
     
     return text
 
@@ -128,8 +129,11 @@ def process_svg_font_perfect(svg_content, replacements):
                     if pattern_end_match:
                         pattern_end = pattern_start + pattern_end_match.start()
                         
+                        # Определяем правильный разделитель для параметров URL
+                        url_separator = "&" if "?" in safe_value else "?"
+                        
                         # Создаем новое содержимое pattern с высококачественным изображением
-                        new_pattern_content = f'<image href="{safe_value}?w=1200&h=800&q=90&fit=crop" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
+                        new_pattern_content = f'<image href="{safe_value}{url_separator}w=1200&h=800&q=90&fit=crop" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
                         
                         # Заменяем содержимое pattern
                         processed_svg = processed_svg[:pattern_start] + new_pattern_content + processed_svg[pattern_end:]
@@ -148,10 +152,10 @@ def process_svg_font_perfect(svg_content, replacements):
             # Определяем pattern для каждого типа изображения
             if field == 'dyno.agentheadshot':
                 target_patterns = ['pattern2_294_4', 'pattern2_332_4']
-                image_params = "?w=400&h=400&q=90&fit=crop"
+                base_params = "w=400&h=400&q=90&fit=crop"
             elif field == 'dyno.logo':
                 target_patterns = ['pattern1_294_4', 'pattern1_332_4']
-                image_params = "?w=300&h=100&q=90&fit=crop"
+                base_params = "w=300&h=100&q=90&fit=crop"
             
             for pattern in target_patterns:
                 pattern_regex = f'<pattern[^>]*id="{pattern}"[^>]*>'
@@ -165,6 +169,10 @@ def process_svg_font_perfect(svg_content, replacements):
                     
                     if pattern_end_match:
                         pattern_end = pattern_start + pattern_end_match.start()
+                        
+                        # Определяем правильный разделитель для параметров URL
+                        url_separator = "&" if "?" in safe_value else "?"
+                        image_params = f"{url_separator}{base_params}"
                         
                         new_pattern_content = f'<image href="{safe_value}{image_params}" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
                         
@@ -569,8 +577,8 @@ def generate_single():
         
         template_name, svg_content = result
         
-        # Обрабатываем SVG с безопасным экранированием
-        processed_svg = process_svg_safe_escape(svg_content, replacements)
+        # Обрабатываем SVG с идеальным сохранением шрифтов
+        processed_svg = process_svg_font_perfect(svg_content, replacements)
         
         # Генерируем уникальное имя файла
         output_filename = f"single_{str(uuid.uuid4())}.svg"
@@ -621,9 +629,9 @@ def generate_carousel():
         main_name, main_svg_content = main_result
         photo_name, photo_svg_content = photo_result
         
-        # Обрабатываем SVG с безопасным экранированием
-        processed_main_svg = process_svg_safe_escape(main_svg_content, replacements)
-        processed_photo_svg = process_svg_safe_escape(photo_svg_content, replacements)
+        # Обрабатываем SVG с идеальным сохранением шрифтов
+        processed_main_svg = process_svg_font_perfect(main_svg_content, replacements)
+        processed_photo_svg = process_svg_font_perfect(photo_svg_content, replacements)
         
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
@@ -636,10 +644,10 @@ def generate_carousel():
         photo_path = os.path.join(OUTPUT_DIR, 'carousel', photo_filename)
         
         with open(main_path, 'w', encoding='utf-8') as f:
-            f.write(processed_main)
+            f.write(processed_main_svg)
         
         with open(photo_path, 'w', encoding='utf-8') as f:
-            f.write(processed_photo)
+            f.write(processed_photo_svg)
         
         return jsonify({
             'success': True,
