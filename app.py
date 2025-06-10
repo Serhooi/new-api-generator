@@ -152,10 +152,10 @@ def process_svg_font_perfect(svg_content, replacements):
             # Определяем pattern для каждого типа изображения
             if field == 'dyno.agentheadshot':
                 target_patterns = ['pattern2_294_4', 'pattern2_332_4']
-                image_params = "?w=400&h=400&q=90&fit=crop"
+                base_params = "w=400&h=400&q=90&fit=crop"
             elif field == 'dyno.logo':
                 target_patterns = ['pattern1_294_4', 'pattern1_332_4']
-                image_params = "?w=300&h=100&q=90&fit=crop"
+                base_params = "w=300&h=100&q=90&fit=crop"
             
             for pattern in target_patterns:
                 pattern_regex = f'<pattern[^>]*id="{pattern}"[^>]*>'
@@ -169,6 +169,10 @@ def process_svg_font_perfect(svg_content, replacements):
                     
                     if pattern_end_match:
                         pattern_end = pattern_start + pattern_end_match.start()
+                        
+                        # Определяем правильный разделитель для параметров URL
+                        url_separator = "&" if "?" in safe_value else "?"
+                        image_params = f"{url_separator}{base_params}"
                         
                         new_pattern_content = f'<image href="{safe_value}{image_params}" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"/>'
                         
