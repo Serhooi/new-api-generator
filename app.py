@@ -109,6 +109,20 @@ def process_svg_font_perfect(svg_content, replacements):
             # Экранируем & символы в URL для XML
             safe_url = str(replacement).replace('&', '&amp;')
             
+            # Определяем правильный preserveAspectRatio для типа изображения
+            if 'propertyimage' in dyno_field.lower():
+                aspect_ratio = 'xMidYMid slice'  # Cover эффект для недвижимости
+                print(f"   📐 Property image: используем 'slice' для cover эффекта")
+            elif 'logo' in dyno_field.lower():
+                aspect_ratio = 'xMidYMid meet'   # Contain эффект для логотипа
+                print(f"   📐 Logo: используем 'meet' для contain эффекта")
+            elif 'headshot' in dyno_field.lower() or 'agent' in dyno_field.lower():
+                aspect_ratio = 'xMidYMid meet'   # Contain эффект для фото агента
+                print(f"   📐 Agent headshot: используем 'meet' для contain эффекта")
+            else:
+                aspect_ratio = 'xMidYMid meet'   # По умолчанию contain
+                print(f"   📐 Другое изображение: используем 'meet' по умолчанию")
+            
             # Ищем элемент с id="dyno.field" и извлекаем его pattern
             element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
             match = re.search(element_pattern, processed_svg)
@@ -118,11 +132,20 @@ def process_svg_font_perfect(svg_content, replacements):
                 image_id = pattern_id.replace("pattern", "image")
                 print(f"   🎯 Найден pattern: {pattern_id} → image: {image_id}")
                 
-                # Заменяем ТОЛЬКО соответствующий image элемент
-                image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*href="[^"]*"[^>]*>'
+                # Заменяем ТОЛЬКО соответствующий image элемент с правильным preserveAspectRatio
+                image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*>'
                 def replace_specific_image(img_match):
-                    result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', img_match.group(0))
-                    print(f"   ✅ Заменено изображение {image_id}: {safe_url[:50]}...")
+                    # Заменяем href и preserveAspectRatio
+                    result = img_match.group(0)
+                    result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', result)
+                    result = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', result)
+                    result = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', result)
+                    
+                    # Если preserveAspectRatio отсутствует, добавляем его
+                    if 'preserveAspectRatio=' not in result:
+                        result = result.replace('/>', f' preserveAspectRatio="{aspect_ratio}"/>')
+                    
+                    print(f"   ✅ Заменено изображение {image_id}: {safe_url[:50]}... (aspect: {aspect_ratio})")
                     return result
                 
                 processed_svg = re.sub(image_pattern, replace_specific_image, processed_svg)
@@ -617,6 +640,99 @@ def generate_carousel():
         })
         
     except Exception as e:
+        return jsonify({'error': f'Ошибка генерации карусели: {str(e)}'}), 500
+
+# API для генерации карусели по именам шаблонов
+@app.route('/api/generate/carousel-by-name', methods=['POST'])
+def generate_carousel_by_name():
+    """
+    Создает карусель используя имена шаблонов вместо ID
+    """
+    try:
+        data = request.get_json()
+        main_template_name = data.get('main_template_name')
+        photo_template_name = data.get('photo_template_name')
+        replacements = data.get('replacements', {})
+        
+        if not main_template_name or not photo_template_name:
+            return jsonify({'error': 'main_template_name и photo_template_name обязательны'}), 400
+        
+        print(f"🔍 Ищу шаблоны по именам:")
+        print(f"   Main: {main_template_name}")
+        print(f"   Photo: {photo_template_name}")
+        
+        # Получаем шаблоны из базы данных по именам
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Ищем main шаблон
+        cursor.execute('SELECT id, name, svg_content FROM templates WHERE name = ?', [main_template_name])
+        main_result = cursor.fetchone()
+        
+        if not main_result:
+            conn.close()
+            return jsonify({'error': f'Main шаблон "{main_template_name}" не найден'}), 404
+        
+        # Ищем photo шаблон
+        cursor.execute('SELECT id, name, svg_content FROM templates WHERE name = ?', [photo_template_name])
+        photo_result = cursor.fetchone()
+        
+        if not photo_result:
+            conn.close()
+            return jsonify({'error': f'Photo шаблон "{photo_template_name}" не найден'}), 404
+        
+        conn.close()
+        
+        main_id, main_name, main_svg = main_result
+        photo_id, photo_name, photo_svg = photo_result
+        
+        print(f"✅ Найдены шаблоны:")
+        print(f"   Main: {main_name} (ID: {main_id})")
+        print(f"   Photo: {photo_name} (ID: {photo_id})")
+        
+        # Обрабатываем SVG с идеальным сохранением шрифтов
+        print("🎨 Обрабатываю Main шаблон...")
+        processed_main_svg = process_svg_font_perfect(main_svg, replacements)
+        
+        print("🎨 Обрабатываю Photo шаблон...")
+        processed_photo_svg = process_svg_font_perfect(photo_svg, replacements)
+        
+        # Генерируем уникальный ID карусели
+        carousel_id = str(uuid.uuid4())
+        
+        # Создаем директорию если не существует
+        os.makedirs(os.path.join(OUTPUT_DIR, 'carousel'), exist_ok=True)
+        
+        # Генерируем имена файлов
+        main_filename = f"carousel_{carousel_id}_main.svg"
+        photo_filename = f"carousel_{carousel_id}_photo.svg"
+        
+        main_path = os.path.join(OUTPUT_DIR, 'carousel', main_filename)
+        photo_path = os.path.join(OUTPUT_DIR, 'carousel', photo_filename)
+        
+        with open(main_path, 'w', encoding='utf-8') as f:
+            f.write(processed_main_svg)
+        
+        with open(photo_path, 'w', encoding='utf-8') as f:
+            f.write(processed_photo_svg)
+        
+        print(f"🎉 Карусель создана: {carousel_id}")
+        
+        return jsonify({
+            'success': True,
+            'carousel_id': carousel_id,
+            'main_template_id': main_id,
+            'photo_template_id': photo_id,
+            'main_template_name': main_name,
+            'photo_template_name': photo_name,
+            'main_url': f'/output/carousel/{main_filename}',
+            'photo_url': f'/output/carousel/{photo_filename}',
+            'replacements_applied': len(replacements)
+        })
+        
+    except Exception as e:
+        print(f"❌ Ошибка генерации карусели по именам: {str(e)}")
         return jsonify({'error': f'Ошибка генерации карусели: {str(e)}'}), 500
 
 if __name__ == '__main__':
