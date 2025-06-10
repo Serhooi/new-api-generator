@@ -159,6 +159,11 @@ def process_svg_font_perfect(svg_content, replacements):
             else:
                 print(f"   ⚠️ Элемент с id='{dyno_field}' не найден")
     
+    # ПРИНУДИТЕЛЬНАЯ ЗАМЕНА ВСЕХ ШРИФТОВ НА MONTSERRAT
+    print("🔤 Заменяю все шрифты на Montserrat...")
+    processed_svg = re.sub(r'font-family="[^"]*"', 'font-family="Montserrat"', processed_svg)
+    print("✅ Все шрифты заменены на Montserrat!")
+    
     print("🎉 ПРАВИЛЬНАЯ обработка SVG завершена!")
     return processed_svg
 
