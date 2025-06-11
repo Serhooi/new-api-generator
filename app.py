@@ -598,26 +598,10 @@ def generate_carousel():
         main_replacements = replacements.copy()
         processed_main_svg = process_svg_font_perfect(main_svg_content, main_replacements)
         
-        print("🎨 Обрабатываю Photo слайд с ДРУГИМ изображением недвижимости...")
-        # Для photo слайда используем dyno.propertyimage2 если есть, иначе dyno.propertyimage
-        photo_replacements = {}
-        
-        # Приоритет: propertyimage2 > secondimage > propertyimage
-        if 'dyno.propertyimage2' in replacements:
-            # Маппим propertyimage2 на dyno.propertyimage в photo шаблоне
-            photo_replacements['dyno.propertyimage'] = replacements['dyno.propertyimage2']
-            print(f"📸 Photo слайд: используем propertyimage2 = {replacements['dyno.propertyimage2'][:50]}...")
-        elif 'dyno.secondimage' in replacements:
-            # Маппим secondimage на dyno.propertyimage в photo шаблоне
-            photo_replacements['dyno.propertyimage'] = replacements['dyno.secondimage']
-            print(f"📸 Photo слайд: используем secondimage = {replacements['dyno.secondimage'][:50]}...")
-        elif 'dyno.propertyimage' in replacements:
-            # Используем то же изображение (fallback)
-            photo_replacements['dyno.propertyimage'] = replacements['dyno.propertyimage']
-            print(f"📸 Photo слайд: fallback на propertyimage = {replacements['dyno.propertyimage'][:50]}...")
-        else:
-            print("⚠️ Photo слайд: нет изображений для замены")
-        
+        print("🎨 Обрабатываю Photo слайд - теперь БЕЗ МАППИНГА!")
+        print("   ✅ Photo шаблон теперь использует dyno.propertyimage2 напрямую")
+        # Теперь НЕ НУЖНО маппинга - photo шаблон сам ищет dyno.propertyimage2
+        photo_replacements = replacements.copy()
         processed_photo_svg = process_svg_font_perfect(photo_svg_content, photo_replacements)
         
         # Генерируем уникальный ID карусели
@@ -703,26 +687,10 @@ def generate_carousel_by_name():
         main_replacements = replacements.copy()
         processed_main_svg = process_svg_font_perfect(main_svg, main_replacements)
         
-        print("🎨 Обрабатываю Photo слайд с ДРУГИМ изображением недвижимости...")
-        # Для photo слайда используем dyno.propertyimage2 если есть, иначе dyno.propertyimage
-        photo_replacements = {}
-        
-        # Приоритет: propertyimage2 > secondimage > propertyimage
-        if 'dyno.propertyimage2' in replacements:
-            # Маппим propertyimage2 на dyno.propertyimage в photo шаблоне
-            photo_replacements['dyno.propertyimage'] = replacements['dyno.propertyimage2']
-            print(f"📸 Photo слайд: используем propertyimage2 = {replacements['dyno.propertyimage2'][:50]}...")
-        elif 'dyno.secondimage' in replacements:
-            # Маппим secondimage на dyno.propertyimage в photo шаблоне
-            photo_replacements['dyno.propertyimage'] = replacements['dyno.secondimage']
-            print(f"📸 Photo слайд: используем secondimage = {replacements['dyno.secondimage'][:50]}...")
-        elif 'dyno.propertyimage' in replacements:
-            # Используем то же изображение (fallback)
-            photo_replacements['dyno.propertyimage'] = replacements['dyno.propertyimage']
-            print(f"📸 Photo слайд: fallback на propertyimage = {replacements['dyno.propertyimage'][:50]}...")
-        else:
-            print("⚠️ Photo слайд: нет изображений для замены")
-        
+        print("🎨 Обрабатываю Photo слайд - теперь БЕЗ МАППИНГА!")
+        print("   ✅ Photo шаблон теперь использует dyno.propertyimage2 напрямую")
+        # Теперь НЕ НУЖНО маппинга - photo шаблон сам ищет dyno.propertyimage2
+        photo_replacements = replacements.copy()
         processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
         
         # Генерируем уникальный ID карусели
