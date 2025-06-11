@@ -89,9 +89,10 @@ def safe_escape_for_svg(text):
 
 def process_svg_font_perfect(svg_content, replacements):
     """
-    ИСПРАВЛЕННАЯ функция обработки SVG БЕЗ изменения шрифтов
+    ПРАВИЛЬНО ИСПРАВЛЕННАЯ функция обработки SVG
+    Ищет элементы по id="dyno.field" и заменяет их содержимое
     """
-    print("🎨 ЗАПУСК ИСПРАВЛЕННОЙ ОБРАБОТКИ SVG (БЕЗ ИЗМЕНЕНИЯ ШРИФТОВ)")
+    print("🎨 ЗАПУСК ПРАВИЛЬНО ИСПРАВЛЕННОЙ ОБРАБОТКИ SVG")
     
     processed_svg = svg_content
     
@@ -116,9 +117,8 @@ def process_svg_font_perfect(svg_content, replacements):
                 aspect_ratio = 'xMidYMid meet'   # Contain эффект для логотипа
                 print(f"   📐 Logo: используем 'meet' для contain эффекта")
             elif 'headshot' in dyno_field.lower() or 'agent' in dyno_field.lower():
-                # ИСПРАВЛЕНИЕ: для headshot НЕ обрезаем, используем meet
                 aspect_ratio = 'xMidYMid meet'   # Contain эффект для фото агента
-                print(f"   📐 Agent headshot: используем 'meet' чтобы НЕ обрезать лицо")
+                print(f"   📐 Agent headshot: используем 'meet' для contain эффекта")
             else:
                 aspect_ratio = 'xMidYMid meet'   # По умолчанию contain
                 print(f"   📐 Другое изображение: используем 'meet' по умолчанию")
@@ -173,7 +173,7 @@ def process_svg_font_perfect(svg_content, replacements):
                     closing_tag = tspan_match.group(3)  # </tspan>
                     
                     print(f"      🎯 Заменяю: '{old_content}' → '{safe_replacement}'")
-                    print(f"      🔤 СОХРАНЯЮ оригинальные атрибуты шрифта: {opening_tag}")
+                    print(f"      🔤 Сохраняю атрибуты: {opening_tag}")
                     
                     return opening_tag + safe_replacement + closing_tag
                 
@@ -193,13 +193,29 @@ def process_svg_font_perfect(svg_content, replacements):
             else:
                 print(f"   ⚠️ Элемент с id='{dyno_field}' не найден")
     
-    # УБИРАЕМ принудительную замену шрифтов - оставляем оригинальные!
-    print("🔤 СОХРАНЯЮ оригинальные шрифты (НЕ заменяю на Montserrat)")
+    # ПРИНУДИТЕЛЬНАЯ ЗАМЕНА ВСЕХ ШРИФТОВ НА MONTSERRAT
+    print("🔤 Заменяю все шрифты на Montserrat...")
+    processed_svg = re.sub(r'font-family="[^"]*"', 'font-family="Montserrat"', processed_svg)
+    print("✅ Все шрифты заменены на Montserrat!")
     
-    # УБИРАЕМ добавление Google Fonts импорта - оставляем как есть
-    print("📥 НЕ добавляю Google Fonts импорт - сохраняю оригинальные шрифты")
+    # ДОБАВЛЯЕМ GOOGLE FONTS ИМПОРТ ДЛЯ MONTSERRAT
+    print("📥 Добавляю Google Fonts импорт для Montserrat...")
     
-    print("🎉 ИСПРАВЛЕННАЯ обработка SVG завершена!")
+    # Ищем тег <defs> или создаем его
+    if '<defs>' in processed_svg:
+        # Добавляем стиль в существующий <defs>
+        defs_pattern = r'(<defs>)'
+        font_style = r'\1\n<style>@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&amp;display=swap");</style>'
+        processed_svg = re.sub(defs_pattern, font_style, processed_svg)
+    else:
+        # Создаем новый <defs> после открывающего <svg>
+        svg_pattern = r'(<svg[^>]*>)'
+        font_defs = r'\1\n<defs>\n<style>@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&amp;display=swap");</style>\n</defs>'
+        processed_svg = re.sub(svg_pattern, font_defs, processed_svg)
+    
+    print("✅ Google Fonts импорт добавлен!")
+    
+    print("🎉 ПРАВИЛЬНАЯ обработка SVG завершена!")
     return processed_svg
 
 def ensure_db_exists():
@@ -593,16 +609,9 @@ def generate_carousel():
         main_name, main_svg_content = main_result
         photo_name, photo_svg_content = photo_result
         
-        # ИСПРАВЛЕННАЯ обработка SVG с разными изображениями для слайдов
-        print("🎨 Обрабатываю Main слайд с ПОЛНЫМИ данными...")
-        main_replacements = replacements.copy()
-        processed_main_svg = process_svg_font_perfect(main_svg_content, main_replacements)
-        
-        print("🎨 Обрабатываю Photo слайд - теперь БЕЗ МАППИНГА!")
-        print("   ✅ Photo шаблон теперь использует dyno.propertyimage2 напрямую")
-        # Теперь НЕ НУЖНО маппинга - photo шаблон сам ищет dyno.propertyimage2
-        photo_replacements = replacements.copy()
-        processed_photo_svg = process_svg_font_perfect(photo_svg_content, photo_replacements)
+        # Обрабатываем SVG с идеальным сохранением шрифтов
+        processed_main_svg = process_svg_font_perfect(main_svg_content, replacements)
+        processed_photo_svg = process_svg_font_perfect(photo_svg_content, replacements)
         
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
@@ -682,16 +691,12 @@ def generate_carousel_by_name():
         print(f"   Main: {main_name} (ID: {main_id})")
         print(f"   Photo: {photo_name} (ID: {photo_id})")
         
-        # ИСПРАВЛЕННАЯ обработка SVG с разными изображениями для слайдов
-        print("🎨 Обрабатываю Main слайд с ПОЛНЫМИ данными...")
-        main_replacements = replacements.copy()
-        processed_main_svg = process_svg_font_perfect(main_svg, main_replacements)
+        # Обрабатываем SVG с идеальным сохранением шрифтов
+        print("🎨 Обрабатываю Main шаблон...")
+        processed_main_svg = process_svg_font_perfect(main_svg, replacements)
         
-        print("🎨 Обрабатываю Photo слайд - теперь БЕЗ МАППИНГА!")
-        print("   ✅ Photo шаблон теперь использует dyno.propertyimage2 напрямую")
-        # Теперь НЕ НУЖНО маппинга - photo шаблон сам ищет dyno.propertyimage2
-        photo_replacements = replacements.copy()
-        processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
+        print("🎨 Обрабатываю Photo шаблон...")
+        processed_photo_svg = process_svg_font_perfect(photo_svg, replacements)
         
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
