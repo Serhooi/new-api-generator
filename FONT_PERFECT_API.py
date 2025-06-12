@@ -202,7 +202,7 @@ def process_svg_font_perfect(svg_content, replacements):
                 aspect_ratio = 'xMidYMid meet'
             elif 'headshot' in dyno_field.lower() or 'agent' in dyno_field.lower():
                 # СПЕЦИАЛЬНАЯ обработка для headshot - НЕ обрезаем лица
-                aspect_ratio = 'xMidYMin meet'  # Выравнивание по верху + полное изображение
+                aspect_ratio = 'xMidYMid meet'  # Выравнивание по центру + полное изображение
             else:
                 aspect_ratio = 'xMidYMid meet'
             
