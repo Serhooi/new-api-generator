@@ -89,133 +89,333 @@ def safe_escape_for_svg(text):
 
 def process_svg_font_perfect(svg_content, replacements):
     """
-    ПРАВИЛЬНО ИСПРАВЛЕННАЯ функция обработки SVG
-    Ищет элементы по id="dyno.field" и заменяет их содержимое
+    ИДЕАЛЬНАЯ функция обработки SVG с автоматическим переносом адреса
+    - Поддержка use элементов в pattern блоках
+    - Сохранение оригинальных шрифтов Inter и Montserrat
+    - Правильная обработка хедшотов без обрезки
+    - НОВОЕ: Автоматический перенос длинных адресов на две строки
     """
-    print("🎨 ЗАПУСК ПРАВИЛЬНО ИСПРАВЛЕННОЙ ОБРАБОТКИ SVG")
+    print("🎨 ЗАПУСК ИДЕАЛЬНОЙ ОБРАБОТКИ SVG (с переносом адреса)")
     
     processed_svg = svg_content
     
+    def determine_image_type(dyno_field):
+        """Определение типа изображения по названию поля"""
+        field_lower = dyno_field.lower()
+        
+        headshot_keywords = ['headshot', 'agent', 'profile', 'portrait', 'realtor', 'agentheadshot']
+        property_keywords = ['propertyimage', 'property', 'house', 'home', 'building', 'listing']
+        logo_keywords = ['logo', 'companylogo', 'brand', 'brandlogo']
+        
+        for keyword in headshot_keywords:
+            if keyword in field_lower:
+                return 'headshot'
+        
+        for keyword in property_keywords:
+            if keyword in field_lower:
+                return 'property'
+        
+        for keyword in logo_keywords:
+            if keyword in field_lower:
+                return 'logo'
+        
+        return 'generic_image'
+    
+    def get_aspect_ratio_for_type(image_type):
+        """Возвращает правильный preserveAspectRatio для типа изображения"""
+        if image_type == 'headshot':
+            return 'xMidYMid meet'  # КРИТИЧНО: meet для хедшотов (без обрезки)
+        elif image_type == 'property':
+            return 'xMidYMid slice'  # slice для недвижимости (cover эффект)
+        elif image_type == 'logo':
+            return 'xMidYMid meet'  # meet для логотипов (сохранение пропорций)
+        else:
+            return 'xMidYMid meet'  # По умолчанию meet (безопасно)
+    
+    def is_image_field(dyno_field):
+        """Определяет, является ли поле изображением"""
+        field_lower = dyno_field.lower()
+        explicit_image_indicators = ['image', 'headshot', 'logo', 'photo', 'pic', 'portrait']
+        
+        for indicator in explicit_image_indicators:
+            if indicator in field_lower:
+                return True
+        
+        if 'agent' in field_lower and any(img in field_lower for img in ['photo', 'image', 'pic', 'headshot']):
+            return True
+        
+        return False
+    
+    def is_address_field(dyno_field):
+        """Определяет, является ли поле адресом"""
+        field_lower = dyno_field.lower()
+        address_keywords = ['address', 'location', 'addr', 'street', 'propertyaddress']
+        
+        for keyword in address_keywords:
+            if keyword in field_lower:
+                return True
+        
+        return False
+    
+    def wrap_address_text(address_text, max_length=35):
+        """
+        Автоматический перенос адреса на две строки
+        """
+        if not address_text or len(address_text) <= max_length:
+            return address_text, ""
+        
+        # Пытаемся найти хорошее место для разрыва
+        words = address_text.split()
+        
+        if len(words) <= 1:
+            return address_text, ""
+        
+        # Ищем оптимальное место для разрыва
+        best_break = len(words) // 2
+        
+        # Пытаемся найти запятую для естественного разрыва
+        for i, word in enumerate(words):
+            if ',' in word and i > 0 and i < len(words) - 1:
+                # Проверяем, не слишком ли короткая первая строка
+                first_part = ' '.join(words[:i+1])
+                if len(first_part) >= 15:  # Минимум 15 символов в первой строке
+                    best_break = i + 1
+                    break
+        
+        # Если не нашли запятую, ищем другие разделители
+        if best_break == len(words) // 2:
+            for i, word in enumerate(words):
+                if i > 0 and i < len(words) - 1:
+                    first_part = ' '.join(words[:i+1])
+                    if 20 <= len(first_part) <= max_length:
+                        best_break = i + 1
+                        break
+        
+        first_line = ' '.join(words[:best_break])
+        second_line = ' '.join(words[best_break:])
+        
+        # Если вторая строка слишком длинная, возвращаем оригинал
+        if len(second_line) > max_length:
+            return address_text, ""
+        
+        return first_line, second_line
+    
+    # Обрабатываем каждое поле
     for dyno_field, replacement in replacements.items():
         print(f"\n🔄 Обрабатываю поле: {dyno_field} = {replacement}")
         
-        # Безопасное экранирование
-        safe_replacement = safe_escape_for_svg(str(replacement))
-        
-        if 'image' in dyno_field.lower() or 'headshot' in dyno_field.lower() or 'logo' in dyno_field.lower():
+        if is_image_field(dyno_field):
             # ОБРАБОТКА ИЗОБРАЖЕНИЙ
             print(f"🖼️ Обрабатываю изображение: {dyno_field}")
             
-            # Экранируем & символы в URL для XML
+            image_type = determine_image_type(dyno_field)
+            aspect_ratio = get_aspect_ratio_for_type(image_type)
+            
+            print(f"   📐 Тип изображения: {image_type}")
+            print(f"   📐 Aspect ratio: {aspect_ratio}")
+            
             safe_url = str(replacement).replace('&', '&amp;')
             
-            # Определяем правильный preserveAspectRatio для типа изображения
-            if 'propertyimage' in dyno_field.lower():
-                aspect_ratio = 'xMidYMid slice'  # Cover эффект для недвижимости
-                print(f"   📐 Property image: используем 'slice' для cover эффекта")
-            elif 'logo' in dyno_field.lower():
-                aspect_ratio = 'xMidYMid meet'   # Contain эффект для логотипа
-                print(f"   📐 Logo: используем 'meet' для contain эффекта")
-            elif 'headshot' in dyno_field.lower() or 'agent' in dyno_field.lower():
-                aspect_ratio = 'xMidYMid meet'   # Contain эффект для фото агента
-                print(f"   📐 Agent headshot: используем 'meet' для contain эффекта")
-            else:
-                aspect_ratio = 'xMidYMid meet'   # По умолчанию contain
-                print(f"   📐 Другое изображение: используем 'meet' по умолчанию")
-            
-            # Ищем элемент с id="dyno.field" и извлекаем его pattern
+            # Ищем элемент с id="dyno.field" и извлекаем pattern
             element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
             match = re.search(element_pattern, processed_svg)
             
             if match:
                 pattern_id = match.group(1)
-                image_id = pattern_id.replace("pattern", "image")
-                print(f"   🎯 Найден pattern: {pattern_id} → image: {image_id}")
+                print(f"   🎯 Найден pattern: {pattern_id}")
                 
-                # Заменяем ТОЛЬКО соответствующий image элемент с правильным preserveAspectRatio
-                image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*>'
-                def replace_specific_image(img_match):
-                    # Заменяем href и preserveAspectRatio
-                    result = img_match.group(0)
-                    result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', result)
-                    result = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', result)
-                    result = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', result)
-                    
-                    # Если preserveAspectRatio отсутствует, добавляем его
-                    if 'preserveAspectRatio=' not in result:
-                        result = result.replace('/>', f' preserveAspectRatio="{aspect_ratio}"/>')
-                    
-                    print(f"   ✅ Заменено изображение {image_id}: {safe_url[:50]}... (aspect: {aspect_ratio})")
-                    return result
+                # Ищем pattern блок
+                pattern_block_pattern = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
+                pattern_match = re.search(pattern_block_pattern, processed_svg, re.DOTALL)
                 
-                processed_svg = re.sub(image_pattern, replace_specific_image, processed_svg)
+                if pattern_match:
+                    pattern_content = pattern_match.group(1)
+                    print(f"   📦 Найден pattern блок")
+                    
+                    # Ищем use элемент внутри pattern
+                    use_pattern = r'<use[^>]*xlink:href="#([^"]*)"[^>]*/?>'
+                    use_match = re.search(use_pattern, pattern_content)
+                    
+                    if use_match:
+                        image_id = use_match.group(1)
+                        print(f"   🔗 Найден use элемент с href: #{image_id}")
+                        
+                        # Теперь ищем соответствующий image элемент в defs
+                        image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*/?>'
+                        image_match = re.search(image_pattern, processed_svg)
+                        
+                        if image_match:
+                            old_image = image_match.group(0)
+                            print(f"   🖼️ Найден image элемент: {old_image[:100]}...")
+                            
+                            # Создаем новый image элемент
+                            new_image = old_image
+                            
+                            # Заменяем href/xlink:href на новый URL
+                            new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
+                            new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
+                            
+                            # КРИТИЧНО: Добавляем или заменяем preserveAspectRatio
+                            if 'preserveAspectRatio=' in new_image:
+                                new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                            else:
+                                # Добавляем preserveAspectRatio
+                                if new_image.endswith('/>'):
+                                    new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
+                                elif new_image.endswith('>'):
+                                    new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
+                            
+                            print(f"   🔧 Новый image элемент: {new_image[:100]}...")
+                            
+                            # Заменяем в исходном SVG
+                            processed_svg = processed_svg.replace(old_image, new_image)
+                            print(f"   ✅ Изображение {dyno_field} успешно заменено!")
+                        else:
+                            print(f"   ⚠️ Image элемент с id='{image_id}' не найден в defs")
+                    else:
+                        print(f"   ⚠️ Use элемент не найден в pattern")
+                else:
+                    print(f"   ⚠️ Pattern блок не найден")
             else:
                 print(f"   ⚠️ Элемент с id='{dyno_field}' не найден")
-            
+        
         else:
             # ОБРАБОТКА ТЕКСТОВЫХ ПОЛЕЙ
-            print(f"🔤 Обрабатываю текстовое поле: {dyno_field}")
+            safe_replacement = safe_escape_for_svg(str(replacement))
             
-            # Ищем элемент с id="dyno.field"
-            element_pattern = f'<text[^>]*id="{re.escape(dyno_field)}"[^>]*>(.*?)</text>'
-            
-            def replace_element_content(match):
-                full_element = match.group(0)
-                element_content = match.group(1)
+            if is_address_field(dyno_field):
+                print(f"🏠 Обрабатываю адрес с переносом: {dyno_field}")
                 
-                print(f"   📝 Найден элемент с id: {dyno_field}")
-                print(f"   📝 Содержимое: {element_content[:100]}...")
+                # Разбиваем адрес на две строки
+                first_line, second_line = wrap_address_text(str(replacement))
                 
-                # Заменяем содержимое первого tspan
-                def replace_tspan_content(tspan_match):
-                    opening_tag = tspan_match.group(1)  # <tspan ...>
-                    old_content = tspan_match.group(2)  # старое содержимое
-                    closing_tag = tspan_match.group(3)  # </tspan>
+                print(f"   📝 Оригинал: {replacement}")
+                print(f"   📝 Первая строка: {first_line}")
+                print(f"   📝 Вторая строка: {second_line}")
+                
+                # Ищем text элемент
+                element_pattern = f'<text[^>]*id="{re.escape(dyno_field)}"[^>]*>(.*?)</text>'
+                
+                def replace_address_element(match):
+                    full_element = match.group(0)
+                    element_content = match.group(1)
                     
-                    print(f"      🎯 Заменяю: '{old_content}' → '{safe_replacement}'")
-                    print(f"      🔤 Сохраняю атрибуты: {opening_tag}")
+                    print(f"   📝 Найден адресный элемент с id: {dyno_field}")
                     
-                    return opening_tag + safe_replacement + closing_tag
+                    # Ищем существующий tspan
+                    tspan_pattern = r'<tspan[^>]*x="([^"]*)"[^>]*y="([^"]*)"[^>]*>([^<]*)</tspan>'
+                    tspan_match = re.search(tspan_pattern, element_content)
+                    
+                    if tspan_match:
+                        x_pos = tspan_match.group(1)
+                        y_pos = tspan_match.group(2)
+                        old_content = tspan_match.group(3)
+                        
+                        print(f"   🎯 Найден tspan: x={x_pos}, y={y_pos}")
+                        print(f"   🔄 Заменяю: '{old_content}' → '{first_line}'")
+                        
+                        # Создаем новый контент с двумя tspan элементами
+                        if second_line:
+                            # Вычисляем позицию для второй строки (добавляем ~35 пикселей)
+                            try:
+                                y_float = float(y_pos)
+                                second_y = y_float + 35  # Межстрочный интервал
+                            except:
+                                second_y = f"{y_pos}+35"
+                            
+                            new_content = f'<tspan x="{x_pos}" y="{y_pos}">{safe_escape_for_svg(first_line)}</tspan><tspan x="{x_pos}" y="{second_y}">{safe_escape_for_svg(second_line)}</tspan>'
+                            print(f"   ✅ Создан второй tspan для второй строки на y={second_y}")
+                        else:
+                            new_content = f'<tspan x="{x_pos}" y="{y_pos}">{safe_escape_for_svg(first_line)}</tspan>'
+                            print(f"   ✅ Адрес помещается в одну строку")
+                        
+                        return full_element.replace(element_content, new_content)
+                    else:
+                        print(f"   ⚠️ tspan не найден в адресном элементе")
+                        return full_element
                 
-                # Паттерн для первого tspan
-                tspan_pattern = r'(<tspan[^>]*>)([^<]*)(</tspan>)'
-                new_content = re.sub(tspan_pattern, replace_tspan_content, element_content, count=1)
+                new_svg = re.sub(element_pattern, replace_address_element, processed_svg, flags=re.DOTALL)
                 
-                print(f"   ✅ Содержимое заменено!")
-                return full_element.replace(element_content, new_content)
+                if new_svg != processed_svg:
+                    processed_svg = new_svg
+                    print(f"   ✅ Адрес {dyno_field} успешно заменен с переносом!")
+                else:
+                    print(f"   ⚠️ Адресный элемент с id='{dyno_field}' не найден")
             
-            # Применяем замену
-            new_svg = re.sub(element_pattern, replace_element_content, processed_svg, flags=re.DOTALL)
-            
-            if new_svg != processed_svg:
-                processed_svg = new_svg
-                print(f"   ✅ Поле {dyno_field} успешно заменено!")
             else:
-                print(f"   ⚠️ Элемент с id='{dyno_field}' не найден")
+                # Обычная замена для не-адресов
+                print(f"🔤 Обрабатываю текстовое поле: {dyno_field}")
+                
+                element_pattern = f'<text[^>]*id="{re.escape(dyno_field)}"[^>]*>(.*?)</text>'
+                
+                def replace_element_content(match):
+                    full_element = match.group(0)
+                    element_content = match.group(1)
+                    
+                    print(f"   📝 Найден элемент с id: {dyno_field}")
+                    
+                    def replace_tspan_content(tspan_match):
+                        opening_tag = tspan_match.group(1)
+                        old_content = tspan_match.group(2)
+                        closing_tag = tspan_match.group(3)
+                        
+                        print(f"      🎯 Заменяю: '{old_content}' → '{safe_replacement}'")
+                        return opening_tag + safe_replacement + closing_tag
+                    
+                    tspan_pattern = r'(<tspan[^>]*>)([^<]*)(</tspan>)'
+                    new_content = re.sub(tspan_pattern, replace_tspan_content, element_content, count=1)
+                    
+                    print(f"   ✅ Содержимое заменено!")
+                    return full_element.replace(element_content, new_content)
+                
+                new_svg = re.sub(element_pattern, replace_element_content, processed_svg, flags=re.DOTALL)
+                
+                if new_svg != processed_svg:
+                    processed_svg = new_svg
+                    print(f"   ✅ Поле {dyno_field} успешно заменено!")
+                else:
+                    print(f"   ⚠️ Элемент с id='{dyno_field}' не найден")
     
-    # ПРИНУДИТЕЛЬНАЯ ЗАМЕНА ВСЕХ ШРИФТОВ НА MONTSERRAT
-    print("🔤 Заменяю все шрифты на Montserrat...")
-    processed_svg = re.sub(r'font-family="[^"]*"', 'font-family="Montserrat"', processed_svg)
-    print("✅ Все шрифты заменены на Montserrat!")
+    # ОБРАБОТКА ШРИФТОВ (сохраняем оригинальные)
+    print("\n🔤 Анализирую используемые шрифты...")
     
-    # ДОБАВЛЯЕМ GOOGLE FONTS ИМПОРТ ДЛЯ MONTSERRAT
-    print("📥 Добавляю Google Fonts импорт для Montserrat...")
+    font_matches = re.findall(r'font-family="([^"]*)"', processed_svg)
+    unique_fonts = set(font_matches)
     
-    # Ищем тег <defs> или создаем его
-    if '<defs>' in processed_svg:
-        # Добавляем стиль в существующий <defs>
-        defs_pattern = r'(<defs>)'
-        font_style = r'\1\n<style>@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&amp;display=swap");</style>'
-        processed_svg = re.sub(defs_pattern, font_style, processed_svg)
+    print(f"   📝 Найденные шрифты: {', '.join(unique_fonts)}")
+    
+    has_inter = any('inter' in font.lower() for font in unique_fonts)
+    has_montserrat = any('montserrat' in font.lower() for font in unique_fonts)
+    
+    print(f"   ✅ Inter найден: {has_inter}")
+    print(f"   ✅ Montserrat найден: {has_montserrat}")
+    
+    # ДОБАВЛЯЕМ GOOGLE FONTS ИМПОРТ
+    print("📥 Добавляю Google Fonts импорт...")
+    
+    font_imports = []
+    if has_inter:
+        font_imports.append("Inter:wght@100;200;300;400;500;600;700;800;900")
+    if has_montserrat:
+        font_imports.append("Montserrat:wght@100;200;300;400;500;600;700;800;900")
+    
+    if font_imports:
+        fonts_url = "https://fonts.googleapis.com/css2?family=" + "&amp;family=".join(font_imports) + "&amp;display=swap"
+        
+        if '<defs>' in processed_svg:
+            defs_pattern = r'(<defs>)'
+            font_style = f'\\1\\n<style>@import url("{fonts_url}");</style>'
+            processed_svg = re.sub(defs_pattern, font_style, processed_svg)
+        else:
+            svg_pattern = r'(<svg[^>]*>)'
+            font_defs = f'\\1\\n<defs>\\n<style>@import url("{fonts_url}");</style>\\n</defs>'
+            processed_svg = re.sub(svg_pattern, font_defs, processed_svg)
+        
+        print(f"   ✅ Google Fonts импорт добавлен: {', '.join(font_imports)}")
     else:
-        # Создаем новый <defs> после открывающего <svg>
-        svg_pattern = r'(<svg[^>]*>)'
-        font_defs = r'\1\n<defs>\n<style>@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&amp;display=swap");</style>\n</defs>'
-        processed_svg = re.sub(svg_pattern, font_defs, processed_svg)
+        print("   ⚠️ Не найдено поддерживаемых шрифтов")
     
-    print("✅ Google Fonts импорт добавлен!")
-    
-    print("🎉 ПРАВИЛЬНАЯ обработка SVG завершена!")
+    print("🎉 ИДЕАЛЬНАЯ обработка SVG с переносом адреса завершена!")
     return processed_svg
 
 def ensure_db_exists():
