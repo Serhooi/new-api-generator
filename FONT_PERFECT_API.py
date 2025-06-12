@@ -206,6 +206,54 @@ def process_svg_font_perfect(svg_content, replacements):
             else:
                 aspect_ratio = 'xMidYMid meet'
             
+            # СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ HEADSHOT С CLIPPATH
+            if 'headshot' in dyno_field.lower() or 'agent' in dyno_field.lower():
+                print(f"🔍 Ищу элемент с clipPath для headshot: {dyno_field}")
+                
+                # Проверяем наличие элемента с clipPath
+                clip_pattern = f'<g[^>]*clip-path="url\\(#([^)]+)\\)"[^>]*>\\s*<rect[^>]*id="{re.escape(dyno_field)}"[^>]*>'
+                clip_match = re.search(clip_pattern, processed_svg, re.DOTALL)
+                
+                if clip_match:
+                    clip_id = clip_match.group(1)
+                    print(f"   ✅ Найден clipPath: {clip_id} для headshot")
+                    
+                    # Находим определение clipPath
+                    clip_def_pattern = f'<clipPath[^>]*id="{re.escape(clip_id)}"[^>]*>\\s*<rect[^>]*rx="([^"]+)"[^>]*>'
+                    clip_def_match = re.search(clip_def_pattern, processed_svg, re.DOTALL)
+                    
+                    if clip_def_match:
+                        rx_value = clip_def_match.group(1)
+                        print(f"   ✅ Найдено определение clipPath с rx={rx_value} (круглая маска)")
+                        
+                        # Находим pattern для изображения
+                        pattern_pattern = f'<rect[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
+                        pattern_match = re.search(pattern_pattern, processed_svg)
+                        
+                        if pattern_match:
+                            pattern_id = pattern_match.group(1)
+                            image_id = pattern_id.replace("pattern", "image")
+                            
+                            # Заменяем изображение в pattern
+                            image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*>'
+                            def replace_specific_image(img_match):
+                                result = img_match.group(0)
+                                result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', result)
+                                result = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', result)
+                                result = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', result)
+                                
+                                if 'preserveAspectRatio=' not in result:
+                                    result = result.replace('/>', f' preserveAspectRatio="{aspect_ratio}"/>')
+                                
+                                return result
+                            
+                            processed_svg = re.sub(image_pattern, replace_specific_image, processed_svg, count=1)
+                            print(f"   ✅ Заменено изображение {image_id} с сохранением круглой маски")
+                            
+                            # Продолжаем обычную обработку
+                            continue
+            
+            # СТАНДАРТНАЯ ОБРАБОТКА ДЛЯ ДРУГИХ ИЗОБРАЖЕНИЙ
             element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
             match = re.search(element_pattern, processed_svg)
             
