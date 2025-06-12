@@ -206,9 +206,64 @@ def process_svg_font_perfect(svg_content, replacements):
             else:
                 aspect_ratio = 'xMidYMid meet'
             
-            # СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ HEADSHOT С CLIPPATH
+            # РАДИКАЛЬНОЕ РЕШЕНИЕ ДЛЯ HEADSHOT - ПОЛНАЯ ЗАМЕНА БЛОКА
             if 'headshot' in dyno_field.lower() or 'agent' in dyno_field.lower():
-                print(f"🔍 Ищу элемент с clipPath для headshot: {dyno_field}")
+                print(f"🔄 РАДИКАЛЬНОЕ РЕШЕНИЕ для headshot: {dyno_field}")
+                
+                # Находим весь блок с headshot и его координаты
+                rect_pattern = f'<rect[^>]*id="{re.escape(dyno_field)}"[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*width="([^"]+)"[^>]*height="([^"]+)"[^>]*>'
+                rect_match = re.search(rect_pattern, processed_svg)
+                
+                if rect_match:
+                    x = rect_match.group(1)
+                    y = rect_match.group(2)
+                    width = rect_match.group(3)
+                    height = rect_match.group(4)
+                    
+                    print(f"   ✅ Найден элемент headshot: x={x}, y={y}, width={width}, height={height}")
+                    
+                    # Создаем уникальный ID для нового clipPath
+                    new_clip_id = f"headshot_clip_{int(time.time())}"
+                    new_pattern_id = f"headshot_pattern_{int(time.time())}"
+                    
+                    # Находим родительский g элемент с clipPath
+                    parent_g_pattern = f'<g[^>]*>\\s*(<[^>]*rect[^>]*id="{re.escape(dyno_field)}"[^>]*>)\\s*</g>'
+                    parent_g_match = re.search(parent_g_pattern, processed_svg, re.DOTALL)
+                    
+                    if parent_g_match:
+                        # Полный блок с родительским g
+                        full_block = parent_g_match.group(0)
+                        print(f"   ✅ Найден родительский блок для замены")
+                        
+                        # Создаем новый блок с правильной круглой маской
+                        radius = min(float(width), float(height)) / 2
+                        cx = float(x) + float(width) / 2
+                        cy = float(y) + float(height) / 2
+                        
+                        # Создаем новый SVG блок с круглой маской и изображением
+                        new_block = f'''
+                        <defs>
+                          <clipPath id="{new_clip_id}">
+                            <circle cx="{cx}" cy="{cy}" r="{radius}" />
+                          </clipPath>
+                        </defs>
+                        <g clip-path="url(#{new_clip_id})">
+                          <image x="{x}" y="{y}" width="{width}" height="{height}" 
+                                 xlink:href="{safe_url}" preserveAspectRatio="xMidYMid meet" />
+                        </g>
+                        '''
+                        
+                        # Заменяем старый блок на новый
+                        processed_svg = processed_svg.replace(full_block, new_block)
+                        print(f"   🎉 Полностью заменен блок headshot на новый с круглой маской!")
+                        
+                        # Пропускаем стандартную обработку
+                        continue
+                    else:
+                        print(f"   ⚠️ Не найден родительский g элемент для headshot")
+                
+                # Запасной вариант - если не нашли rect, ищем по другим паттернам
+                print(f"   🔍 Ищу альтернативные элементы для headshot")
                 
                 # Проверяем наличие элемента с clipPath
                 clip_pattern = f'<g[^>]*clip-path="url\\(#([^)]+)\\)"[^>]*>\\s*<rect[^>]*id="{re.escape(dyno_field)}"[^>]*>'
@@ -219,36 +274,64 @@ def process_svg_font_perfect(svg_content, replacements):
                     print(f"   ✅ Найден clipPath: {clip_id} для headshot")
                     
                     # Находим определение clipPath
-                    clip_def_pattern = f'<clipPath[^>]*id="{re.escape(clip_id)}"[^>]*>\\s*<rect[^>]*rx="([^"]+)"[^>]*>'
+                    clip_def_pattern = f'<clipPath[^>]*id="{re.escape(clip_id)}"[^>]*>\\s*<rect[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*width="([^"]+)"[^>]*height="([^"]+)"[^>]*rx="([^"]+)"[^>]*>'
                     clip_def_match = re.search(clip_def_pattern, processed_svg, re.DOTALL)
                     
                     if clip_def_match:
-                        rx_value = clip_def_match.group(1)
-                        print(f"   ✅ Найдено определение clipPath с rx={rx_value} (круглая маска)")
+                        x = clip_def_match.group(1)
+                        y = clip_def_match.group(2)
+                        width = clip_def_match.group(3)
+                        height = clip_def_match.group(4)
+                        rx = clip_def_match.group(5)
                         
-                        # Находим pattern для изображения
-                        pattern_pattern = f'<rect[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
-                        pattern_match = re.search(pattern_pattern, processed_svg)
+                        print(f"   ✅ Найдено определение clipPath: x={x}, y={y}, width={width}, height={height}, rx={rx}")
                         
-                        if pattern_match:
-                            pattern_id = pattern_match.group(1)
-                            image_id = pattern_id.replace("pattern", "image")
+                        # Создаем уникальный ID для нового clipPath
+                        new_clip_id = f"headshot_clip_{int(time.time())}"
+                        
+                        # Находим весь блок с clipPath
+                        full_clip_pattern = f'<clipPath[^>]*id="{re.escape(clip_id)}"[^>]*>.*?</clipPath>'
+                        full_clip_match = re.search(full_clip_pattern, processed_svg, re.DOTALL)
+                        
+                        if full_clip_match:
+                            full_clip = full_clip_match.group(0)
                             
-                            # Заменяем изображение в pattern
-                            image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*>'
-                            def replace_specific_image(img_match):
-                                result = img_match.group(0)
-                                result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', result)
-                                result = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', result)
-                                result = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', result)
-                                
-                                if 'preserveAspectRatio=' not in result:
-                                    result = result.replace('/>', f' preserveAspectRatio="{aspect_ratio}"/>')
-                                
-                                return result
+                            # Создаем новый clipPath с идеальным кругом
+                            new_clip = f'''<clipPath id="{new_clip_id}">
+                              <circle cx="{float(x) + float(width)/2}" cy="{float(y) + float(height)/2}" r="{min(float(width), float(height))/2}" />
+                            </clipPath>'''
                             
-                            processed_svg = re.sub(image_pattern, replace_specific_image, processed_svg, count=1)
-                            print(f"   ✅ Заменено изображение {image_id} с сохранением круглой маски")
+                            # Заменяем старый clipPath на новый
+                            processed_svg = processed_svg.replace(full_clip, new_clip)
+                            
+                            # Заменяем ссылку на clipPath
+                            processed_svg = processed_svg.replace(f'clip-path="url(#{clip_id})"', f'clip-path="url(#{new_clip_id})"')
+                            
+                            print(f"   🎉 Заменен clipPath на идеальный круг!")
+                            
+                            # Находим pattern для изображения
+                            pattern_pattern = f'<rect[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
+                            pattern_match = re.search(pattern_pattern, processed_svg)
+                            
+                            if pattern_match:
+                                pattern_id = pattern_match.group(1)
+                                image_id = pattern_id.replace("pattern", "image")
+                                
+                                # Заменяем изображение в pattern
+                                image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*>'
+                                def replace_specific_image(img_match):
+                                    result = img_match.group(0)
+                                    result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', result)
+                                    result = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', result)
+                                    result = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="xMidYMid meet"', result)
+                                    
+                                    if 'preserveAspectRatio=' not in result:
+                                        result = result.replace('/>', f' preserveAspectRatio="xMidYMid meet"/>')
+                                    
+                                    return result
+                                
+                                processed_svg = re.sub(image_pattern, replace_specific_image, processed_svg, count=1)
+                                print(f"   ✅ Заменено изображение {image_id} с новой круглой маской")
                             
                             # Продолжаем обычную обработку
                             continue
