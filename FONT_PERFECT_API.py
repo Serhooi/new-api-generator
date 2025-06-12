@@ -38,12 +38,16 @@ os.makedirs('output/carousel', exist_ok=True)
 
 def convert_svg_to_png(svg_content, output_path, width=1200, height=800):
     """
-    Конвертирует SVG в PNG с высоким качеством
+    Конвертирует SVG в PNG с высоким качеством и сохранением оригинальных шрифтов
     """
     try:
-        print(f"🖼️ Конвертирую SVG в PNG: {output_path}")
+        print(f"🖼️ Конвертирую SVG в PNG с сохранением оригинальных шрифтов: {output_path}")
         
-        # Конвертация через cairosvg
+        # Убедимся, что SVG не содержит принудительной замены шрифтов
+        svg_content = svg_content.replace('font-family="Montserrat"', 'font-family="Montserrat, sans-serif"')
+        svg_content = svg_content.replace('font-family="Inter"', 'font-family="Inter, sans-serif"')
+        
+        # Конвертация через cairosvg с сохранением оригинальных шрифтов
         png_data = cairosvg.svg2png(
             bytestring=svg_content.encode('utf-8'),
             output_width=width,
@@ -163,10 +167,11 @@ def process_svg_font_perfect(svg_content, replacements):
     ИСПРАВЛЕННАЯ функция обработки SVG:
     1. Правильная замена без дублирования
     2. Автоматический перенос длинных адресов
-    3. Сохранение оригинальных шрифтов
+    3. Сохранение оригинальных шрифтов БЕЗ ЗАМЕНЫ
     """
-    print("🎨 ЗАПУСК ИСПРАВЛЕННОЙ ОБРАБОТКИ SVG С ПЕРЕНОСОМ СТРОК")
+    print("🎨 ЗАПУСК ИСПРАВЛЕННОЙ ОБРАБОТКИ SVG С СОХРАНЕНИЕМ ОРИГИНАЛЬНЫХ ШРИФТОВ")
     
+    # Сохраняем оригинальные шрифты - НЕ ЗАМЕНЯЕМ ИХ
     processed_svg = svg_content
     
     for dyno_field, replacement in replacements.items():
@@ -207,12 +212,61 @@ def process_svg_font_perfect(svg_content, replacements):
             else:
                 aspect_ratio = 'xMidYMid meet'
             
-            # УПРОЩЕННАЯ ОБРАБОТКА ДЛЯ HEADSHOT - КАК ДЛЯ LOGO
+            # ПОЛНОЕ РЕШЕНИЕ ДЛЯ HEADSHOT - ГАРАНТИРОВАННЫЙ ПОЛНЫЙ КРУГ
             if 'headshot' in dyno_field.lower() or 'agent' in dyno_field.lower():
-                print(f"🔄 УПРОЩЕННАЯ ОБРАБОТКА для headshot: {dyno_field}")
+                print(f"🔄 ПОЛНОЕ РЕШЕНИЕ для headshot: {dyno_field}")
                 
-                # Используем тот же подход, что и для logo, но с другими настройками preserveAspectRatio
-                aspect_ratio = 'xMidYMid meet'  # Центрирование по обеим осям
+                # Находим элемент с clipPath для headshot
+                clip_pattern = f'<g[^>]*clip-path="url\\(#([^)]+)\\)"[^>]*>\\s*<rect[^>]*id="{re.escape(dyno_field)}"[^>]*>'
+                clip_match = re.search(clip_pattern, processed_svg)
+                
+                if clip_match:
+                    clip_id = clip_match.group(1)
+                    print(f"   ✅ Найден clipPath: {clip_id} для headshot")
+                    
+                    # Находим определение clipPath
+                    clip_def_pattern = f'<clipPath[^>]*id="{re.escape(clip_id)}"[^>]*>\\s*<rect[^>]*rx="([^"]+)"[^>]*>'
+                    clip_def_match = re.search(clip_def_pattern, processed_svg)
+                    
+                    if clip_def_match:
+                        rx_value = clip_def_match.group(1)
+                        print(f"   ✅ Найдено определение clipPath с rx={rx_value} (круглая маска)")
+                        
+                        # Находим pattern для изображения
+                        element_pattern = f'<rect[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
+                        match = re.search(element_pattern, processed_svg)
+                        
+                        if match:
+                            pattern_id = match.group(1)
+                            
+                            # Находим pattern определение
+                            pattern_def = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>[^<]*<use[^>]*xlink:href="#([^"]+)"[^>]*>'
+                            pattern_match = re.search(pattern_def, processed_svg)
+                            
+                            if pattern_match:
+                                image_id = pattern_match.group(1)
+                                
+                                # Заменяем изображение в defs
+                                image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*>'
+                                def replace_specific_image(img_match):
+                                    result = img_match.group(0)
+                                    result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', result)
+                                    result = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', result)
+                                    result = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="xMidYMid meet"', result)
+                                    
+                                    if 'preserveAspectRatio=' not in result:
+                                        result = result.replace('/>', f' preserveAspectRatio="xMidYMid meet"/>')
+                                    
+                                    return result
+                                
+                                processed_svg = re.sub(image_pattern, replace_specific_image, processed_svg, count=1)
+                                print(f"   ✅ Заменено изображение headshot {image_id} с настройкой xMidYMid meet")
+                                
+                                # Пропускаем стандартную обработку
+                                continue
+                
+                # Запасной вариант - если не нашли clipPath или pattern
+                print(f"   ⚠️ Используем запасной вариант для headshot")
                 
                 # Находим pattern для изображения
                 element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
@@ -228,15 +282,15 @@ def process_svg_font_perfect(svg_content, replacements):
                         result = img_match.group(0)
                         result = re.sub(r'href="[^"]*"', f'href="{safe_url}"', result)
                         result = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', result)
-                        result = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', result)
+                        result = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="xMidYMid meet"', result)
                         
                         if 'preserveAspectRatio=' not in result:
-                            result = result.replace('/>', f' preserveAspectRatio="{aspect_ratio}"/>')
+                            result = result.replace('/>', f' preserveAspectRatio="xMidYMid meet"/>')
                         
                         return result
                     
                     processed_svg = re.sub(image_pattern, replace_specific_image, processed_svg, count=1)
-                    print(f"   ✅ Заменено изображение headshot {image_id} с настройкой {aspect_ratio}")
+                    print(f"   ✅ Заменено изображение headshot {image_id} с настройкой xMidYMid meet")
                     
                     # Пропускаем стандартную обработку
                     continue
@@ -473,11 +527,15 @@ def upload_single_template():
         conn.commit()
         conn.close()
         
+        # Генерируем PNG превью для шаблона
+        preview_url = generate_png_preview(svg_content, template_id)
+        
         return jsonify({
             'success': True,
             'template_id': template_id,
             'has_dyno_fields': has_dyno,
             'dyno_fields': dyno_fields,
+            'preview_url': preview_url,
             'message': f'Шаблон "{name}" успешно загружен'
         })
         
@@ -548,11 +606,17 @@ def upload_carousel():
         conn.commit()
         conn.close()
         
+        # Генерируем PNG превью для обоих шаблонов
+        main_preview_url = generate_png_preview(main_svg, main_template_id)
+        photo_preview_url = generate_png_preview(photo_svg, photo_template_id)
+        
         return jsonify({
             'success': True,
             'carousel_id': carousel_id,
             'main_template_id': main_template_id,
             'photo_template_id': photo_template_id,
+            'main_preview_url': main_preview_url,
+            'photo_preview_url': photo_preview_url,
             'main_dyno_fields': main_dyno_info.get('fields', []) if main_dyno_info else [],
             'photo_dyno_fields': photo_dyno_info.get('fields', []) if photo_dyno_info else [],
             'message': f'Карусель "{name}" успешно загружена'
@@ -574,20 +638,33 @@ def get_all_templates():
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        cursor.execute('SELECT id, name, category, template_role, created_at FROM templates ORDER BY created_at DESC')
+        cursor.execute('SELECT id, name, category, template_role, svg_content, created_at FROM templates ORDER BY created_at DESC')
         templates_data = cursor.fetchall()
         
         conn.close()
         
         templates = []
         for template in templates_data:
+            template_id = template[0]
+            
+            # Проверяем, существует ли PNG превью
+            preview_path = os.path.join(OUTPUT_DIR, 'previews', f"{template_id}_preview.png")
+            
+            # Если превью не существует, генерируем его
+            if not os.path.exists(preview_path):
+                svg_content = template[4]
+                generate_png_preview(svg_content, template_id)
+            
+            # Формируем URL для превью
+            preview_url = f'/output/previews/{template_id}_preview.png'
+            
             templates.append({
-                'id': template[0],
+                'id': template_id,
                 'name': template[1],
                 'category': template[2],
                 'template_role': template[3],
-                'created_at': template[4],
-                'preview_url': f'/api/templates/{template[0]}/preview'
+                'created_at': template[5],
+                'preview_url': preview_url
             })
         
         return jsonify({
@@ -598,6 +675,25 @@ def get_all_templates():
     except Exception as e:
         return jsonify({'error': f'Ошибка получения шаблонов: {str(e)}'}), 500
 
+# Функция для конвертации SVG в PNG превью
+def generate_png_preview(svg_content, template_id):
+    try:
+        # Создаем директорию для превью, если её нет
+        preview_dir = os.path.join(OUTPUT_DIR, 'previews')
+        os.makedirs(preview_dir, exist_ok=True)
+        
+        # Путь для сохранения PNG превью
+        png_path = os.path.join(preview_dir, f"{template_id}_preview.png")
+        
+        # Конвертируем SVG в PNG с помощью cairosvg
+        cairosvg.svg2png(bytestring=svg_content.encode('utf-8'), write_to=png_path, output_width=400)
+        
+        print(f"✅ Сгенерировано PNG превью для шаблона {template_id}")
+        return f"/output/previews/{template_id}_preview.png"
+    except Exception as e:
+        print(f"❌ Ошибка генерации PNG превью: {str(e)}")
+        return None
+
 @app.route('/api/templates/<template_id>/preview')
 def get_template_preview(template_id):
     try:
@@ -606,17 +702,29 @@ def get_template_preview(template_id):
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        cursor.execute('SELECT svg_content FROM templates WHERE id = ?', [template_id])
-        result = cursor.fetchone()
+        # Проверяем, существует ли PNG превью
+        preview_path = os.path.join(OUTPUT_DIR, 'previews', f"{template_id}_preview.png")
+        
+        if not os.path.exists(preview_path):
+            # Если превью нет, получаем SVG и генерируем его
+            cursor.execute('SELECT svg_content FROM templates WHERE id = ?', [template_id])
+            result = cursor.fetchone()
+            
+            if not result:
+                conn.close()
+                return jsonify({'error': 'Шаблон не найден'}), 404
+            
+            svg_content = result[0]
+            
+            # Генерируем PNG превью
+            generate_png_preview(svg_content, template_id)
         
         conn.close()
         
-        if not result:
-            return jsonify({'error': 'Шаблон не найден'}), 404
-        
-        svg_content = result[0]
-        
-        return svg_content, 200, {'Content-Type': 'image/svg+xml'}
+        # Возвращаем URL к PNG превью
+        return jsonify({
+            'preview_url': f'/output/previews/{template_id}_preview.png'
+        })
         
     except Exception as e:
         return jsonify({'error': f'Ошибка получения превью: {str(e)}'}), 500
