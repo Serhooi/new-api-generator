@@ -22,6 +22,9 @@ import html
 app = Flask(__name__)
 CORS(app, origins="*")
 
+# Устанавливаем максимальный размер загружаемого файла (20MB)
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
+
 # Конфигурация
 DATABASE_PATH = 'templates.db'
 OUTPUT_DIR = 'output'
@@ -596,10 +599,11 @@ def serve_output(filename):
 @app.route('/api/upload-single', methods=['POST'])
 def upload_single_template():
     try:
-        if 'file' not in request.files:
+        # ИСПРАВЛЕНО: Проверяем правильное имя поля из формы (svg_file)
+        if 'svg_file' not in request.files:
             return jsonify({'error': 'Файл не найден'}), 400
         
-        file = request.files['file']
+        file = request.files['svg_file']
         name = request.form.get('name', '')
         category = request.form.get('category', '')
         template_role = request.form.get('template_role', '')
