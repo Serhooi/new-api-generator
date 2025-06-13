@@ -89,15 +89,66 @@ def safe_escape_for_svg(text):
 
 def process_svg_font_perfect(svg_content, replacements):
     """
-    ИДЕАЛЬНАЯ функция обработки SVG с автоматическим переносом адреса
+    ФИНАЛЬНАЯ функция с исправлением круглых хедшотов
+    - Автоматическое определение формы элемента (круглый vs прямоугольный)
+    - Правильный aspect ratio для каждого типа
     - Поддержка use элементов в pattern блоках
     - Сохранение оригинальных шрифтов Inter и Montserrat
-    - Правильная обработка хедшотов без обрезки
-    - НОВОЕ: Автоматический перенос длинных адресов на две строки
+    - Автоматический перенос длинных адресов на две строки
     """
-    print("🎨 ЗАПУСК ИДЕАЛЬНОЙ ОБРАБОТКИ SVG (с переносом адреса)")
+    print("🎨 ЗАПУСК ФИНАЛЬНОЙ ОБРАБОТКИ SVG (с исправлением круглых хедшотов)")
     
     processed_svg = svg_content
+    
+    def determine_element_shape(svg_content, pattern_id):
+        """Определяет форму элемента (круглый или прямоугольный)"""
+        
+        # Ищем clipPath связанный с pattern
+        clip_pattern = f'<clipPath[^>]*id="[^"]*{re.escape(pattern_id)}[^"]*"[^>]*>(.*?)</clipPath>'
+        clip_match = re.search(clip_pattern, svg_content, re.DOTALL)
+        
+        if clip_match:
+            clip_content = clip_match.group(1)
+            
+            # Проверяем наличие circle или ellipse
+            if '<circle' in clip_content or '<ellipse' in clip_content:
+                return 'circular'
+            
+            # Проверяем наличие rect с rx/ry (скругленные углы)
+            rect_pattern = r'<rect[^>]*rx="([^"]*)"[^>]*ry="([^"]*)"[^>]*>'
+            rect_match = re.search(rect_pattern, clip_content)
+            if rect_match:
+                rx = float(rect_match.group(1) or 0)
+                ry = float(rect_match.group(2) or 0)
+                
+                # Если радиус скругления большой, считаем круглым
+                if rx > 20 or ry > 20:
+                    return 'circular'
+            
+            # Проверяем path с круглыми формами
+            if '<path' in clip_content:
+                path_pattern = r'd="([^"]*)"'
+                path_match = re.search(path_pattern, clip_content)
+                if path_match:
+                    path_data = path_match.group(1)
+                    # Ищем команды дуг (A) или много кривых (C)
+                    if 'A' in path_data or path_data.count('C') > 4:
+                        return 'circular'
+        
+        # Альтернативный способ - анализ размеров pattern
+        pattern_pattern = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*width="([^"]*)"[^>]*height="([^"]*)"[^>]*>'
+        pattern_match = re.search(pattern_pattern, svg_content)
+        
+        if pattern_match:
+            width = float(pattern_match.group(1) or 0)
+            height = float(pattern_match.group(2) or 0)
+            
+            # Если ширина и высота примерно равны, скорее всего круглый
+            if abs(width - height) < 5:
+                return 'circular'
+        
+        # По умолчанию считаем прямоугольным
+        return 'rectangular'
     
     def determine_image_type(dyno_field):
         """Определение типа изображения по названию поля"""
@@ -121,16 +172,28 @@ def process_svg_font_perfect(svg_content, replacements):
         
         return 'generic_image'
     
-    def get_aspect_ratio_for_type(image_type):
-        """Возвращает правильный preserveAspectRatio для типа изображения"""
+    def get_aspect_ratio_for_image(image_type, element_shape):
+        """Возвращает правильный preserveAspectRatio для типа изображения и формы элемента"""
+        
         if image_type == 'headshot':
-            return 'xMidYMid meet'  # КРИТИЧНО: meet для хедшотов (без обрезки)
+            if element_shape == 'circular':
+                # КРИТИЧНО: для круглых хедшотов используем slice!
+                return 'xMidYMid slice'
+            else:
+                # Для прямоугольных хедшотов используем meet
+                return 'xMidYMid meet'
+        
         elif image_type == 'property':
-            return 'xMidYMid slice'  # slice для недвижимости (cover эффект)
+            # Недвижимость всегда slice (cover эффект)
+            return 'xMidYMid slice'
+        
         elif image_type == 'logo':
-            return 'xMidYMid meet'  # meet для логотипов (сохранение пропорций)
+            # Логотипы всегда meet (сохранение пропорций)
+            return 'xMidYMid meet'
+        
         else:
-            return 'xMidYMid meet'  # По умолчанию meet (безопасно)
+            # По умолчанию meet (безопасно)
+            return 'xMidYMid meet'
     
     def is_image_field(dyno_field):
         """Определяет, является ли поле изображением"""
@@ -201,28 +264,36 @@ def process_svg_font_perfect(svg_content, replacements):
         return first_line, second_line
     
     # Обрабатываем каждое поле
+    successful_replacements = 0
+    total_fields = len(replacements)
+    
     for dyno_field, replacement in replacements.items():
         print(f"\n🔄 Обрабатываю поле: {dyno_field} = {replacement}")
         
         if is_image_field(dyno_field):
             # ОБРАБОТКА ИЗОБРАЖЕНИЙ
-            print(f"🖼️ Обрабатываю изображение: {dyno_field}")
-            
             image_type = determine_image_type(dyno_field)
-            aspect_ratio = get_aspect_ratio_for_type(image_type)
             
-            print(f"   📐 Тип изображения: {image_type}")
-            print(f"   📐 Aspect ratio: {aspect_ratio}")
+            print(f"   🖼️ Обрабатываю изображение: {dyno_field}")
+            print(f"      📐 Тип изображения: {image_type}")
             
             safe_url = str(replacement).replace('&', '&amp;')
             
-            # Ищем элемент с id="dyno.field" и извлекаем pattern
+            # Ищем элемент с id и извлекаем pattern
             element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
             match = re.search(element_pattern, processed_svg)
             
             if match:
                 pattern_id = match.group(1)
-                print(f"   🎯 Найден pattern: {pattern_id}")
+                print(f"      🎯 Найден pattern: {pattern_id}")
+                
+                # ОПРЕДЕЛЯЕМ ФОРМУ ЭЛЕМЕНТА
+                element_shape = determine_element_shape(processed_svg, pattern_id)
+                print(f"      🔍 Форма элемента: {element_shape}")
+                
+                # ВЫБИРАЕМ ПРАВИЛЬНЫЙ ASPECT RATIO
+                aspect_ratio = get_aspect_ratio_for_image(image_type, element_shape)
+                print(f"      ⚙️ Aspect ratio: {aspect_ratio}")
                 
                 # Ищем pattern блок
                 pattern_block_pattern = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
@@ -230,7 +301,6 @@ def process_svg_font_perfect(svg_content, replacements):
                 
                 if pattern_match:
                     pattern_content = pattern_match.group(1)
-                    print(f"   📦 Найден pattern блок")
                     
                     # Ищем use элемент внутри pattern
                     use_pattern = r'<use[^>]*xlink:href="#([^"]*)"[^>]*/?>'
@@ -238,60 +308,53 @@ def process_svg_font_perfect(svg_content, replacements):
                     
                     if use_match:
                         image_id = use_match.group(1)
-                        print(f"   🔗 Найден use элемент с href: #{image_id}")
+                        print(f"      🔗 Найден use элемент: #{image_id}")
                         
-                        # Теперь ищем соответствующий image элемент в defs
+                        # Ищем соответствующий image элемент
                         image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*/?>'
                         image_match = re.search(image_pattern, processed_svg)
                         
                         if image_match:
                             old_image = image_match.group(0)
-                            print(f"   🖼️ Найден image элемент: {old_image[:100]}...")
-                            
-                            # Создаем новый image элемент
                             new_image = old_image
                             
-                            # Заменяем href/xlink:href на новый URL
+                            # Заменяем URL
                             new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
                             new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
                             
-                            # КРИТИЧНО: Добавляем или заменяем preserveAspectRatio
+                            # КРИТИЧНО: Устанавливаем правильный preserveAspectRatio
                             if 'preserveAspectRatio=' in new_image:
                                 new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
                             else:
-                                # Добавляем preserveAspectRatio
                                 if new_image.endswith('/>'):
                                     new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
                                 elif new_image.endswith('>'):
                                     new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
                             
-                            print(f"   🔧 Новый image элемент: {new_image[:100]}...")
-                            
-                            # Заменяем в исходном SVG
                             processed_svg = processed_svg.replace(old_image, new_image)
-                            print(f"   ✅ Изображение {dyno_field} успешно заменено!")
+                            print(f"      ✅ Изображение {dyno_field} заменено!")
+                            print(f"      🎯 Применен aspect ratio: {aspect_ratio}")
+                            successful_replacements += 1
                         else:
-                            print(f"   ⚠️ Image элемент с id='{image_id}' не найден в defs")
+                            print(f"      ❌ Image элемент #{image_id} не найден")
                     else:
-                        print(f"   ⚠️ Use элемент не найден в pattern")
+                        print(f"      ❌ Use элемент в pattern не найден")
                 else:
-                    print(f"   ⚠️ Pattern блок не найден")
+                    print(f"      ❌ Pattern блок {pattern_id} не найден")
             else:
-                print(f"   ⚠️ Элемент с id='{dyno_field}' не найден")
-        
+                print(f"      ❌ Элемент с id {dyno_field} не найден")
         else:
             # ОБРАБОТКА ТЕКСТОВЫХ ПОЛЕЙ
             safe_replacement = safe_escape_for_svg(str(replacement))
             
             if is_address_field(dyno_field):
-                print(f"🏠 Обрабатываю адрес с переносом: {dyno_field}")
+                print(f"   🏠 Обрабатываю адрес с переносом: {dyno_field}")
                 
                 # Разбиваем адрес на две строки
                 first_line, second_line = wrap_address_text(str(replacement))
                 
-                print(f"   📝 Оригинал: {replacement}")
-                print(f"   📝 Первая строка: {first_line}")
-                print(f"   📝 Вторая строка: {second_line}")
+                print(f"      📝 Первая строка: {first_line}")
+                print(f"      📝 Вторая строка: {second_line}")
                 
                 # Ищем text элемент
                 element_pattern = f'<text[^>]*id="{re.escape(dyno_field)}"[^>]*>(.*?)</text>'
@@ -300,8 +363,6 @@ def process_svg_font_perfect(svg_content, replacements):
                     full_element = match.group(0)
                     element_content = match.group(1)
                     
-                    print(f"   📝 Найден адресный элемент с id: {dyno_field}")
-                    
                     # Ищем существующий tspan
                     tspan_pattern = r'<tspan[^>]*x="([^"]*)"[^>]*y="([^"]*)"[^>]*>([^<]*)</tspan>'
                     tspan_match = re.search(tspan_pattern, element_content)
@@ -309,44 +370,67 @@ def process_svg_font_perfect(svg_content, replacements):
                     if tspan_match:
                         x_pos = tspan_match.group(1)
                         y_pos = tspan_match.group(2)
-                        old_content = tspan_match.group(3)
-                        
-                        print(f"   🎯 Найден tspan: x={x_pos}, y={y_pos}")
-                        print(f"   🔄 Заменяю: '{old_content}' → '{first_line}'")
                         
                         # Создаем новый контент с двумя tspan элементами
                         if second_line:
-                            # Вычисляем позицию для второй строки (добавляем ~35 пикселей)
+                            # Вычисляем позицию для второй строки
                             try:
                                 y_float = float(y_pos)
-                                second_y = y_float + 35  # Межстрочный интервал
+                                second_y = y_float + 35
                             except:
                                 second_y = f"{y_pos}+35"
                             
                             new_content = f'<tspan x="{x_pos}" y="{y_pos}">{safe_escape_for_svg(first_line)}</tspan><tspan x="{x_pos}" y="{second_y}">{safe_escape_for_svg(second_line)}</tspan>'
-                            print(f"   ✅ Создан второй tspan для второй строки на y={second_y}")
                         else:
                             new_content = f'<tspan x="{x_pos}" y="{y_pos}">{safe_escape_for_svg(first_line)}</tspan>'
-                            print(f"   ✅ Адрес помещается в одну строку")
                         
                         return full_element.replace(element_content, new_content)
                     else:
-                        print(f"   ⚠️ tspan не найден в адресном элементе")
                         return full_element
                 
                 new_svg = re.sub(element_pattern, replace_address_element, processed_svg, flags=re.DOTALL)
                 
                 if new_svg != processed_svg:
                     processed_svg = new_svg
-                    print(f"   ✅ Адрес {dyno_field} успешно заменен с переносом!")
+                    print(f"      ✅ Адрес {dyno_field} заменен с переносом!")
+                    successful_replacements += 1
                 else:
-                    print(f"   ⚠️ Адресный элемент с id='{dyno_field}' не найден")
+                    print(f"      ⚠️ Адресный элемент {dyno_field} не найден")
             
             else:
                 # Обычная замена для не-адресов
-                print(f"🔤 Обрабатываю текстовое поле: {dyno_field}")
+                print(f"   🔤 Обрабатываю текстовое поле: {dyno_field}")
                 
                 element_pattern = f'<text[^>]*id="{re.escape(dyno_field)}"[^>]*>(.*?)</text>'
+                
+                def replace_text_element(match):
+                    full_element = match.group(0)
+                    element_content = match.group(1)
+                    
+                    # Ищем tspan
+                    tspan_pattern = r'<tspan[^>]*>([^<]*)</tspan>'
+                    tspan_match = re.search(tspan_pattern, element_content)
+                    
+                    if tspan_match:
+                        old_content = tspan_match.group(1)
+                        new_content = element_content.replace(old_content, safe_replacement)
+                        return full_element.replace(element_content, new_content)
+                    else:
+                        return full_element.replace(element_content, safe_replacement)
+                
+                new_svg = re.sub(element_pattern, replace_text_element, processed_svg, flags=re.DOTALL)
+                
+                if new_svg != processed_svg:
+                    processed_svg = new_svg
+                    print(f"      ✅ Текстовое поле {dyno_field} заменено!")
+                    successful_replacements += 1
+                else:
+                    print(f"      ⚠️ Текстовое поле {dyno_field} не найдено")
+    
+    print(f"\n📊 РЕЗУЛЬТАТ: {successful_replacements}/{total_fields} полей заменено")
+    print("🎉 ФИНАЛЬНАЯ обработка SVG с круглыми хедшотами завершена!")
+    
+    return processed_svg
                 
                 def replace_element_content(match):
                     full_element = match.group(0)
