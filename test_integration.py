@@ -32,17 +32,28 @@ def test_templates_endpoint():
         return False
 
 def test_carousel_creation():
-    """Тест создания и генерации карусели"""
-    print("\n🎠 Тестирование создания карусели...")
+    """Тест создания и генерации полноценной карусели с множественными фото"""
+    print("\n🎠 Тестирование создания полноценной карусели...")
+    
+    # Тестовые фотографии недвижимости
+    property_photos = [
+        "https://images.unsplash.com/photo-1560518883-ce09059eeffa",  # Экстерьер
+        "https://images.unsplash.com/photo-1570129477492-45c003edd2be",  # Гостиная
+        "https://images.unsplash.com/photo-1586023492125-27b2c045efd7",  # Кухня
+        "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2",   # Спальня
+        "https://images.unsplash.com/photo-1560448075-bb485b067938",   # Ванная
+        "https://images.unsplash.com/photo-1560448204-61dc36dc98c8",   # Столовая
+    ]
     
     carousel_data = {
-        "name": "Test Property Carousel",
+        "name": "Test Property Carousel - Full Version",
         "slides": [
+            # Main слайд
             {
                 "templateId": "open-house-main",
                 "replacements": {
                     "dyno.agentName": "John Smith",
-                    "dyno.propertyAddress": "123 Main Street, City, State 12345",
+                    "dyno.propertyAddress": "123 Main Street, Beverly Hills, CA 90210",
                     "dyno.price": "$450,000",
                     "dyno.bedrooms": "3",
                     "dyno.bathrooms": "2",
@@ -50,26 +61,27 @@ def test_carousel_creation():
                     "dyno.agentPhone": "(555) 123-4567",
                     "dyno.agentEmail": "john@realty.com",
                     "dyno.openHouseDate": "Saturday, June 8th",
-                    "dyno.openHouseTime": "2:00 PM - 4:00 PM"
+                    "dyno.openHouseTime": "2:00 PM - 4:00 PM",
+                    "dyno.agentPhoto": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d"
                 },
-                "imagePath": "https://images.unsplash.com/photo-1560518883-ce09059eeffa"
-            },
-            {
-                "templateId": "open-house-photo",
-                "replacements": {
-                    "dyno.propertyImage": "https://images.unsplash.com/photo-1560518883-ce09059eeffa"
-                },
-                "imagePath": "https://images.unsplash.com/photo-1560518883-ce09059eeffa"
-            },
-            {
-                "templateId": "open-house-photo",
-                "replacements": {
-                    "dyno.propertyImage": "https://images.unsplash.com/photo-1570129477492-45c003edd2be"
-                },
-                "imagePath": "https://images.unsplash.com/photo-1570129477492-45c003edd2be"
+                "imagePath": property_photos[0]
             }
         ]
     }
+    
+    # Добавляем фото слайды с правильными полями dyno.propertyimage2, dyno.propertyimage3, etc.
+    for i, photo_url in enumerate(property_photos):
+        carousel_data["slides"].append({
+            "templateId": "open-house-photo",
+            "replacements": {
+                f"dyno.propertyimage{i + 2}": photo_url  # dyno.propertyimage2, dyno.propertyimage3, etc.
+            },
+            "imagePath": photo_url
+        })
+    
+    print(f"📊 Создаю карусель с {len(carousel_data['slides'])} слайдами:")
+    print(f"   - 1 main слайд")
+    print(f"   - {len(property_photos)} фото слайдов (dyno.propertyimage2-{len(property_photos)+1})")
     
     try:
         response = requests.post(
