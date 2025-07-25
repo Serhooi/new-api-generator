@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Превью SVG Шаблонов</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .preview-section {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 10px 25px rgba(108, 117, 125, 0.3);
+        }
+
+        .preview-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .preview-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            background: #f8fafc;
+        }
+
+        .preview-card h3 {
+            margin-bottom: 1rem;
+            color: #2d3748;
+            font-size: 1.2rem;
+        }
+
+        .preview-image {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+        }
+
+        .preview-info {
+            font-size: 0.9rem;
+            color: #718096;
+            margin-bottom: 0.5rem;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #742a2a;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .success-message {
+            background: #c6f6d5;
+            color: #22543d;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #38a169;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .templates-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .template-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .template-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .template-card.selected {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+
+        .template-card h4 {
+            margin-bottom: 0.5rem;
+            color: #2d3748;
+        }
+
+        .template-card p {
+            font-size: 0.9rem;
+            color: #718096;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖼️ Превью SVG Шаблонов</h1>
+            <p>Просматривайте шаблоны с данными перед генерацией</p>
+        </div>
+
+        <!-- Выбор шаблона -->
+        <div class="preview-section">
+            <h2>1. Выберите шаблон</h2>
+            <div id="templates-container">
+                <button class="btn" onclick="loadTemplates()">Загрузить шаблоны</button>
+            </div>
+        </div>
+
+        <!-- Заполнение данных -->
+        <div class="preview-section">
+            <h2>2. Заполните данные для превью</h2>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <div>
+                    <div class="form-group">
+                        <label class="form-label">Имя агента</label>
+                        <input type="text" id="agentName" class="form-input" placeholder="John Smith" value="John Smith">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Адрес недвижимости</label>
+                        <input type="text" id="propertyAddress" class="form-input" placeholder="123 Main Street, Beverly Hills, CA 90210" value="123 Main Street, Beverly Hills, CA 90210">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Цена</label>
+                        <input type="text" id="price" class="form-input" placeholder="$450,000" value="$450,000">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Спальни</label>
+                        <input type="text" id="bedrooms" class="form-input" placeholder="3" value="3">
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="form-group">
+                        <label class="form-label">Ванные</label>
+                        <input type="text" id="bathrooms" class="form-input" placeholder="2" value="2">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Площадь (кв.фт)</label>
+                        <input type="text" id="sqft" class="form-input" placeholder="1,850" value="1,850">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Телефон агента</label>
+                        <input type="text" id="agentPhone" class="form-input" placeholder="(555) 123-4567" value="(555) 123-4567">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Email агента</label>
+                        <input type="text" id="agentEmail" class="form-input" placeholder="john@realty.com" value="john@realty.com">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">URL фото агента</label>
+                <input type="text" id="agentPhoto" class="form-input" placeholder="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d" value="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">URL фото недвижимости</label>
+                <input type="text" id="propertyImage" class="form-input" placeholder="https://images.unsplash.com/photo-1560518883-ce09059eeffa" value="https://images.unsplash.com/photo-1560518883-ce09059eeffa">
+            </div>
+        </div>
+
+        <!-- Генерация превью -->
+        <div class="preview-section">
+            <h2>3. Генерация превью</h2>
+            
+            <div class="form-group">
+                <label class="form-label">Тип превью</label>
+                <select id="previewType" class="form-select">
+                    <option value="png">PNG файл</option>
+                    <option value="base64">Base64 (встроенное)</option>
+                    <option value="thumbnail">Thumbnail</option>
+                </select>
+            </div>
+            
+            <button class="btn" onclick="generatePreview()" id="previewBtn">
+                🖼️ Создать превью
+            </button>
+            
+            <button class="btn btn-secondary" onclick="clearPreviews()">
+                🗑️ Очистить
+            </button>
+        </div>
+
+        <!-- Результаты превью -->
+        <div id="preview-results"></div>
+    </div>
+
+    <script>
+        let selectedTemplateId = null;
+        let templates = [];
+
+        async function loadTemplates() {
+            try {
+                const response = await fetch('/api/templates/all-previews');
+                const data = await response.json();
+                
+                templates = data.templates || [];
+                displayTemplates(templates);
+                
+            } catch (error) {
+                showError('Ошибка загрузки шаблонов: ' + error.message);
+            }
+        }
+
+        function displayTemplates(templates) {
+            const container = document.getElementById('templates-container');
+            
+            if (templates.length === 0) {
+                container.innerHTML = '<p>Шаблоны не найдены. <a href="/upload">Загрузите шаблоны</a></p>';
+                return;
+            }
+            
+            const grid = document.createElement('div');
+            grid.className = 'templates-grid';
+            
+            templates.forEach(template => {
+                const card = document.createElement('div');
+                card.className = 'template-card';
+                card.onclick = () => selectTemplate(template.id, card);
+                
+                card.innerHTML = `
+                    <h4>${template.name}</h4>
+                    <p>Категория: ${template.category}</p>
+                    <p>Роль: ${template.template_role}</p>
+                `;
+                
+                grid.appendChild(card);
+            });
+            
+            container.innerHTML = '<h3>Доступные шаблоны:</h3>';
+            container.appendChild(grid);
+        }
+
+        function selectTemplate(templateId, cardElement) {
+            // Убираем выделение с других карточек
+            document.querySelectorAll('.template-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Выделяем выбранную карточку
+            cardElement.classList.add('selected');
+            selectedTemplateId = templateId;
+            
+            showSuccess('Шаблон выбран: ' + templateId);
+        }
+
+        async function generatePreview() {
+            if (!selectedTemplateId) {
+                showError('Сначала выберите шаблон');
+                return;
+            }
+            
+            const btn = document.getElementById('previewBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span>Генерирую превью...';
+            
+            try {
+                const replacements = {
+                    'dyno.agentName': document.getElementById('agentName').value,
+                    'dyno.propertyAddress': document.getElementById('propertyAddress').value,
+                    'dyno.price': document.getElementById('price').value,
+                    'dyno.bedrooms': document.getElementById('bedrooms').value,
+                    'dyno.bathrooms': document.getElementById('bathrooms').value,
+                    'dyno.sqft': document.getElementById('sqft').value,
+                    'dyno.agentPhone': document.getElementById('agentPhone').value,
+                    'dyno.agentEmail': document.getElementById('agentEmail').value,
+                    'dyno.agentPhoto': document.getElementById('agentPhoto').value,
+                    'dyno.propertyImage': document.getElementById('propertyImage').value
+                };
+                
+                const previewType = document.getElementById('previewType').value;
+                
+                const response = await fetch('/api/preview/with-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        template_id: selectedTemplateId,
+                        replacements: replacements,
+                        type: previewType,
+                        width: 400,
+                        height: 300
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayPreview(result);
+                    showSuccess('Превью создано успешно!');
+                } else {
+                    showError('Ошибка создания превью: ' + result.error);
+                }
+                
+            } catch (error) {
+                showError('Ошибка: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🖼️ Создать превью';
+            }
+        }
+
+        function displayPreview(previewData) {
+            const container = document.getElementById('preview-results');
+            
+            const previewCard = document.createElement('div');
+            previewCard.className = 'preview-section';
+            
+            let imageHtml = '';
+            if (previewData.url) {
+                imageHtml = `<img src="${previewData.url}" alt="Preview" class="preview-image">`;
+            } else if (previewData.data_url) {
+                imageHtml = `<img src="${previewData.data_url}" alt="Preview" class="preview-image">`;
+            }
+            
+            previewCard.innerHTML = `
+                <div class="preview-card">
+                    <h3>Превью: ${previewData.template_name}</h3>
+                    ${imageHtml}
+                    <div class="preview-info">Формат: ${previewData.format}</div>
+                    <div class="preview-info">Размер: ${previewData.width}x${previewData.height}</div>
+                    ${previewData.file_size ? `<div class="preview-info">Размер файла: ${previewData.file_size} байт</div>` : ''}
+                    <div class="preview-info">Замен: ${previewData.replacements_count}</div>
+                    ${previewData.url ? `<div class="preview-info">URL: <a href="${previewData.url}" target="_blank">${previewData.url}</a></div>` : ''}
+                </div>
+            `;
+            
+            container.appendChild(previewCard);
+        }
+
+        function clearPreviews() {
+            document.getElementById('preview-results').innerHTML = '';
+            showSuccess('Превью очищены');
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            
+            document.body.insertBefore(errorDiv, document.querySelector('.container'));
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            
+            document.body.insertBefore(successDiv, document.querySelector('.container'));
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 3000);
+        }
+
+        // Автоматически загружаем шаблоны при загрузке страницы
+        window.onload = function() {
+            loadTemplates();
+        };
+    </script>
+</body>
+</html>

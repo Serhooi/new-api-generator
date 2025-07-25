@@ -22,6 +22,9 @@ import html
 import cairosvg
 from PIL import Image
 
+# Импортируем систему превью
+from preview_system import generate_svg_preview, create_preview_with_data, cleanup_old_previews
+
 app = Flask(__name__)
 CORS(app, origins="*")
 
@@ -720,6 +723,10 @@ def templates_page():
 def upload_page():
     return render_template('upload.html')
 
+@app.route('/preview')
+def preview_page():
+    return render_template('preview.html')
+
 # Статические файлы
 @app.route('/output/<path:filename>')
 def serve_output(filename):
@@ -1408,8 +1415,156 @@ def get_carousel_slides(carousel_id):
         print(f"❌ Ошибка получения информации о карусели: {str(e)}")
         return jsonify({'error': f'Ошибка получения информации: {str(e)}'}), 500
 
+# API для превью SVG
+@app.route('/api/preview/template/<template_id>', methods=['GET'])
+def preview_template(template_id):
+    """Генерирует превью шаблона без данных"""
+    try:
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [template_id])
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            return jsonify({'error': 'Шаблон не найден'}), 404
+        
+        template_name, svg_content = result
+        
+        # Получаем параметры из query string
+        preview_type = request.args.get('type', 'png')
+        width = int(request.args.get('width', 400))
+        height = int(request.args.get('height', 300))
+        
+        # Генерируем превью
+        preview_result = generate_svg_preview(svg_content, preview_type, width, height)
+        
+        if preview_result['success']:
+            preview_result['template_name'] = template_name
+            preview_result['template_id'] = template_id
+            return jsonify(preview_result)
+        else:
+            return jsonify({'error': preview_result['error']}), 500
+            
+    except Exception as e:
+        return jsonify({'error': f'Ошибка генерации превью: {str(e)}'}), 500
+
+@app.route('/api/preview/with-data', methods=['POST'])
+def preview_with_data():
+    """Генерирует превью шаблона с заполненными данными"""
+    try:
+        data = request.get_json()
+        template_id = data.get('template_id')
+        replacements = data.get('replacements', {})
+        preview_type = data.get('type', 'png')
+        width = int(data.get('width', 400))
+        height = int(data.get('height', 300))
+        
+        if not template_id:
+            return jsonify({'error': 'template_id обязателен'}), 400
+        
+        # Получаем шаблон из базы данных
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [template_id])
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            return jsonify({'error': 'Шаблон не найден'}), 404
+        
+        template_name, svg_content = result
+        
+        # Создаем превью с данными
+        preview_result = create_preview_with_data(svg_content, replacements, preview_type)
+        
+        if preview_result['success']:
+            preview_result['template_name'] = template_name
+            preview_result['template_id'] = template_id
+            return jsonify(preview_result)
+        else:
+            return jsonify({'error': preview_result['error']}), 500
+            
+    except Exception as e:
+        return jsonify({'error': f'Ошибка генерации превью с данными: {str(e)}'}), 500
+
+@app.route('/api/preview/carousel', methods=['POST'])
+def preview_carousel():
+    """Генерирует превью карусели (main + photo слайды)"""
+    try:
+        data = request.get_json()
+        main_template_id = data.get('main_template_id')
+        photo_template_id = data.get('photo_template_id')
+        replacements = data.get('replacements', {})
+        preview_type = data.get('type', 'png')
+        
+        if not main_template_id or not photo_template_id:
+            return jsonify({'error': 'main_template_id и photo_template_id обязательны'}), 400
+        
+        # Получаем шаблоны из базы данных
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [main_template_id])
+        main_result = cursor.fetchone()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [photo_template_id])
+        photo_result = cursor.fetchone()
+        
+        conn.close()
+        
+        if not main_result or not photo_result:
+            return jsonify({'error': 'Один или оба шаблона не найдены'}), 404
+        
+        main_name, main_svg = main_result
+        photo_name, photo_svg = photo_result
+        
+        # Генерируем превью для обоих шаблонов
+        main_preview = create_preview_with_data(main_svg, replacements, preview_type)
+        photo_preview = create_preview_with_data(photo_svg, replacements, preview_type)
+        
+        return jsonify({
+            'success': True,
+            'main_preview': {
+                'template_name': main_name,
+                'template_id': main_template_id,
+                **main_preview
+            },
+            'photo_preview': {
+                'template_name': photo_name,
+                'template_id': photo_template_id,
+                **photo_preview
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка генерации превью карусели: {str(e)}'}), 500
+
+@app.route('/api/preview/cleanup', methods=['POST'])
+def cleanup_previews():
+    """Очищает старые превью файлы"""
+    try:
+        max_age_hours = request.json.get('max_age_hours', 24) if request.json else 24
+        cleanup_old_previews(max_age_hours)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Превью старше {max_age_hours} часов удалены'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка очистки превью: {str(e)}'}), 500
+
 if __name__ == '__main__':
     ensure_db_exists()
+    
+    # Очищаем старые превью при запуске
+    cleanup_old_previews()
     
     # Для локальной разработки
     app.run(host='0.0.0.0', port=5000, debug=True)
