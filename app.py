@@ -277,7 +277,13 @@ def process_svg_font_perfect(svg_content, replacements):
     field_mapping = {
         'dyno.agentname': 'dyno.name',
         'dyno.agentemail': 'dyno.email', 
-        'dyno.agentphone': 'dyno.phone'
+        'dyno.agentphone': 'dyno.phone',
+        'dyno.agentphoto': 'dyno.agentheadshot',
+        'dyno.propertyaddress': 'dyno.propertyaddress',
+        'dyno.agentname': 'dyno.name',
+        'dyno.agentphone': 'dyno.phone',
+        'dyno.agentemail': 'dyno.email',
+        'dyno.agentphoto': 'dyno.agentheadshot'
     }
     
     # Обрабатываем каждое поле с учетом маппинга
@@ -288,11 +294,20 @@ def process_svg_font_perfect(svg_content, replacements):
         original_field = dyno_field
         
         # Проверяем альтернативные названия полей
+        alternative_field = None
+        
+        # Проверяем точное совпадение
         if dyno_field in field_mapping:
             alternative_field = field_mapping[dyno_field]
             print(f"   🔄 Проверяю альтернативное название поля: {alternative_field}")
         else:
-            alternative_field = None
+            # Проверяем регистронезависимое совпадение
+            dyno_field_lower = dyno_field.lower()
+            for key, value in field_mapping.items():
+                if key.lower() == dyno_field_lower:
+                    alternative_field = value
+                    print(f"   🔄 Найдено регистронезависимое совпадение: {dyno_field} → {alternative_field}")
+                    break
         
         if is_image_field(dyno_field):
             # ОБРАБОТКА ИЗОБРАЖЕНИЙ
