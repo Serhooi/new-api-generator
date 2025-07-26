@@ -19,6 +19,7 @@ import base64
 import tempfile
 import io
 import html
+from supabase import create_client, Client
 
 app = Flask(__name__)
 CORS(app, origins="*")
@@ -31,7 +32,19 @@ DATABASE_PATH = 'templates.db'
 OUTPUT_DIR = 'output'
 ALLOWED_EXTENSIONS = {'svg'}
 
-# Создаем директории
+# Supabase конфигурация
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://your-project.supabase.co')
+SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY', 'your-anon-key')
+
+# Инициализация Supabase клиента
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Supabase клиент инициализирован")
+except Exception as e:
+    print(f"❌ Ошибка инициализации Supabase: {e}")
+    supabase = None
+
+# Создаем директории (для локальной разработки)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs('output/single', exist_ok=True)
 os.makedirs('output/carousel', exist_ok=True)
@@ -688,6 +701,57 @@ def ensure_db_exists():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def upload_to_supabase_storage(file_content, filename, folder="generated"):
+    """
+    Загружает файл в Supabase Storage
+    """
+    if not supabase:
+        print("❌ Supabase клиент не инициализирован")
+        return None
+    
+    try:
+        # Создаем путь к файлу
+        file_path = f"{folder}/{filename}"
+        
+        # Загружаем файл в Storage
+        result = supabase.storage.from_("images").upload(
+            path=file_path,
+            file=file_content.encode('utf-8'),
+            file_options={"content-type": "image/svg+xml"}
+        )
+        
+        # Получаем публичный URL
+        public_url = supabase.storage.from_("images").get_public_url(file_path)
+        
+        print(f"✅ Файл загружен в Supabase: {public_url}")
+        return public_url
+        
+    except Exception as e:
+        print(f"❌ Ошибка загрузки в Supabase: {e}")
+        return None
+
+def save_file_locally_or_supabase(content, filename, folder="carousel"):
+    """
+    Сохраняет файл локально (для разработки) или в Supabase (для продакшена)
+    """
+    # Определяем, работаем ли мы на Render
+    is_render = os.environ.get('RENDER', False) or os.environ.get('SUPABASE_URL', False)
+    
+    if is_render and supabase:
+        # На Render - загружаем в Supabase
+        return upload_to_supabase_storage(content, filename, folder)
+    else:
+        # Локально - сохраняем в файл
+        local_path = os.path.join(OUTPUT_DIR, folder, filename)
+        try:
+            with open(local_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"✅ Файл сохранен локально: {local_path}")
+            return f"/output/{folder}/{filename}"
+        except Exception as e:
+            print(f"❌ Ошибка сохранения локально: {e}")
+            return None
+
 def create_app():
     """
     Функция для создания приложения (нужна для Gunicorn)
@@ -994,16 +1058,17 @@ def generate_single():
         
         # Генерируем уникальное имя файла
         output_filename = f"single_{str(uuid.uuid4())}.svg"
-        output_path = os.path.join(OUTPUT_DIR, 'single', output_filename)
         
-        # Сохраняем обработанный SVG
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(processed_svg)
+        # Используем новую логику сохранения
+        output_url = save_file_locally_or_supabase(processed_svg, output_filename, "single")
+        
+        if not output_url:
+            return jsonify({'error': 'Ошибка сохранения файла'}), 500
         
         return jsonify({
             'success': True,
             'template_name': template_name,
-            'output_url': f'/output/single/{output_filename}',
+            'output_url': output_url,
             'replacements_applied': len(replacements)
         })
         
@@ -1064,14 +1129,15 @@ def generate_carousel():
         main_filename = f"carousel_{carousel_id}_main.svg"
         photo_filename = f"carousel_{carousel_id}_photo.svg"
         
-        main_path = os.path.join(OUTPUT_DIR, 'carousel', main_filename)
-        photo_path = os.path.join(OUTPUT_DIR, 'carousel', photo_filename)
+        print(f"💾 Сохраняю main SVG: {main_filename}")
+        print(f"💾 Сохраняю photo SVG: {photo_filename}")
         
-        with open(main_path, 'w', encoding='utf-8') as f:
-            f.write(processed_main_svg)
+        # Используем новую логику сохранения
+        main_url = save_file_locally_or_supabase(processed_main_svg, main_filename, "carousel")
+        photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_filename, "carousel")
         
-        with open(photo_path, 'w', encoding='utf-8') as f:
-            f.write(processed_photo_svg)
+        if not main_url or not photo_url:
+            return jsonify({'error': 'Ошибка сохранения файлов'}), 500
         
         return jsonify({
             'success': True,
@@ -1081,17 +1147,17 @@ def generate_carousel():
             'images': [
                 {
                     'type': 'main',
-                    'url': f'/output/carousel/{main_filename}',
+                    'url': main_url,
                     'template_name': main_name
                 },
                 {
                     'type': 'photo',
-                    'url': f'/output/carousel/{photo_filename}',
+                    'url': photo_url,
                     'template_name': photo_name
                 }
             ],
-            'main_url': f'/output/carousel/{main_filename}',
-            'photo_url': f'/output/carousel/{photo_filename}',
+            'main_url': main_url,
+            'photo_url': photo_url,
             'replacements_applied': len(replacements)
         })
         
@@ -1169,14 +1235,15 @@ def generate_carousel_by_name():
         main_filename = f"carousel_{carousel_id}_main.svg"
         photo_filename = f"carousel_{carousel_id}_photo.svg"
         
-        main_path = os.path.join(OUTPUT_DIR, 'carousel', main_filename)
-        photo_path = os.path.join(OUTPUT_DIR, 'carousel', photo_filename)
+        print(f"💾 Сохраняю main SVG: {main_filename}")
+        print(f"💾 Сохраняю photo SVG: {photo_filename}")
         
-        with open(main_path, 'w', encoding='utf-8') as f:
-            f.write(processed_main_svg)
+        # Используем новую логику сохранения
+        main_url = save_file_locally_or_supabase(processed_main_svg, main_filename, "carousel")
+        photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_filename, "carousel")
         
-        with open(photo_path, 'w', encoding='utf-8') as f:
-            f.write(processed_photo_svg)
+        if not main_url or not photo_url:
+            return jsonify({'error': 'Ошибка сохранения файлов'}), 500
         
         print(f"🎉 Карусель создана: {carousel_id}")
         
@@ -1190,17 +1257,17 @@ def generate_carousel_by_name():
             'images': [
                 {
                     'type': 'main',
-                    'url': f'/output/carousel/{main_filename}',
+                    'url': main_url,
                     'template_name': main_name
                 },
                 {
                     'type': 'photo',
-                    'url': f'/output/carousel/{photo_filename}',
+                    'url': photo_url,
                     'template_name': photo_name
                 }
             ],
-            'main_url': f'/output/carousel/{main_filename}',
-            'photo_url': f'/output/carousel/{photo_filename}',
+            'main_url': main_url,
+            'photo_url': photo_url,
             'replacements_applied': len(replacements)
         })
         
