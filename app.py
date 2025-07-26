@@ -367,6 +367,17 @@ def process_svg_font_perfect(svg_content, replacements):
                     all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
                     print(f"      🔍 Все pattern блоки в SVG: {all_patterns}")
                     print(f"      🔍 Ищем pattern: {pattern_id}")
+                    
+                    # Попробуем найти pattern по номеру
+                    for i, pattern_name in enumerate(all_patterns):
+                        print(f"      🔍 Проверяем pattern {i}: {pattern_name}")
+                        # Ищем use элемент, который ссылается на этот pattern
+                        use_pattern = f'<use[^>]*xlink:href="#{re.escape(pattern_name)}"[^>]*>'
+                        if re.search(use_pattern, processed_svg):
+                            print(f"      ✅ Найден используемый pattern: {pattern_name}")
+                            pattern_id = pattern_name
+                            pattern_match = re.search(f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>', processed_svg, re.DOTALL)
+                            break
                 
                 if pattern_match:
                     pattern_content = pattern_match.group(1)
