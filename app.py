@@ -219,8 +219,8 @@ def process_svg_font_perfect(svg_content, replacements):
         
         if image_type == 'headshot':
             if element_shape == 'circular':
-                # Для круглых хедшотов используем slice с центрированием по лицу
-                return 'xMidYMid slice'
+                # Для круглых хедшотов используем meet - лучшее центрирование лица
+                return 'xMidYMid meet'
             else:
                 # Для прямоугольных хедшотов используем meet
                 return 'xMidYMid meet'
@@ -1137,8 +1137,12 @@ def generate_carousel():
         # Фильтруем replacements для photo SVG
         filtered_replacements_photo = {k: v for k, v in replacements.items() if k in svg_fields_photo or field_mapping.get(k, k) in svg_fields_photo}
         
-        # Убираем автоматическое копирование - фронтенд отправляет правильные поля
-        print(f"✅ Используем оригинальные поля из replacements для photo template")
+        # Копируем propertyimage в propertyimage2 для photo template если нужно
+        if 'dyno.propertyimage2' in svg_fields_photo and 'dyno.propertyimage' in replacements and 'dyno.propertyimage2' not in replacements:
+            filtered_replacements_photo['dyno.propertyimage2'] = replacements['dyno.propertyimage']
+            print(f"🔄 Скопировал dyno.propertyimage → dyno.propertyimage2 для photo template")
+        else:
+            print(f"✅ Используем оригинальные поля из replacements для photo template")
         
         print(f"🔍 Replacements для main SVG: {filtered_replacements_main}")
         print(f"🔍 Replacements для photo SVG: {filtered_replacements_photo}")
@@ -1261,8 +1265,12 @@ def generate_carousel_by_name():
         filtered_replacements_main = {k: v for k, v in replacements.items() if k in svg_fields_main or field_mapping.get(k, k) in svg_fields_main}
         filtered_replacements_photo = {k: v for k, v in replacements.items() if k in svg_fields_photo or field_mapping.get(k, k) in svg_fields_photo}
         
-        # Убираем автоматическое копирование - фронтенд отправляет правильные поля
-        print(f"✅ Используем оригинальные поля из replacements для photo template")
+        # Копируем propertyimage в propertyimage2 для photo template если нужно
+        if 'dyno.propertyimage2' in svg_fields_photo and 'dyno.propertyimage' in replacements and 'dyno.propertyimage2' not in replacements:
+            filtered_replacements_photo['dyno.propertyimage2'] = replacements['dyno.propertyimage']
+            print(f"🔄 Скопировал dyno.propertyimage → dyno.propertyimage2 для photo template")
+        else:
+            print(f"✅ Используем оригинальные поля из replacements для photo template")
         
         print(f"🔍 Filtered replacements для main: {filtered_replacements_main}")
         print(f"🔍 Filtered replacements для photo: {filtered_replacements_photo}")
