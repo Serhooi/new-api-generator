@@ -1468,6 +1468,7 @@ def create_and_generate_carousel():
         
         print(f"🎠 Создаю карусель: {carousel_name}")
         print(f"📊 Количество слайдов: {len(slides)}")
+        print(f"📋 Данные слайдов: {slides}")
         
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
@@ -1560,14 +1561,29 @@ def create_and_generate_carousel():
         print(f"🎉 Карусель создана: {carousel_id}")
         print(f"📊 Создано слайдов: {len(generated_slides)}")
         
-        return jsonify({
+        # Проверяем что слайды созданы
+        if not generated_slides:
+            print("❌ ОШИБКА: Ни одного слайда не создано!")
+            return jsonify({
+                'error': 'Не удалось создать ни одного слайда. Проверьте templateId и данные.',
+                'debug_info': {
+                    'slides_received': len(slides),
+                    'slides_processed': len(generated_slides)
+                }
+            }), 400
+        
+        response_data = {
             'success': True,
             'carousel_id': carousel_id,
             'name': carousel_name,
             'slides_count': len(generated_slides),
             'slides': generated_slides,
+            'images': generated_slides,  # Добавляем для совместимости с фронтендом
             'status': 'completed'
-        })
+        }
+        
+        print(f"✅ Возвращаю ответ: {response_data}")
+        return jsonify(response_data)
         
     except Exception as e:
         print(f"❌ Ошибка создания карусели: {str(e)}")
