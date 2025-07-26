@@ -1111,14 +1111,24 @@ def generate_carousel():
         svg_fields_main = extract_dyno_fields_simple(main_svg_content)
         svg_fields_photo = extract_dyno_fields_simple(photo_svg_content)
         
+        print(f"🔍 Main SVG поля: {svg_fields_main}")
+        print(f"🔍 Photo SVG поля: {svg_fields_photo}")
+        print(f"🔍 Все replacements: {replacements}")
+        
         # Фильтруем replacements для main SVG
         filtered_replacements_main = {k: v for k, v in replacements.items() if k in svg_fields_main or field_mapping.get(k, k) in svg_fields_main}
         # Фильтруем replacements для photo SVG
         filtered_replacements_photo = {k: v for k, v in replacements.items() if k in svg_fields_photo or field_mapping.get(k, k) in svg_fields_photo}
         
-        # Обрабатываем SVG с идеальным сохранением шрифтов
         print(f"🔍 Replacements для main SVG: {filtered_replacements_main}")
         print(f"🔍 Replacements для photo SVG: {filtered_replacements_photo}")
+        
+        # Дополнительная отладка для photo template
+        print("🔍 Детальная проверка photo replacements:")
+        for key, value in replacements.items():
+            mapped_key = field_mapping.get(key, key)
+            in_photo = key in svg_fields_photo or mapped_key in svg_fields_photo
+            print(f"   {key} -> {mapped_key} -> в photo: {in_photo}")
         processed_main_svg = process_svg_font_perfect(main_svg_content, filtered_replacements_main)
         processed_photo_svg = process_svg_font_perfect(photo_svg_content, filtered_replacements_photo)
         
@@ -1219,11 +1229,21 @@ def generate_carousel_by_name():
         print(f"🔍 Main SVG поля: {extract_dyno_fields_simple(main_svg)}")
         print(f"🔍 Photo SVG поля: {extract_dyno_fields_simple(photo_svg)}")
         
+        # Фильтруем replacements для каждого шаблона
+        svg_fields_main = extract_dyno_fields_simple(main_svg)
+        svg_fields_photo = extract_dyno_fields_simple(photo_svg)
+        
+        filtered_replacements_main = {k: v for k, v in replacements.items() if k in svg_fields_main or field_mapping.get(k, k) in svg_fields_main}
+        filtered_replacements_photo = {k: v for k, v in replacements.items() if k in svg_fields_photo or field_mapping.get(k, k) in svg_fields_photo}
+        
+        print(f"🔍 Filtered replacements для main: {filtered_replacements_main}")
+        print(f"🔍 Filtered replacements для photo: {filtered_replacements_photo}")
+        
         print("🎨 Обрабатываю Main шаблон...")
-        processed_main_svg = process_svg_font_perfect(main_svg, replacements)
+        processed_main_svg = process_svg_font_perfect(main_svg, filtered_replacements_main)
         
         print("🎨 Обрабатываю Photo шаблон...")
-        processed_photo_svg = process_svg_font_perfect(photo_svg, replacements)
+        processed_photo_svg = process_svg_font_perfect(photo_svg, filtered_replacements_photo)
         
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
