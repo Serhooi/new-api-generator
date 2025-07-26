@@ -346,7 +346,7 @@ def process_svg_font_perfect(svg_content, replacements):
                 # Ищем pattern_id в fill атрибуте или в связанных элементах
                 element_content = match.group(0)
                 print(f"      🔍 Анализируем элемент: {element_content}")
-                pattern_match = re.search(r'fill="url\\(#([^)]+)\\)"', element_content)
+                pattern_match = re.search(r'fill="url\(#([^)]+)\)"', element_content)
                 print(f"      🔍 Pattern match результат: {pattern_match}")
                 
                 if pattern_match:
