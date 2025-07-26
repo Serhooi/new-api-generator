@@ -36,6 +36,18 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs('output/single', exist_ok=True)
 os.makedirs('output/carousel', exist_ok=True)
 
+field_mapping = {
+    'dyno.agentname': 'dyno.name',
+    'dyno.agentemail': 'dyno.email', 
+    'dyno.agentphone': 'dyno.phone',
+    'dyno.agentphoto': 'dyno.agentheadshot',
+    'dyno.propertyaddress': 'dyno.propertyaddress',
+    'dyno.agentname': 'dyno.name',
+    'dyno.agentphone': 'dyno.phone',
+    'dyno.agentemail': 'dyno.email',
+    'dyno.agentphoto': 'dyno.agentheadshot'
+}
+
 def has_dyno_fields_simple(svg_content):
     """
     Простая проверка наличия dyno полей в SVG
@@ -272,19 +284,6 @@ def process_svg_font_perfect(svg_content, replacements):
     # Обрабатываем каждое поле
     successful_replacements = 0
     total_fields = len(replacements)
-    
-    # Маппинг полей для поддержки разных названий
-    field_mapping = {
-        'dyno.agentname': 'dyno.name',
-        'dyno.agentemail': 'dyno.email', 
-        'dyno.agentphone': 'dyno.phone',
-        'dyno.agentphoto': 'dyno.agentheadshot',
-        'dyno.propertyaddress': 'dyno.propertyaddress',
-        'dyno.agentname': 'dyno.name',
-        'dyno.agentphone': 'dyno.phone',
-        'dyno.agentemail': 'dyno.email',
-        'dyno.agentphoto': 'dyno.agentheadshot'
-    }
     
     # Обрабатываем каждое поле с учетом маппинга
     for dyno_field, replacement in replacements.items():
