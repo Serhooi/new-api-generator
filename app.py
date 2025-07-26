@@ -349,7 +349,7 @@ def process_svg_font_perfect(svg_content, replacements):
                 
                 if pattern_match:
                     pattern_id = pattern_match.group(1)
-                    print(f"      🎯 Найден pattern: {pattern_id}")
+                    print(f"      🎯 Найден pattern из fill: {pattern_id}")
                 else:
                     # Проверяем, может это прямой image элемент
                     if '<image' in element_content:
@@ -392,6 +392,25 @@ def process_svg_font_perfect(svg_content, replacements):
                 # Ищем pattern блок
                 pattern_block_pattern = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
                 pattern_match = re.search(pattern_block_pattern, processed_svg, re.DOTALL)
+                
+                if pattern_match:
+                    print(f"      ✅ Найден pattern блок: {pattern_id}")
+                else:
+                    print(f"      ❌ Pattern блок {pattern_id} не найден")
+                    # Попробуем найти pattern по номеру
+                    all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
+                    print(f"      🔍 Все pattern блоки в SVG: {all_patterns}")
+                    
+                    # Попробуем найти pattern по номеру
+                    for i, pattern_name in enumerate(all_patterns):
+                        print(f"      🔍 Проверяем pattern {i}: {pattern_name}")
+                        # Ищем use элемент, который ссылается на этот pattern
+                        use_pattern = f'<use[^>]*xlink:href="#{re.escape(pattern_name)}"[^>]*>'
+                        if re.search(use_pattern, processed_svg):
+                            print(f"      ✅ Найден используемый pattern: {pattern_name}")
+                            pattern_id = pattern_name
+                            pattern_match = re.search(f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>', processed_svg, re.DOTALL)
+                            break
                 
                 # Если не нашли, ищем все pattern блоки для отладки
                 if not pattern_match:
