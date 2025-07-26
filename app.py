@@ -917,6 +917,7 @@ def generate_single():
 def generate_carousel():
     try:
         data = request.get_json()
+        print(f"📥 Входящий запрос: {data}")
         main_template_id = data.get('main_template_id')
         photo_template_id = data.get('photo_template_id')
         replacements = data.get('replacements', {})
@@ -1000,6 +1001,7 @@ def generate_carousel_by_name():
     """
     try:
         data = request.get_json()
+        print(f"📥 Входящий запрос (by-name): {data}")
         main_template_name = data.get('main_template_name')
         photo_template_name = data.get('photo_template_name')
         replacements = data.get('replacements', {})
