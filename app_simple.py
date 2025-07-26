@@ -84,18 +84,42 @@ def process_svg_simple(svg_content, replacements):
     result = svg_content
     
     for key, value in replacements.items():
-        # Различные форматы переменных
-        patterns = [
-            f"{{{{{key}}}}}",
-            f"{{{{dyno.{key.replace('dyno.', '')}}}}}",
-            f"{{dyno.{key.replace('dyno.', '')}}}",
-            f"{{{key}}}"
-        ]
+        print(f"🔄 Обрабатываю поле: {key} = {value}")
         
-        safe_value = safe_escape_for_svg(value)
+        # Безопасное экранирование
+        safe_value = safe_escape_for_svg(str(value))
         
-        for pattern in patterns:
-            result = result.replace(pattern, safe_value)
+        # Ищем элемент с id="key" в SVG
+        element_pattern = f'<text[^>]*id="{re.escape(key)}"[^>]*>(.*?)</text>'
+        match = re.search(element_pattern, result, re.DOTALL)
+        
+        if match:
+            print(f"   ✅ Найден элемент с id: {key}")
+            old_element = match.group(0)
+            old_content = match.group(1)
+            
+            # Заменяем содержимое элемента
+            new_content = old_content.replace(f"{{{key}}}", safe_value)
+            new_element = old_element.replace(old_content, new_content)
+            
+            result = result.replace(old_element, new_element)
+            print(f"   ✅ Заменено: {key} → {safe_value}")
+        else:
+            print(f"   ⚠️ Элемент с id='{key}' не найден")
+            
+            # Fallback: ищем переменные в формате {dyno.field}
+            patterns = [
+                f"{{{{{key}}}}}",
+                f"{{{{dyno.{key.replace('dyno.', '')}}}}}",
+                f"{{dyno.{key.replace('dyno.', '')}}}",
+                f"{{{key}}}"
+            ]
+            
+            for pattern in patterns:
+                if pattern in result:
+                    result = result.replace(pattern, safe_value)
+                    print(f"   ✅ Заменено по fallback: {pattern} → {safe_value}")
+                    break
     
     return result
 
@@ -239,25 +263,34 @@ def create_dynamic_template(template_id, template_role):
         content = '''<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
             <rect width="100%" height="100%" fill="white"/>
             <text x="600" y="200" text-anchor="middle" font-size="48" fill="black">Dynamic Main Template</text>
-            <text x="600" y="300" text-anchor="middle" font-size="24" fill="blue">Agent: {dyno.agentName}</text>
-            <text x="600" y="350" text-anchor="middle" font-size="20" fill="green">Address: {dyno.propertyAddress}</text>
-            <text x="600" y="400" text-anchor="middle" font-size="32" fill="red">Price: {dyno.price}</text>
-            <text x="600" y="450" text-anchor="middle" font-size="18" fill="purple">Phone: {dyno.agentPhone}</text>
+            <text id="dyno.agentName" x="600" y="300" text-anchor="middle" font-size="24" fill="blue">Agent: {dyno.agentName}</text>
+            <text id="dyno.propertyAddress" x="600" y="350" text-anchor="middle" font-size="20" fill="green">Address: {dyno.propertyAddress}</text>
+            <text id="dyno.price" x="600" y="400" text-anchor="middle" font-size="32" fill="red">Price: {dyno.price}</text>
+            <text id="dyno.agentPhone" x="600" y="450" text-anchor="middle" font-size="18" fill="purple">Phone: {dyno.agentPhone}</text>
+            <text id="dyno.agentEmail" x="600" y="500" text-anchor="middle" font-size="16" fill="orange">Email: {dyno.agentEmail}</text>
+            <text id="dyno.bedrooms" x="600" y="550" text-anchor="middle" font-size="20" fill="brown">Bedrooms: {dyno.bedrooms}</text>
+            <text id="dyno.bathrooms" x="600" y="580" text-anchor="middle" font-size="20" fill="brown">Bathrooms: {dyno.bathrooms}</text>
+            <text id="dyno.date" x="600" y="620" text-anchor="middle" font-size="18" fill="darkgreen">Date: {dyno.date}</text>
+            <text id="dyno.time" x="600" y="650" text-anchor="middle" font-size="18" fill="darkgreen">Time: {dyno.time}</text>
+            <text id="dyno.propertyfeatures" x="600" y="680" text-anchor="middle" font-size="14" fill="gray">Features: {dyno.propertyfeatures}</text>
         </svg>'''
         name = f"Dynamic Main Template ({template_id[:8]})"
     else:
         content = '''<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
             <rect width="100%" height="100%" fill="lightblue"/>
             <text x="400" y="200" text-anchor="middle" font-size="36" fill="black">Dynamic Photo Template</text>
-            <text x="400" y="300" text-anchor="middle" font-size="24" fill="blue">Agent: {dyno.agentName}</text>
-            <text x="400" y="350" text-anchor="middle" font-size="18" fill="green">Phone: {dyno.agentPhone}</text>
+            <text id="dyno.agentName" x="400" y="300" text-anchor="middle" font-size="24" fill="blue">Agent: {dyno.agentName}</text>
+            <text id="dyno.agentPhone" x="400" y="350" text-anchor="middle" font-size="18" fill="green">Phone: {dyno.agentPhone}</text>
+            <text id="dyno.agentEmail" x="400" y="400" text-anchor="middle" font-size="16" fill="orange">Email: {dyno.agentEmail}</text>
+            <text id="dyno.propertyAddress" x="400" y="450" text-anchor="middle" font-size="16" fill="purple">Address: {dyno.propertyAddress}</text>
+            <text id="dyno.price" x="400" y="500" text-anchor="middle" font-size="20" fill="red">Price: {dyno.price}</text>
         </svg>'''
         name = f"Dynamic Photo Template ({template_id[:8]})"
     
     cursor.execute('''
         INSERT INTO templates (id, name, category, template_role, svg_content, dyno_fields)
         VALUES (?, ?, ?, ?, ?, ?)
-    ''', (template_id, name, 'dynamic', template_role, content, 'dyno.agentName,dyno.agentPhone,dyno.propertyAddress,dyno.price'))
+    ''', (template_id, name, 'dynamic', template_role, content, 'dyno.agentName,dyno.agentPhone,dyno.agentEmail,dyno.propertyAddress,dyno.price,dyno.bedrooms,dyno.bathrooms,dyno.date,dyno.time,dyno.propertyfeatures'))
     
     conn.commit()
     conn.close()
@@ -279,6 +312,10 @@ def test_jpg_urls():
 @app.route('/test_frontend_access.html')
 def test_frontend_access():
     return render_template('test_frontend_access.html')
+
+@app.route('/test_fixed_processing.html')
+def test_fixed_processing():
+    return render_template('test_fixed_processing.html')
 
 @app.route('/api/health')
 def health():

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Fixed SVG Processing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .image-container {
+            margin: 10px 0;
+            text-align: center;
+        }
+        .image-container img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Fixed SVG Processing</h1>
+        <p>Тестируем исправленную обработку SVG с правильными ID элементов</p>
+        
+        <div class="test-section">
+            <h3>📋 Test Data</h3>
+            <div class="info status">
+                <strong>Template IDs:</strong> cf8e899f-1523-4105-9551-e122e6cbcb33, 8041c4c1-e099-4101-bc17-58ef1fb24c99<br>
+                <strong>Fields:</strong> agentName, agentPhone, agentEmail, price, propertyAddress, bedrooms, bathrooms, date, time, propertyfeatures
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🚀 Generate Carousel</h3>
+            <button onclick="generateCarousel()">Generate Test Carousel</button>
+            <div id="generation-status" class="status"></div>
+            <div id="generation-log" class="log" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🖼️ Generated Images</h3>
+            <div id="images-container"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔍 Manual Test</h3>
+            <button onclick="testDirectAccess()">Test Direct Image Access</button>
+            <div id="direct-test-results"></div>
+        </div>
+    </div>
+
+    <script>
+        let lastCarouselId = null;
+        
+        async function generateCarousel() {
+            const statusDiv = document.getElementById('generation-status');
+            const logDiv = document.getElementById('generation-log');
+            
+            statusDiv.innerHTML = '<div class="info status">🔄 Generating carousel...</div>';
+            logDiv.style.display = 'block';
+            logDiv.innerHTML = 'Starting generation...\n';
+            
+            const testData = {
+                main_template_id: "cf8e899f-1523-4105-9551-e122e6cbcb33",
+                photo_template_id: "8041c4c1-e099-4101-bc17-58ef1fb24c99",
+                data: {
+                    "dyno.agentName": "Serhii Tabachnyi",
+                    "dyno.agentPhone": "4376618985",
+                    "dyno.agentEmail": "joserko18@gmail.com",
+                    "dyno.price": "$3,321,321",
+                    "dyno.propertyAddress": "405-5 Defries St",
+                    "dyno.bedrooms": "4",
+                    "dyno.bathrooms": "4",
+                    "dyno.date": "june 12",
+                    "dyno.time": "2:00-3:00",
+                    "dyno.propertyfeatures": "dsadsad"
+                }
+            };
+            
+            try {
+                logDiv.innerHTML += 'Sending request to /api/generate/carousel...\n';
+                
+                const response = await fetch('/api/generate/carousel', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const result = await response.json();
+                
+                logDiv.innerHTML += `Response status: ${response.status}\n`;
+                logDiv.innerHTML += `Response: ${JSON.stringify(result, null, 2)}\n`;
+                
+                if (result.success) {
+                    lastCarouselId = result.carousel_id;
+                    statusDiv.innerHTML = `<div class="success status">✅ Carousel generated successfully!<br>ID: ${result.carousel_id}<br>Replacements applied: ${result.replacements_applied}</div>`;
+                    
+                    // Display images
+                    displayImages(result);
+                } else {
+                    statusDiv.innerHTML = `<div class="error status">❌ Generation failed: ${result.error || 'Unknown error'}</div>`;
+                }
+                
+            } catch (error) {
+                logDiv.innerHTML += `Error: ${error.message}\n`;
+                statusDiv.innerHTML = `<div class="error status">❌ Network error: ${error.message}</div>`;
+            }
+        }
+        
+        function displayImages(result) {
+            const container = document.getElementById('images-container');
+            container.innerHTML = '';
+            
+            if (result.images && result.images.length > 0) {
+                result.images.forEach((imageUrl, index) => {
+                    const imageDiv = document.createElement('div');
+                    imageDiv.className = 'image-container';
+                    imageDiv.innerHTML = `
+                        <h4>Slide ${index + 1}</h4>
+                        <img src="${imageUrl}" alt="Generated slide ${index + 1}" 
+                             onload="this.style.border='2px solid green'" 
+                             onerror="this.style.border='2px solid red'; this.alt='Failed to load'">
+                        <p><strong>URL:</strong> ${imageUrl}</p>
+                    `;
+                    container.appendChild(imageDiv);
+                });
+            } else {
+                container.innerHTML = '<div class="error status">No images in response</div>';
+            }
+        }
+        
+        async function testDirectAccess() {
+            if (!lastCarouselId) {
+                document.getElementById('direct-test-results').innerHTML = 
+                    '<div class="error status">No carousel generated yet. Generate one first.</div>';
+                return;
+            }
+            
+            const resultsDiv = document.getElementById('direct-test-results');
+            resultsDiv.innerHTML = '<div class="info status">Testing direct image access...</div>';
+            
+            const imageUrls = [
+                `/output/carousel/carousel_${lastCarouselId}_main.jpg`,
+                `/output/carousel/carousel_${lastCarouselId}_photo.jpg`
+            ];
+            
+            let results = '';
+            
+            for (let i = 0; i < imageUrls.length; i++) {
+                const url = imageUrls[i];
+                try {
+                    const response = await fetch(url, { method: 'HEAD' });
+                    if (response.ok) {
+                        results += `<div class="success status">✅ ${url} - OK (${response.status})</div>`;
+                    } else {
+                        results += `<div class="error status">❌ ${url} - Failed (${response.status})</div>`;
+                    }
+                } catch (error) {
+                    results += `<div class="error status">❌ ${url} - Network error: ${error.message}</div>`;
+                }
+            }
+            
+            resultsDiv.innerHTML = results;
+        }
+    </script>
+</body>
+</html> 
