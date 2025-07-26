@@ -329,6 +329,11 @@ def process_svg_font_perfect(svg_content, replacements):
                 print(f"      🔍 Все элементы с id в SVG: {all_elements_with_id}")
                 print(f"      🔍 Ищем элемент: {dyno_field}")
             
+            # Если нашли элемент, выводим его содержимое для отладки
+            if match:
+                element_content = match.group(0)
+                print(f"      🔍 Найден элемент: {element_content[:200]}...")
+            
             # Если не нашли по основному имени, пробуем альтернативное
             if not match and alternative_field:
                 element_pattern = f'<[^>]*id="{re.escape(alternative_field)}"[^>]*>'
@@ -346,9 +351,35 @@ def process_svg_font_perfect(svg_content, replacements):
                     pattern_id = pattern_match.group(1)
                     print(f"      🎯 Найден pattern: {pattern_id}")
                 else:
-                    # Если нет fill, ищем pattern по id элемента
-                    pattern_id = dyno_field.replace('dyno.', 'pattern_')
-                    print(f"      🎯 Используем pattern по умолчанию: {pattern_id}")
+                    # Проверяем, может это прямой image элемент
+                    if '<image' in element_content:
+                        print(f"      🎯 Найден прямой image элемент")
+                        # Обрабатываем прямой image элемент
+                        old_image = element_content
+                        new_image = old_image
+                        
+                        # Заменяем URL
+                        new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
+                        new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
+                        
+                        # Устанавливаем preserveAspectRatio
+                        if 'preserveAspectRatio=' in new_image:
+                            new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                        else:
+                            if new_image.endswith('/>'):
+                                new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
+                            elif new_image.endswith('>'):
+                                new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
+                        
+                        processed_svg = processed_svg.replace(old_image, new_image)
+                        print(f"      ✅ Прямое изображение {dyno_field} заменено!")
+                        print(f"      🎯 Применен aspect ratio: {aspect_ratio}")
+                        successful_replacements += 1
+                        continue
+                    else:
+                        # Если нет fill, ищем pattern по id элемента
+                        pattern_id = dyno_field.replace('dyno.', 'pattern_')
+                        print(f"      🎯 Используем pattern по умолчанию: {pattern_id}")
                 
                 # ОПРЕДЕЛЯЕМ ФОРМУ ЭЛЕМЕНТА
                 element_shape = determine_element_shape(processed_svg, pattern_id)
