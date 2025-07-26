@@ -737,10 +737,19 @@ def preview_page():
 def serve_output(filename):
     return send_from_directory(OUTPUT_DIR, filename)
 
+# Статические файлы для ручных превью
+@app.route('/output/template_previews/<filename>')
+def serve_template_previews(filename):
+    preview_dir = os.path.join(OUTPUT_DIR, 'template_previews')
+    return send_from_directory(preview_dir, filename)
+
 # API для загрузки одиночного шаблона
 @app.route('/api/upload-single', methods=['POST'])
 def upload_single_template():
     try:
+        # Импортируем функции для работы с превью
+        from manual_preview_system import save_preview_image, validate_preview_image, create_default_preview
+        
         # ИСПРАВЛЕНО: Проверяем правильное имя поля из формы (svg_file)
         if 'svg_file' not in request.files:
             return jsonify({'error': 'Файл не найден'}), 400
@@ -779,9 +788,28 @@ def upload_single_template():
         conn.commit()
         conn.close()
         
-        # Генерируем превью для шаблона
-        print(f"🎨 Генерирую превью для шаблона: {name}")
-        preview_result = generate_svg_preview(svg_content, template_id)
+        # Обрабатываем превью изображение
+        preview_result = None
+        if 'preview_file' in request.files and request.files['preview_file'].filename:
+            preview_file = request.files['preview_file']
+            print(f"📸 Обрабатываю загруженное превью: {preview_file.filename}")
+            
+            # Валидируем превью
+            validation = validate_preview_image(preview_file)
+            if validation['valid']:
+                # Сохраняем превью
+                preview_result = save_preview_image(preview_file, template_id)
+                if preview_result['success']:
+                    print(f"✅ Превью сохранено для шаблона {template_id}")
+                else:
+                    print(f"⚠️ Ошибка сохранения превью: {preview_result['error']}")
+            else:
+                print(f"⚠️ Превью не прошло валидацию: {validation['error']}")
+        
+        # Если превью не загружено или не удалось сохранить, создаем дефолтное
+        if not preview_result or not preview_result['success']:
+            print(f"🎨 Создаю дефолтное превью для {template_id}")
+            preview_result = create_default_preview(name, template_id)
         
         response_data = {
             'success': True,
@@ -791,12 +819,14 @@ def upload_single_template():
             'message': f'Шаблон "{name}" успешно загружен'
         }
         
-        # Добавляем информацию о превью если успешно
-        if preview_result['success']:
+        # Добавляем информацию о превью
+        if preview_result and preview_result['success']:
             response_data['preview_url'] = preview_result['url']
-            response_data['preview_filename'] = preview_result['filename']
-        else:
-            response_data['preview_error'] = preview_result['error']
+            response_data['preview_uploaded'] = not preview_result.get('is_default', False)
+            if preview_result.get('is_default'):
+                response_data['preview_message'] = 'Создано дефолтное превью. Вы можете загрузить свое изображение.'
+            else:
+                response_data['preview_message'] = 'Превью успешно загружено!'
         
         return jsonify(response_data)
         
@@ -903,6 +933,8 @@ def health():
 @app.route('/api/templates/all-previews')
 def get_all_templates():
     try:
+        from manual_preview_system import get_template_preview_url
+        
         ensure_db_exists()
         
         conn = sqlite3.connect(DATABASE_PATH)
@@ -917,17 +949,23 @@ def get_all_templates():
         for template in templates_data:
             template_id = template[0]
             
-            # Проверяем существует ли превью, если нет - генерируем
-            preview_filename = f"{template_id}_preview.png"
-            preview_path = os.path.join(OUTPUT_DIR, 'previews', preview_filename)
+            # Сначала ищем ручное превью
+            preview_url = get_template_preview_url(template_id)
+            preview_type = 'manual' if preview_url else 'auto'
             
-            if not os.path.exists(preview_path):
-                # Получаем SVG контент для генерации превью
-                cursor_temp = conn.cursor()
-                cursor_temp.execute('SELECT svg_content FROM templates WHERE id = ?', [template_id])
-                svg_result = cursor_temp.fetchone()
-                if svg_result:
-                    generate_svg_preview(svg_result[0], template_id)
+            # Если ручного превью нет, используем старую систему
+            if not preview_url:
+                preview_filename = f"{template_id}_preview.png"
+                preview_path = os.path.join(OUTPUT_DIR, 'previews', preview_filename)
+                if os.path.exists(preview_path):
+                    preview_url = f'/output/previews/{preview_filename}'
+                else:
+                    # Создаем дефолтное превью если ничего нет
+                    from manual_preview_system import create_default_preview
+                    default_result = create_default_preview(template[1], template_id)
+                    if default_result['success']:
+                        preview_url = default_result['url']
+                        preview_type = 'default'
             
             templates.append({
                 'id': template_id,
@@ -935,8 +973,8 @@ def get_all_templates():
                 'category': template[2],
                 'template_role': template[3],
                 'created_at': template[4],
-                'preview_url': f'/output/previews/{preview_filename}',
-                'preview_api_url': f'/api/templates/{template_id}/preview'
+                'preview_url': preview_url,
+                'preview_type': preview_type  # manual, auto, default
             })
         
         return jsonify({

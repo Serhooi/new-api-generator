@@ -344,15 +344,29 @@
                     </select>
                 </div>
 
-                <div class="template-upload-area" onclick="document.getElementById('single-file').click()">
-                    <div class="upload-icon">📁</div>
-                    <div class="upload-title">Выберите SVG файл</div>
-                    <div class="upload-description">Перетащите файл сюда или нажмите для выбора</div>
-                    <button type="button" class="upload-btn" onclick="document.getElementById('single-file').click()">Выбрать файл</button>
-                    <input type="file" id="single-file" name="svg_file" class="file-input" accept=".svg" required>
-                    <div id="single-preview" class="file-preview">
-                        <div class="file-name"></div>
-                        <div class="file-size"></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                    <div class="template-upload-area" onclick="document.getElementById('single-file').click()">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-title">SVG Шаблон</div>
+                        <div class="upload-description">Выберите SVG файл шаблона</div>
+                        <button type="button" class="upload-btn" onclick="document.getElementById('single-file').click()">Выбрать SVG</button>
+                        <input type="file" id="single-file" name="svg_file" class="file-input" accept=".svg" required>
+                        <div id="single-preview" class="file-preview">
+                            <div class="file-name"></div>
+                            <div class="file-size"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="template-upload-area" onclick="document.getElementById('preview-file').click()">
+                        <div class="upload-icon">🖼️</div>
+                        <div class="upload-title">Превью изображение</div>
+                        <div class="upload-description">Загрузите готовое превью (необязательно)</div>
+                        <button type="button" class="upload-btn" onclick="document.getElementById('preview-file').click()">Выбрать превью</button>
+                        <input type="file" id="preview-file" name="preview_file" class="file-input" accept="image/*">
+                        <div id="preview-preview" class="file-preview">
+                            <div class="file-name"></div>
+                            <div class="file-size"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -518,6 +532,7 @@
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
             setupFileInput('single-file', 'single-preview');
+            setupFileInput('preview-file', 'preview-preview');
             setupFileInput('main-template', 'main-preview');
             setupFileInput('photo-template', 'photo-preview');
 

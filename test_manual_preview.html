@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест ручных превью</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .template-card { 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin: 10px 0; 
+            display: flex; 
+            gap: 15px; 
+            align-items: center;
+        }
+        .preview-img { 
+            width: 150px; 
+            height: 100px; 
+            object-fit: cover; 
+            border-radius: 4px; 
+            border: 1px solid #ccc;
+        }
+        .template-info h3 { margin: 0 0 5px 0; }
+        .template-info p { margin: 2px 0; color: #666; }
+        .preview-type { 
+            padding: 2px 8px; 
+            border-radius: 12px; 
+            font-size: 12px; 
+            font-weight: bold;
+        }
+        .preview-type.manual { background: #d4edda; color: #155724; }
+        .preview-type.auto { background: #d1ecf1; color: #0c5460; }
+        .preview-type.default { background: #f8d7da; color: #721c24; }
+        button { 
+            padding: 8px 16px; 
+            margin: 5px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        #loading { color: #666; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>🖼️ Тест системы ручных превью</h1>
+    
+    <div>
+        <button class="btn-primary" onclick="loadTemplates()">Загрузить шаблоны</button>
+        <button class="btn-success" onclick="testManualPreview()">Создать тестовое превью</button>
+    </div>
+    
+    <div id="loading" style="display: none;">Загружаю...</div>
+    <div id="templates-container"></div>
+    
+    <script>
+        async function loadTemplates() {
+            const loading = document.getElementById('loading');
+            const container = document.getElementById('templates-container');
+            
+            loading.style.display = 'block';
+            container.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/templates/all-previews');
+                const data = await response.json();
+                
+                if (data.templates && data.templates.length > 0) {
+                    container.innerHTML = '<h2>📋 Найденные шаблоны:</h2>';
+                    
+                    data.templates.forEach(template => {
+                        const card = document.createElement('div');
+                        card.className = 'template-card';
+                        
+                        const previewTypeClass = template.preview_type || 'default';
+                        const previewTypeText = {
+                            'manual': 'Ручное',
+                            'auto': 'Авто',
+                            'default': 'По умолчанию'
+                        }[previewTypeClass] || 'Неизвестно';
+                        
+                        card.innerHTML = `
+                            <img src="${template.preview_url}" alt="Preview" class="preview-img" 
+                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDE1MCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTAwIiBmaWxsPSIjZjhmOWZhIi8+Cjx0ZXh0IHg9Ijc1IiB5PSI1NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzZjNzU3ZCI+Tm8gSW1hZ2U8L3RleHQ+Cjwvc3ZnPg=='">
+                            <div class="template-info">
+                                <h3>${template.name}</h3>
+                                <p><strong>Категория:</strong> ${template.category}</p>
+                                <p><strong>Роль:</strong> ${template.template_role}</p>
+                                <p><strong>ID:</strong> ${template.id}</p>
+                                <p><span class="preview-type ${previewTypeClass}">Превью: ${previewTypeText}</span></p>
+                            </div>
+                        `;
+                        
+                        container.appendChild(card);
+                    });
+                } else {
+                    container.innerHTML = '<p>❌ Шаблоны не найдены</p>';
+                }
+                
+            } catch (error) {
+                container.innerHTML = `<p>❌ Ошибка: ${error.message}</p>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+        
+        async function testManualPreview() {
+            // Создаем тестовое превью программно
+            const canvas = document.createElement('canvas');
+            canvas.width = 400;
+            canvas.height = 300;
+            const ctx = canvas.getContext('2d');
+            
+            // Рисуем тестовое изображение
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(0, 0, 400, 300);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Тестовое превью', 200, 150);
+            ctx.fillText(new Date().toLocaleTimeString(), 200, 180);
+            
+            // Конвертируем в blob
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('name', 'Test Template ' + Date.now());
+                formData.append('category', 'test');
+                formData.append('template_role', 'main');
+                
+                // Создаем простой SVG
+                const svgContent = `<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="400" height="300" fill="#f0f0f0"/>
+                    <text x="200" y="150" text-anchor="middle" font-size="20">Test Template</text>
+                </svg>`;
+                
+                const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' });
+                formData.append('svg_file', svgBlob, 'test.svg');
+                formData.append('preview_file', blob, 'preview.png');
+                
+                try {
+                    const response = await fetch('/api/upload-single', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        alert('✅ Тестовый шаблон с превью создан!');
+                        loadTemplates(); // Перезагружаем список
+                    } else {
+                        alert('❌ Ошибка: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('❌ Ошибка запроса: ' + error.message);
+                }
+            }, 'image/png');
+        }
+        
+        // Автоматически загружаем шаблоны при открытии страницы
+        window.onload = function() {
+            loadTemplates();
+        };
+    </script>
+</body>
+</html>
