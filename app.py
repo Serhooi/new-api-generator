@@ -323,6 +323,12 @@ def process_svg_font_perfect(svg_content, replacements):
             element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*>'
             match = re.search(element_pattern, processed_svg)
             
+            # Если не нашли, выводим все элементы с id для отладки
+            if not match:
+                all_elements_with_id = re.findall(r'<[^>]*id="([^"]*)"[^>]*>', processed_svg)
+                print(f"      🔍 Все элементы с id в SVG: {all_elements_with_id}")
+                print(f"      🔍 Ищем элемент: {dyno_field}")
+            
             # Если не нашли по основному имени, пробуем альтернативное
             if not match and alternative_field:
                 element_pattern = f'<[^>]*id="{re.escape(alternative_field)}"[^>]*>'
@@ -355,6 +361,12 @@ def process_svg_font_perfect(svg_content, replacements):
                 # Ищем pattern блок
                 pattern_block_pattern = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
                 pattern_match = re.search(pattern_block_pattern, processed_svg, re.DOTALL)
+                
+                # Если не нашли, ищем все pattern блоки для отладки
+                if not pattern_match:
+                    all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
+                    print(f"      🔍 Все pattern блоки в SVG: {all_patterns}")
+                    print(f"      🔍 Ищем pattern: {pattern_id}")
                 
                 if pattern_match:
                     pattern_content = pattern_match.group(1)
