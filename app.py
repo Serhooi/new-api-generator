@@ -302,13 +302,18 @@ def process_svg_font_perfect(svg_content, replacements):
         field_lower = dyno_field.lower()
         explicit_image_indicators = ['image', 'headshot', 'logo', 'photo', 'pic', 'portrait']
         
+        print(f"🔍 Проверяю поле на изображение: {dyno_field} (lower: {field_lower})")
+        
         for indicator in explicit_image_indicators:
             if indicator in field_lower:
+                print(f"   ✅ Найден индикатор '{indicator}' - это изображение")
                 return True
         
         if 'agent' in field_lower and any(img in field_lower for img in ['photo', 'image', 'pic', 'headshot']):
+            print(f"   ✅ Найден 'agent' + изображение - это изображение")
             return True
         
+        print(f"   ❌ Не определено как изображение")
         return False
     
     def is_address_field(dyno_field):

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Preview Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; }
+        img { max-width: 500px; border: 1px solid #ccc; margin: 10px 0; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Quick Preview Test</h1>
+    
+    <button onclick="testPreview()">Test Preview with All Fields</button>
+    <button onclick="getTemplates()">Get Templates List</button>
+    <button onclick="clearResult()">Clear</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        let selectedTemplateId = null;
+        
+        async function getTemplates() {
+            const result = document.getElementById('result');
+            result.innerHTML = '<p class="info">Loading templates...</p>';
+            
+            try {
+                const response = await fetch('/api/templates/all-previews');
+                const data = await response.json();
+                
+                if (data.templates && data.templates.length > 0) {
+                    selectedTemplateId = data.templates[0].id;
+                    
+                    let html = '<div class="success"><h3>✅ Templates found:</h3><ul>';
+                    data.templates.forEach(template => {
+                        html += `<li><strong>${template.name}</strong> (${template.id}) - ${template.category} - ${template.template_role}</li>`;
+                    });
+                    html += '</ul>';
+                    html += `<p><strong>Selected for testing:</strong> ${data.templates[0].name} (${selectedTemplateId})</p></div>`;
+                    
+                    result.innerHTML = html;
+                } else {
+                    result.innerHTML = '<div class="error">❌ No templates found</div>';
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function testPreview() {
+            if (!selectedTemplateId) {
+                await getTemplates();
+                if (!selectedTemplateId) {
+                    document.getElementById('result').innerHTML = '<div class="error">❌ No template selected</div>';
+                    return;
+                }
+            }
+            
+            const result = document.getElementById('result');
+            result.innerHTML = '<p class="info">Generating preview...</p>';
+            
+            const testData = {
+                template_id: selectedTemplateId,
+                replacements: {
+                    // Текстовые поля
+                    'dyno.agentName': 'John Smith TEST',
+                    'dyno.propertyAddress': '123 Main Street, Beverly Hills, CA 90210',
+                    'dyno.price': '$450,000',
+                    'dyno.bedrooms': '3',
+                    'dyno.bathrooms': '2',
+                    'dyno.sqft': '1,850',
+                    'dyno.agentPhone': '(555) 123-4567',
+                    'dyno.agentEmail': 'john@realty.com',
+                    
+                    // Изображения - пробуем ВСЕ возможные названия
+                    'dyno.agentPhoto': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+                    'dyno.propertyImage': 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop',
+                    'dyno.companyLogo': 'https://via.placeholder.com/200x100/007bff/ffffff?text=COMPANY+LOGO',
+                    
+                    // Альтернативные названия
+                    'dyno.logo': 'https://via.placeholder.com/200x100/28a745/ffffff?text=LOGO',
+                    'dyno.brandLogo': 'https://via.placeholder.com/200x100/dc3545/ffffff?text=BRAND',
+                    'dyno.headshot': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+                    'dyno.agentHeadshot': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+                    'dyno.propertyimage': 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop',
+                    'dyno.houseImage': 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop'
+                },
+                type: 'png',
+                width: 400,
+                height: 300
+            };
+            
+            console.log('🔄 Sending test data:', testData);
+            
+            try {
+                const response = await fetch('/api/preview/with-data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testData)
+                });
+                
+                console.log('📡 Response status:', response.status);
+                
+                const data = await response.json();
+                console.log('📄 Response data:', data);
+                
+                if (data.success) {
+                    result.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Preview Generated Successfully!</h3>
+                            <p><strong>Template:</strong> ${data.template_name}</p>
+                            <p><strong>URL:</strong> <a href="${data.url}" target="_blank">${data.url}</a></p>
+                            <p><strong>Size:</strong> ${data.width}x${data.height}</p>
+                            <p><strong>File Size:</strong> ${data.file_size} bytes</p>
+                            <p><strong>Replacements Applied:</strong> ${data.replacements_count}</p>
+                            <img src="${data.url}" alt="Generated Preview">
+                        </div>
+                    `;
+                } else {
+                    result.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ Request failed: ${error.message}</div>`;
+                console.error('Request error:', error);
+            }
+        }
+        
+        function clearResult() {
+            document.getElementById('result').innerHTML = '';
+        }
+        
+        // Auto-load templates on page load
+        window.onload = function() {
+            getTemplates();
+        };
+    </script>
+</body>
+</html>

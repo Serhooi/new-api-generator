@@ -289,6 +289,11 @@
                 <label class="form-label">URL фото недвижимости</label>
                 <input type="text" id="propertyImage" class="form-input" placeholder="https://images.unsplash.com/photo-1560518883-ce09059eeffa" value="https://images.unsplash.com/photo-1560518883-ce09059eeffa">
             </div>
+            
+            <div class="form-group">
+                <label class="form-label">URL логотипа компании</label>
+                <input type="text" id="companyLogo" class="form-input" placeholder="https://via.placeholder.com/200x100/007bff/ffffff?text=LOGO" value="https://via.placeholder.com/200x100/007bff/ffffff?text=LOGO">
+            </div>
         </div>
 
         <!-- Генерация превью -->
@@ -397,8 +402,19 @@
                     'dyno.agentPhone': document.getElementById('agentPhone').value,
                     'dyno.agentEmail': document.getElementById('agentEmail').value,
                     'dyno.agentPhoto': document.getElementById('agentPhoto').value,
-                    'dyno.propertyImage': document.getElementById('propertyImage').value
+                    'dyno.propertyImage': document.getElementById('propertyImage').value,
+                    // Пробуем разные варианты названий для лого
+                    'dyno.companyLogo': document.getElementById('companyLogo').value,
+                    'dyno.logo': document.getElementById('companyLogo').value,
+                    'dyno.brandLogo': document.getElementById('companyLogo').value
                 };
+                
+                // Логируем отправляемые данные
+                console.log('🔄 Отправляю данные для превью:', {
+                    template_id: selectedTemplateId,
+                    replacements: replacements,
+                    replacements_count: Object.keys(replacements).length
+                });
                 
                 const previewType = document.getElementById('previewType').value;
                 

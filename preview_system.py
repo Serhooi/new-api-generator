@@ -204,12 +204,21 @@ def create_preview_with_data(svg_content, replacements, preview_type='png'):
     """
     try:
         print(f"🎨 Создаю превью с данными ({len(replacements)} замен)")
+        print(f"📋 Поля для замены: {list(replacements.keys())}")
         
         # Импортируем функцию обработки SVG
-        from app import process_svg_font_perfect
-        
-        # Обрабатываем SVG с заменами
-        processed_svg = process_svg_font_perfect(svg_content, replacements)
+        try:
+            from app import process_svg_font_perfect
+            print("✅ Импорт process_svg_font_perfect успешен")
+        except ImportError as e:
+            print(f"❌ Ошибка импорта process_svg_font_perfect: {e}")
+            # Fallback - простая замена без сложной обработки
+            processed_svg = simple_svg_replacement(svg_content, replacements)
+        else:
+            # Обрабатываем SVG с заменами
+            print("🔄 Применяю замены через process_svg_font_perfect...")
+            processed_svg = process_svg_font_perfect(svg_content, replacements)
+            print("✅ Замены применены")
         
         # Генерируем превью
         preview_result = generate_svg_preview(processed_svg, preview_type)
@@ -223,10 +232,40 @@ def create_preview_with_data(svg_content, replacements, preview_type='png'):
         
     except Exception as e:
         print(f"❌ Ошибка создания превью с данными: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             'success': False,
             'error': str(e)
         }
+
+def simple_svg_replacement(svg_content, replacements):
+    """
+    Простая замена dyno полей в SVG (fallback функция)
+    """
+    print("⚠️ Использую простую замену (fallback)")
+    
+    processed_svg = svg_content
+    
+    for dyno_field, replacement in replacements.items():
+        print(f"🔄 Заменяю {dyno_field} → {str(replacement)[:50]}...")
+        
+        # Безопасное экранирование
+        safe_replacement = str(replacement).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        
+        # Простые паттерны замены
+        patterns = [
+            dyno_field,  # Прямая замена
+            f'{{{{{dyno_field}}}}}',  # {{dyno.field}}
+            f'{{{dyno_field}}}',     # {dyno.field}
+        ]
+        
+        for pattern in patterns:
+            if pattern in processed_svg:
+                processed_svg = processed_svg.replace(pattern, safe_replacement)
+                print(f"   ✅ Заменен паттерн: {pattern}")
+    
+    return processed_svg
 
 def cleanup_old_previews(max_age_hours=24):
     """Очищает старые превью файлы"""
