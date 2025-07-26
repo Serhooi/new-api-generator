@@ -1336,8 +1336,12 @@ def generate_carousel():
         main_filename = f"carousel_{carousel_id}_main.svg"
         photo_filename = f"carousel_{carousel_id}_photo.svg"
         
-        main_path = os.path.join(OUTPUT_DIR, 'carousel', main_filename)
-        photo_path = os.path.join(OUTPUT_DIR, 'carousel', photo_filename)
+        # Создаем папку carousel если не существует
+        carousel_output_dir = os.path.join(OUTPUT_DIR, 'carousel')
+        os.makedirs(carousel_output_dir, exist_ok=True)
+        
+        main_path = os.path.join(carousel_output_dir, main_filename)
+        photo_path = os.path.join(carousel_output_dir, photo_filename)
         
         with open(main_path, 'w', encoding='utf-8') as f:
             f.write(processed_main_svg)
@@ -1365,7 +1369,7 @@ def generate_carousel():
             }
         ]
         
-        return jsonify({
+        response_data = {
             'success': True,
             'carousel_id': carousel_id,
             'main_template_name': main_name,
@@ -1377,7 +1381,12 @@ def generate_carousel():
             'slides': images,  # Дублируем для совместимости
             'slides_count': 2,
             'status': 'completed'
-        })
+        }
+        
+        print(f"🔍 /api/generate/carousel response: {response_data}")
+        print(f"📊 Images count: {len(images)}")
+        
+        return jsonify(response_data)
         
     except Exception as e:
         return jsonify({'error': f'Ошибка генерации карусели: {str(e)}'}), 500
