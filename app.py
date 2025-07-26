@@ -640,6 +640,57 @@ def process_svg_font_perfect(svg_content, replacements):
     
     return processed_svg
 
+def create_dynamic_template(template_id, template_role):
+    """Создает динамический шаблон на лету, если его нет в базе"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    # Проверяем, существует ли шаблон
+    cursor.execute('SELECT id FROM templates WHERE id = ?', (template_id,))
+    if cursor.fetchone():
+        conn.close()
+        return True
+    
+    # Создаем динамический шаблон
+    if template_role == 'main':
+        content = '''<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="white"/>
+            <text x="600" y="200" text-anchor="middle" font-size="48" fill="black">Dynamic Main Template</text>
+            <text id="dyno.agentName" x="600" y="300" text-anchor="middle" font-size="24" fill="blue">Agent: {dyno.agentName}</text>
+            <text id="dyno.propertyAddress" x="600" y="350" text-anchor="middle" font-size="20" fill="green">Address: {dyno.propertyAddress}</text>
+            <text id="dyno.price" x="600" y="400" text-anchor="middle" font-size="32" fill="red">Price: {dyno.price}</text>
+            <text id="dyno.agentPhone" x="600" y="450" text-anchor="middle" font-size="18" fill="purple">Phone: {dyno.agentPhone}</text>
+            <text id="dyno.agentEmail" x="600" y="500" text-anchor="middle" font-size="16" fill="orange">Email: {dyno.agentEmail}</text>
+            <text id="dyno.bedrooms" x="600" y="550" text-anchor="middle" font-size="20" fill="brown">Bedrooms: {dyno.bedrooms}</text>
+            <text id="dyno.bathrooms" x="600" y="580" text-anchor="middle" font-size="20" fill="brown">Bathrooms: {dyno.bathrooms}</text>
+            <text id="dyno.date" x="600" y="620" text-anchor="middle" font-size="18" fill="darkgreen">Date: {dyno.date}</text>
+            <text id="dyno.time" x="600" y="650" text-anchor="middle" font-size="18" fill="darkgreen">Time: {dyno.time}</text>
+            <text id="dyno.propertyfeatures" x="600" y="680" text-anchor="middle" font-size="14" fill="gray">Features: {dyno.propertyfeatures}</text>
+        </svg>'''
+        name = f"Dynamic Main Template ({template_id[:8]})"
+    else:
+        content = '''<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="lightblue"/>
+            <text x="400" y="200" text-anchor="middle" font-size="36" fill="black">Dynamic Photo Template</text>
+            <rect id="dyno.propertyimage1" x="100" y="250" width="600" height="300" fill="url(#property_pattern)"/>
+            <defs>
+                <pattern id="property_pattern" patternUnits="objectBoundingBox" width="1" height="1">
+                    <image id="property_image" href="https://via.placeholder.com/600x300/cccccc/666666?text=Property+Image" preserveAspectRatio="xMidYMid slice"/>
+                </pattern>
+            </defs>
+        </svg>'''
+        name = f"Dynamic Photo Template ({template_id[:8]})"
+    
+    cursor.execute('''
+        INSERT INTO templates (id, name, category, template_role, svg_content, dyno_fields)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (template_id, name, 'dynamic', template_role, content, 'dyno.agentName,dyno.agentPhone,dyno.agentEmail,dyno.propertyAddress,dyno.price,dyno.bedrooms,dyno.bathrooms,dyno.date,dyno.time,dyno.propertyfeatures'))
+    
+    conn.commit()
+    conn.close()
+    print(f"✅ Создан динамический шаблон: {template_id}")
+    return True
+
 def ensure_db_exists():
     """
     Создает базу данных и таблицы если они не существуют
@@ -1321,10 +1372,23 @@ def generate_carousel():
         cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [photo_template_id])
         photo_result = cursor.fetchone()
         
+        # Если шаблоны не найдены, создаем динамические шаблоны
+        if not main_result:
+            print(f"⚠️ Шаблон {main_template_id} не найден, создаю динамический")
+            create_dynamic_template(main_template_id, 'main')
+            cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [main_template_id])
+            main_result = cursor.fetchone()
+        
+        if not photo_result:
+            print(f"⚠️ Шаблон {photo_template_id} не найден, создаю динамический")
+            create_dynamic_template(photo_template_id, 'photo')
+            cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [photo_template_id])
+            photo_result = cursor.fetchone()
+        
         conn.close()
         
         if not main_result or not photo_result:
-            return jsonify({'error': 'Один или оба шаблона не найдены'}), 404
+            return jsonify({'error': 'Не удалось создать один или оба шаблона'}), 500
         
         main_name, main_svg_content = main_result
         photo_name, photo_svg_content = photo_result
@@ -1571,8 +1635,16 @@ def create_and_generate_carousel():
             cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [template_id])
             template_result = cursor.fetchone()
             
+            # Если шаблон не найден, создаем динамический
             if not template_result:
-                print(f"❌ Шаблон {template_id} не найден")
+                print(f"⚠️ Шаблон {template_id} не найден, создаю динамический")
+                template_role = 'main' if slide_index == 0 else 'photo'
+                create_dynamic_template(template_id, template_role)
+                cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [template_id])
+                template_result = cursor.fetchone()
+            
+            if not template_result:
+                print(f"❌ Не удалось создать шаблон {template_id}")
                 continue
             
             template_name, svg_content = template_result
