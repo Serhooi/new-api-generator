@@ -1,0 +1,8 @@
+<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg">
+            <rect width="1080" height="1080" fill="#667eea"/>
+            <text x="540" y="300" text-anchor="middle" fill="white" font-size="48" font-weight="bold">MAIN TEMPLATE</text>
+            <text x="540" y="400" text-anchor="middle" fill="white" font-size="32">123 Main Street</text>
+            <text x="540" y="500" text-anchor="middle" fill="white" font-size="28">$450,000</text>
+            <text x="540" y="600" text-anchor="middle" fill="white" font-size="24">John Smith</text>
+            <text x="540" y="700" text-anchor="middle" fill="white" font-size="20">(555) 123-4567</text>
+        </svg>

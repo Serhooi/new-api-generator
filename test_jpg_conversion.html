@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест конвертации SVG в JPG</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8fafc;
+        }
+        
+        .test-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .test-title {
+            color: #2d3748;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .btn:hover {
+            background: #5a67d8;
+        }
+        
+        .result {
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        
+        .success {
+            background: #c6f6d5;
+            border-left-color: #38a169;
+            color: #22543d;
+        }
+        
+        .error {
+            background: #fed7d7;
+            border-left-color: #e53e3e;
+            color: #742a2a;
+        }
+        
+        .image-preview {
+            margin-top: 1rem;
+            text-align: center;
+        }
+        
+        .image-preview img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .url-info {
+            background: #edf2f7;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+            font-family: monospace;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <h1>🖼️ Тест конвертации SVG в JPG</h1>
+    
+    <div class="test-section">
+        <h2 class="test-title">1. Генерация карусели с JPG</h2>
+        <button class="btn" onclick="testCarouselGeneration()">🎠 Сгенерировать карусель</button>
+        <div id="carousel-result" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2 class="test-title">2. Проверка файлов</h2>
+        <button class="btn" onclick="checkGeneratedFiles()">📁 Проверить файлы</button>
+        <div id="files-result" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2 class="test-title">3. Превью изображений</h2>
+        <div id="preview-container"></div>
+    </div>
+
+    <script>
+        let lastCarouselId = null;
+        let lastImageUrls = [];
+        
+        async function testCarouselGeneration() {
+            const resultDiv = document.getElementById('carousel-result');
+            resultDiv.innerHTML = '⏳ Генерируем карусель...';
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'block';
+            
+            try {
+                // Тестовые данные
+                const testData = {
+                    main_template_id: "test-main-template",
+                    photo_template_id: "test-photo-template",
+                    data: {
+                        'dyno.agentName': 'John Smith',
+                        'dyno.propertyAddress': '123 Main Street, Beverly Hills, CA 90210',
+                        'dyno.price': '$450,000',
+                        'dyno.bedrooms': '3',
+                        'dyno.bathrooms': '2',
+                        'dyno.sqft': '1,850',
+                        'dyno.agentPhone': '(555) 123-4567',
+                        'dyno.agentEmail': 'john@realty.com',
+                        'dyno.propertyImage': 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop'
+                    }
+                };
+                
+                const response = await fetch('/api/generate/carousel', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    lastCarouselId = data.carousel_id;
+                    lastImageUrls = data.images || [];
+                    
+                    let html = `<div class="success">
+                        ✅ Карусель успешно сгенерирована!<br>
+                        <strong>ID карусели:</strong> ${data.carousel_id}<br>
+                        <strong>Формат:</strong> ${data.format || 'не указан'}<br>
+                        <strong>Main URL:</strong> <div class="url-info">${data.main_url}</div>
+                        <strong>Photo URL:</strong> <div class="url-info">${data.photo_url}</div>
+                        <strong>Все изображения:</strong><br>
+                    `;
+                    
+                    data.images.forEach((url, index) => {
+                        html += `<div class="url-info">${index + 1}. ${url}</div>`;
+                    });
+                    
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                    
+                    // Показываем превью
+                    showImagePreviews(data.images);
+                    
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${data.error}</div>`;
+                }
+                
+            } catch (error) {
+                console.error('Ошибка:', error);
+                resultDiv.innerHTML = `<div class="error">❌ Ошибка сети: ${error.message}</div>`;
+            }
+        }
+        
+        async function checkGeneratedFiles() {
+            const resultDiv = document.getElementById('files-result');
+            resultDiv.innerHTML = '⏳ Проверяем файлы...';
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/carousels');
+                const data = await response.json();
+                
+                if (data.success && data.carousels.length > 0) {
+                    let html = '<div class="success">✅ Найденные карусели:<br>';
+                    
+                    data.carousels.forEach(carousel => {
+                        html += `
+                            <div style="margin: 1rem 0; padding: 1rem; background: #f7fafc; border-radius: 4px;">
+                                <strong>${carousel.name}</strong> (${carousel.category})<br>
+                                ID: ${carousel.id}<br>
+                                Main Template: ${carousel.main_template_id}<br>
+                                Photo Template: ${carousel.photo_template_id}
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = '<div class="error">❌ Карусели не найдены</div>';
+                }
+                
+            } catch (error) {
+                console.error('Ошибка:', error);
+                resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${error.message}</div>`;
+            }
+        }
+        
+        function showImagePreviews(imageUrls) {
+            const container = document.getElementById('preview-container');
+            container.innerHTML = '';
+            
+            imageUrls.forEach((url, index) => {
+                const previewDiv = document.createElement('div');
+                previewDiv.style.marginBottom = '2rem';
+                previewDiv.innerHTML = `
+                    <h3>Изображение ${index + 1}</h3>
+                    <div class="url-info">${url}</div>
+                    <div class="image-preview">
+                        <img src="${url}" alt="Preview ${index + 1}" 
+                             onload="console.log('✅ Изображение загружено:', url)"
+                             onerror="console.error('❌ Ошибка загрузки:', url); this.parentElement.innerHTML='<div class=\"error\">❌ Не удалось загрузить изображение</div>'">
+                    </div>
+                `;
+                container.appendChild(previewDiv);
+            });
+        }
+    </script>
+</body>
+</html> 

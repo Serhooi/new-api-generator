@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Демонстрация решения: SVG → JPG</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8fafc;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+        }
+        
+        .problem-section {
+            background: #fed7d7;
+            border-left: 4px solid #e53e3e;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        
+        .solution-section {
+            background: #c6f6d5;
+            border-left: 4px solid #38a169;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        
+        .demo-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .btn:hover {
+            background: #5a67d8;
+        }
+        
+        .btn-success {
+            background: #38a169;
+        }
+        
+        .btn-success:hover {
+            background: #2f855a;
+        }
+        
+        .result {
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        
+        .success {
+            background: #c6f6d5;
+            border-left-color: #38a169;
+            color: #22543d;
+        }
+        
+        .error {
+            background: #fed7d7;
+            border-left-color: #e53e3e;
+            color: #742a2a;
+        }
+        
+        .carousel-container {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            overflow-x: auto;
+            padding: 1rem 0;
+        }
+        
+        .carousel-slide {
+            min-width: 300px;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .url-info {
+            background: #edf2f7;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+            font-family: monospace;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+        
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .comparison-item {
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        
+        .comparison-title {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎯 Решение проблемы: SVG → JPG</h1>
+        <p>Демонстрация исправления ошибки "Failed to load slide"</p>
+    </div>
+    
+    <div class="problem-section">
+        <h2>❌ Проблема</h2>
+        <p><strong>Ошибка:</strong> <code>Failed to load slide 1</code></p>
+        <p><strong>Причина:</strong> API возвращал SVG URL, но фронтенд ожидал JPG/PNG для отображения в &lt;img&gt; тегах.</p>
+        <div class="url-info">❌ Старый URL: /output/carousel/carousel_xxx_main.svg</div>
+    </div>
+    
+    <div class="solution-section">
+        <h2>✅ Решение</h2>
+        <p><strong>Исправление:</strong> API теперь конвертирует SVG в JPG и возвращает URL к изображениям.</p>
+        <div class="url-info">✅ Новый URL: /output/carousel/carousel_xxx_main.jpg</div>
+    </div>
+    
+    <div class="demo-section">
+        <h2>🚀 Демонстрация</h2>
+        <p>Нажмите кнопку ниже, чтобы сгенерировать карусель с JPG изображениями:</p>
+        
+        <button class="btn btn-success" onclick="generateCarousel()">🎠 Сгенерировать карусель</button>
+        <button class="btn" onclick="showComparison()">📊 Показать сравнение</button>
+        
+        <div id="result" class="result" style="display: none;"></div>
+        
+        <div id="carousel-demo" class="carousel-container" style="display: none;">
+            <h3>Сгенерированные изображения:</h3>
+        </div>
+    </div>
+    
+    <div id="comparison-section" class="demo-section" style="display: none;">
+        <h2>📊 Сравнение: Было vs Стало</h2>
+        <div class="comparison">
+            <div class="comparison-item">
+                <div class="comparison-title">❌ Было (SVG)</div>
+                <ul>
+                    <li>URL: <code>/output/carousel/xxx.svg</code></li>
+                    <li>Проблема: Не отображается в &lt;img&gt;</li>
+                    <li>Ошибка: "Failed to load slide"</li>
+                    <li>Content-Type: image/svg+xml</li>
+                </ul>
+            </div>
+            <div class="comparison-item">
+                <div class="comparison-title">✅ Стало (JPG)</div>
+                <ul>
+                    <li>URL: <code>/output/carousel/xxx.jpg</code></li>
+                    <li>Решение: Отображается в &lt;img&gt;</li>
+                    <li>Результат: Изображения загружаются</li>
+                    <li>Content-Type: image/jpeg</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let lastGeneratedData = null;
+        
+        async function generateCarousel() {
+            const resultDiv = document.getElementById('result');
+            const carouselDiv = document.getElementById('carousel-demo');
+            
+            resultDiv.innerHTML = '⏳ Генерируем карусель...';
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'block';
+            carouselDiv.style.display = 'none';
+            
+            try {
+                // Тестовые данные
+                const testData = {
+                    main_template_id: "test-main-template",
+                    photo_template_id: "test-photo-template",
+                    data: {
+                        'dyno.agentName': 'John Smith',
+                        'dyno.propertyAddress': '123 Main Street, Beverly Hills, CA 90210',
+                        'dyno.price': '$450,000',
+                        'dyno.bedrooms': '3',
+                        'dyno.bathrooms': '2',
+                        'dyno.sqft': '1,850',
+                        'dyno.agentPhone': '(555) 123-4567',
+                        'dyno.agentEmail': 'john@realty.com'
+                    }
+                };
+                
+                const response = await fetch('/api/generate/carousel', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                lastGeneratedData = data;
+                
+                if (data.success) {
+                    let html = `<div class="success">
+                        ✅ Карусель успешно сгенерирована!<br>
+                        <strong>ID карусели:</strong> ${data.carousel_id}<br>
+                        <strong>Формат:</strong> ${data.format || 'не указан'}<br>
+                        <strong>Количество изображений:</strong> ${data.images.length}<br>
+                        <strong>Статус:</strong> ${data.status}<br>
+                        <br>
+                        <strong>URL изображений:</strong><br>
+                    `;
+                    
+                    data.images.forEach((url, index) => {
+                        html += `<div class="url-info">${index + 1}. ${url}</div>`;
+                    });
+                    
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                    
+                    // Показываем изображения
+                    showCarouselImages(data.images);
+                    
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${data.error}</div>`;
+                }
+                
+            } catch (error) {
+                console.error('Ошибка:', error);
+                resultDiv.innerHTML = `<div class="error">❌ Ошибка сети: ${error.message}</div>`;
+            }
+        }
+        
+        function showCarouselImages(imageUrls) {
+            const container = document.getElementById('carousel-demo');
+            container.innerHTML = '<h3>🎠 Сгенерированные изображения:</h3>';
+            
+            imageUrls.forEach((url, index) => {
+                const imgDiv = document.createElement('div');
+                imgDiv.style.marginBottom = '1rem';
+                imgDiv.innerHTML = `
+                    <h4>Слайд ${index + 1}</h4>
+                    <div class="url-info">${url}</div>
+                    <img src="${url}" alt="Slide ${index + 1}" class="carousel-slide"
+                         onload="console.log('✅ Изображение загружено:', url)"
+                         onerror="console.error('❌ Ошибка загрузки:', url); this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <div style="display: none; color: red; font-weight: bold;">❌ Не удалось загрузить изображение</div>
+                `;
+                container.appendChild(imgDiv);
+            });
+            
+            container.style.display = 'block';
+        }
+        
+        function showComparison() {
+            const comparisonSection = document.getElementById('comparison-section');
+            comparisonSection.style.display = comparisonSection.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        // Автоматически генерируем карусель при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(generateCarousel, 1000);
+        });
+    </script>
+</body>
+</html> 

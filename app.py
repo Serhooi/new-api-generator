@@ -1336,22 +1336,32 @@ def generate_carousel():
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
         
-        # Сохраняем обработанные SVG
-        main_filename = f"carousel_{carousel_id}_main.svg"
-        photo_filename = f"carousel_{carousel_id}_photo.svg"
+        # Сохраняем обработанные SVG и конвертируем в JPG
+        main_svg_filename = f"carousel_{carousel_id}_main.svg"
+        photo_svg_filename = f"carousel_{carousel_id}_photo.svg"
+        main_jpg_filename = f"carousel_{carousel_id}_main.jpg"
+        photo_jpg_filename = f"carousel_{carousel_id}_photo.jpg"
         
         # Создаем папку carousel если не существует
         carousel_output_dir = os.path.join(OUTPUT_DIR, 'carousel')
         os.makedirs(carousel_output_dir, exist_ok=True)
         
-        main_path = os.path.join(carousel_output_dir, main_filename)
-        photo_path = os.path.join(carousel_output_dir, photo_filename)
+        # Сохраняем SVG файлы
+        main_svg_path = os.path.join(carousel_output_dir, main_svg_filename)
+        photo_svg_path = os.path.join(carousel_output_dir, photo_svg_filename)
         
-        with open(main_path, 'w', encoding='utf-8') as f:
+        with open(main_svg_path, 'w', encoding='utf-8') as f:
             f.write(processed_main_svg)
         
-        with open(photo_path, 'w', encoding='utf-8') as f:
+        with open(photo_svg_path, 'w', encoding='utf-8') as f:
             f.write(processed_photo_svg)
+        
+        # Конвертируем в JPG
+        main_jpg_path = os.path.join(carousel_output_dir, main_jpg_filename)
+        photo_jpg_path = os.path.join(carousel_output_dir, photo_jpg_filename)
+        
+        main_jpg_success = convert_svg_to_jpg(processed_main_svg, main_jpg_path)
+        photo_jpg_success = convert_svg_to_jpg(processed_photo_svg, photo_jpg_path)
         
         # Создаем массив изображений для совместимости с фронтендом
         images = [
@@ -1359,24 +1369,24 @@ def generate_carousel():
                 'slide_number': 1,
                 'template_id': main_template_id,
                 'template_name': main_name,
-                'filename': main_filename,
-                'url': f'/output/carousel/{main_filename}',
+                'filename': main_jpg_filename if main_jpg_success else main_svg_filename,
+                'url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
                 'status': 'completed'
             },
             {
                 'slide_number': 2,
                 'template_id': photo_template_id,
                 'template_name': photo_name,
-                'filename': photo_filename,
-                'url': f'/output/carousel/{photo_filename}',
+                'filename': photo_jpg_filename if photo_jpg_success else photo_svg_filename,
+                'url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
                 'status': 'completed'
             }
         ]
         
-        # Создаем простые массивы URL для фронтенда
+        # Создаем простые массивы URL для фронтенда (предпочитаем JPG)
         image_urls = [
-            f'/output/carousel/{main_filename}',
-            f'/output/carousel/{photo_filename}'
+            f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
+            f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}'
         ]
         
         response_data = {
@@ -1384,8 +1394,8 @@ def generate_carousel():
             'carousel_id': carousel_id,
             'main_template_name': main_name,
             'photo_template_name': photo_name,
-            'main_url': f'/output/carousel/{main_filename}',
-            'photo_url': f'/output/carousel/{photo_filename}',
+            'main_url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
+            'photo_url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
             'replacements_applied': len(replacements),
             # Все возможные форматы для фронтенда
             'images': image_urls,  # Вариант 1 (предпочтительный)
@@ -1394,7 +1404,8 @@ def generate_carousel():
             'image_url': image_urls[0],  # Вариант 4 (первое изображение)
             'data': {'images': image_urls},  # Вариант 5 (с вложенными данными)
             'slides_count': 2,
-            'status': 'completed'
+            'status': 'completed',
+            'format': 'jpg' if main_jpg_success and photo_jpg_success else 'svg'
         }
         
         print(f"🔍 /api/generate/carousel response: {response_data}")
@@ -1468,17 +1479,30 @@ def generate_carousel_by_name():
         os.makedirs(os.path.join(OUTPUT_DIR, 'carousel'), exist_ok=True)
         
         # Генерируем имена файлов
-        main_filename = f"carousel_{carousel_id}_main.svg"
-        photo_filename = f"carousel_{carousel_id}_photo.svg"
+        main_svg_filename = f"carousel_{carousel_id}_main.svg"
+        photo_svg_filename = f"carousel_{carousel_id}_photo.svg"
+        main_jpg_filename = f"carousel_{carousel_id}_main.jpg"
+        photo_jpg_filename = f"carousel_{carousel_id}_photo.jpg"
         
-        main_path = os.path.join(OUTPUT_DIR, 'carousel', main_filename)
-        photo_path = os.path.join(OUTPUT_DIR, 'carousel', photo_filename)
+        # Создаем директорию если не существует
+        os.makedirs(os.path.join(OUTPUT_DIR, 'carousel'), exist_ok=True)
         
-        with open(main_path, 'w', encoding='utf-8') as f:
+        # Сохраняем SVG файлы
+        main_svg_path = os.path.join(OUTPUT_DIR, 'carousel', main_svg_filename)
+        photo_svg_path = os.path.join(OUTPUT_DIR, 'carousel', photo_svg_filename)
+        
+        with open(main_svg_path, 'w', encoding='utf-8') as f:
             f.write(processed_main_svg)
         
-        with open(photo_path, 'w', encoding='utf-8') as f:
+        with open(photo_svg_path, 'w', encoding='utf-8') as f:
             f.write(processed_photo_svg)
+        
+        # Конвертируем в JPG
+        main_jpg_path = os.path.join(OUTPUT_DIR, 'carousel', main_jpg_filename)
+        photo_jpg_path = os.path.join(OUTPUT_DIR, 'carousel', photo_jpg_filename)
+        
+        main_jpg_success = convert_svg_to_jpg(processed_main_svg, main_jpg_path)
+        photo_jpg_success = convert_svg_to_jpg(processed_photo_svg, photo_jpg_path)
         
         print(f"🎉 Карусель создана: {carousel_id}")
         
@@ -1489,9 +1513,10 @@ def generate_carousel_by_name():
             'photo_template_id': photo_id,
             'main_template_name': main_name,
             'photo_template_name': photo_name,
-            'main_url': f'/output/carousel/{main_filename}',
-            'photo_url': f'/output/carousel/{photo_filename}',
-            'replacements_applied': len(replacements)
+            'main_url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
+            'photo_url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
+            'replacements_applied': len(replacements),
+            'format': 'jpg' if main_jpg_success and photo_jpg_success else 'svg'
         })
         
     except Exception as e:
@@ -1562,22 +1587,34 @@ def create_and_generate_carousel():
             # Обрабатываем SVG с заменами
             processed_svg = process_svg_font_perfect(svg_content, replacements)
             
-            # Сохраняем слайд
-            slide_filename = f"slide_{slide_index + 1:02d}.svg"
-            slide_path = os.path.join(carousel_dir, slide_filename)
+            # Сохраняем слайд как SVG и конвертируем в JPG
+            slide_svg_filename = f"slide_{slide_index + 1:02d}.svg"
+            slide_jpg_filename = f"slide_{slide_index + 1:02d}.jpg"
             
-            with open(slide_path, 'w', encoding='utf-8') as f:
+            slide_svg_path = os.path.join(carousel_dir, slide_svg_filename)
+            slide_jpg_path = os.path.join(carousel_dir, slide_jpg_filename)
+            
+            # Сохраняем SVG
+            with open(slide_svg_path, 'w', encoding='utf-8') as f:
                 f.write(processed_svg)
             
-            # Добавляем в результат
-            generated_slides.append({
+            # Конвертируем в JPG
+            jpg_success = convert_svg_to_jpg(processed_svg, slide_jpg_path)
+            
+            # Добавляем информацию о слайде
+            slide_info = {
                 'slide_number': slide_index + 1,
                 'template_id': template_id,
                 'template_name': template_name,
-                'filename': slide_filename,
-                'url': f'/output/carousel/{carousel_id}/{slide_filename}',
+                'svg_filename': slide_svg_filename,
+                'jpg_filename': slide_jpg_filename if jpg_success else None,
+                'svg_url': f'/output/carousel/{carousel_id}/{slide_svg_filename}',
+                'jpg_url': f'/output/carousel/{carousel_id}/{slide_jpg_filename}' if jpg_success else None,
+                'url': f'/output/carousel/{carousel_id}/{slide_jpg_filename}' if jpg_success else f'/output/carousel/{carousel_id}/{slide_svg_filename}',
                 'status': 'completed'
-            })
+            }
+            
+            generated_slides.append(slide_info)
             
             print(f"   ✅ Слайд {slide_index + 1} создан: {slide_filename}")
         
@@ -1669,20 +1706,33 @@ def get_carousel_slides(carousel_id):
         # Сканируем файлы в директории
         slides = []
         for i in range(1, slides_count + 1):
-            slide_filename = f"slide_{i:02d}.svg"
-            slide_path = os.path.join(carousel_dir, slide_filename)
+            slide_svg_filename = f"slide_{i:02d}.svg"
+            slide_jpg_filename = f"slide_{i:02d}.jpg"
             
-            if os.path.exists(slide_path):
+            slide_svg_path = os.path.join(carousel_dir, slide_svg_filename)
+            slide_jpg_path = os.path.join(carousel_dir, slide_jpg_filename)
+            
+            # Проверяем наличие JPG файла (предпочтительно)
+            if os.path.exists(slide_jpg_path):
                 slides.append({
                     'slide_number': i,
-                    'filename': slide_filename,
-                    'image_url': f'/output/carousel/{carousel_id}/{slide_filename}',
-                    'status': 'completed'
+                    'filename': slide_jpg_filename,
+                    'image_url': f'/output/carousel/{carousel_id}/{slide_jpg_filename}',
+                    'status': 'completed',
+                    'format': 'jpg'
+                })
+            elif os.path.exists(slide_svg_path):
+                slides.append({
+                    'slide_number': i,
+                    'filename': slide_svg_filename,
+                    'image_url': f'/output/carousel/{carousel_id}/{slide_svg_filename}',
+                    'status': 'completed',
+                    'format': 'svg'
                 })
             else:
                 slides.append({
                     'slide_number': i,
-                    'filename': slide_filename,
+                    'filename': slide_svg_filename,
                     'image_url': '',
                     'status': 'error'
                 })
@@ -1844,6 +1894,68 @@ def cleanup_previews():
         
     except Exception as e:
         return jsonify({'error': f'Ошибка очистки превью: {str(e)}'}), 500
+
+def convert_svg_to_jpg(svg_content, output_path, width=1200, height=800, quality=95):
+    """
+    Конвертирует SVG в JPG с высоким качеством
+    """
+    try:
+        print(f"🖼️ Конвертирую SVG в JPG: {output_path}")
+        
+        # Конвертация через cairosvg в PNG сначала
+        png_data = cairosvg.svg2png(
+            bytestring=svg_content.encode('utf-8'),
+            output_width=width,
+            output_height=height,
+            dpi=300  # Высокое качество
+        )
+        
+        # Конвертируем PNG в JPG через PIL
+        img = Image.open(io.BytesIO(png_data))
+        
+        # Конвертируем в RGB если нужно
+        if img.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            img = background
+        
+        # Сохраняем как JPG
+        img.save(output_path, 'JPEG', quality=quality, optimize=True)
+        
+        print(f"✅ JPG файл создан: {output_path}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Ошибка конвертации SVG в JPG: {e}")
+        return False
+
+def convert_svg_to_png(svg_content, output_path, width=1200, height=800):
+    """
+    Конвертирует SVG в PNG с высоким качеством
+    """
+    try:
+        print(f"🖼️ Конвертирую SVG в PNG: {output_path}")
+        
+        # Конвертация через cairosvg
+        png_data = cairosvg.svg2png(
+            bytestring=svg_content.encode('utf-8'),
+            output_width=width,
+            output_height=height,
+            dpi=300  # Высокое качество
+        )
+        
+        # Сохраняем PNG файл
+        with open(output_path, 'wb') as f:
+            f.write(png_data)
+        
+        print(f"✅ PNG файл создан: {output_path}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Ошибка конвертации SVG в PNG: {e}")
+        return False
 
 if __name__ == '__main__':
     ensure_db_exists()
