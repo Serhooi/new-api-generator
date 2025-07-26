@@ -218,12 +218,8 @@ def process_svg_font_perfect(svg_content, replacements):
         """Возвращает правильный preserveAspectRatio для типа изображения и формы элемента"""
         
         if image_type == 'headshot':
-            if element_shape == 'circular':
-                # КРИТИЧНО: для круглых хедшотов используем slice!
-                return 'xMidYMid slice'
-            else:
-                # Для прямоугольных хедшотов используем meet
-                return 'xMidYMid meet'
+            # ВСЕГДА используем meet для хедшотов - не обрезаем лица!
+            return 'xMidYMid meet'
         
         elif image_type == 'property':
             # Недвижимость всегда slice (cover эффект)
