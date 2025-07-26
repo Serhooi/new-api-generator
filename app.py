@@ -50,15 +50,20 @@ os.makedirs('output/single', exist_ok=True)
 os.makedirs('output/carousel', exist_ok=True)
 
 field_mapping = {
+    # Маппинг для main template
+    'dyno.agentName': 'dyno.name',
+    'dyno.agentPhone': 'dyno.phone',
+    'dyno.agentEmail': 'dyno.email',
+    'dyno.agentPhoto': 'dyno.agentheadshot',
+    'dyno.propertyAddress': 'dyno.propertyaddress',
+    'dyno.propertyfeatures': 'dyno.propertyfeatures',
+    
+    # Обратный маппинг для совместимости
     'dyno.agentname': 'dyno.name',
     'dyno.agentemail': 'dyno.email', 
     'dyno.agentphone': 'dyno.phone',
     'dyno.agentphoto': 'dyno.agentheadshot',
-    'dyno.propertyaddress': 'dyno.propertyaddress',
-    'dyno.agentname': 'dyno.name',
-    'dyno.agentphone': 'dyno.phone',
-    'dyno.agentemail': 'dyno.email',
-    'dyno.agentphoto': 'dyno.agentheadshot'
+    'dyno.propertyaddress': 'dyno.propertyaddress'
 }
 
 # Специальный маппинг для photo template
@@ -1132,16 +1137,8 @@ def generate_carousel():
         # Фильтруем replacements для photo SVG
         filtered_replacements_photo = {k: v for k, v in replacements.items() if k in svg_fields_photo or field_mapping.get(k, k) in svg_fields_photo}
         
-        # Специальная логика для photo template - копируем изображения если нужно
-        if 'dyno.propertyimage2' in svg_fields_photo and 'dyno.propertyimage' in replacements and 'dyno.propertyimage2' not in replacements:
-            # Если в photo template есть propertyimage2, но в replacements его нет, копируем из propertyimage
-            filtered_replacements_photo['dyno.propertyimage2'] = replacements['dyno.propertyimage']
-            print(f"🔄 Скопировал dyno.propertyimage → dyno.propertyimage2 для photo template")
-        
-        if 'dyno.agentheadshot' in svg_fields_photo and 'dyno.agentPhoto' in replacements and 'dyno.agentheadshot' not in replacements:
-            # Если в photo template есть agentheadshot, но в replacements его нет, копируем из agentPhoto
-            filtered_replacements_photo['dyno.agentheadshot'] = replacements['dyno.agentPhoto']
-            print(f"🔄 Скопировал dyno.agentPhoto → dyno.agentheadshot для photo template")
+        # Убираем автоматическое копирование - фронтенд отправляет правильные поля
+        print(f"✅ Используем оригинальные поля из replacements для photo template")
         
         print(f"🔍 Replacements для main SVG: {filtered_replacements_main}")
         print(f"🔍 Replacements для photo SVG: {filtered_replacements_photo}")
@@ -1264,16 +1261,8 @@ def generate_carousel_by_name():
         filtered_replacements_main = {k: v for k, v in replacements.items() if k in svg_fields_main or field_mapping.get(k, k) in svg_fields_main}
         filtered_replacements_photo = {k: v for k, v in replacements.items() if k in svg_fields_photo or field_mapping.get(k, k) in svg_fields_photo}
         
-        # Специальная логика для photo template - копируем изображения если нужно
-        if 'dyno.propertyimage2' in svg_fields_photo and 'dyno.propertyimage' in replacements and 'dyno.propertyimage2' not in replacements:
-            # Если в photo template есть propertyimage2, но в replacements его нет, копируем из propertyimage
-            filtered_replacements_photo['dyno.propertyimage2'] = replacements['dyno.propertyimage']
-            print(f"🔄 Скопировал dyno.propertyimage → dyno.propertyimage2 для photo template")
-        
-        if 'dyno.agentheadshot' in svg_fields_photo and 'dyno.agentPhoto' in replacements and 'dyno.agentheadshot' not in replacements:
-            # Если в photo template есть agentheadshot, но в replacements его нет, копируем из agentPhoto
-            filtered_replacements_photo['dyno.agentheadshot'] = replacements['dyno.agentPhoto']
-            print(f"🔄 Скопировал dyno.agentPhoto → dyno.agentheadshot для photo template")
+        # Убираем автоматическое копирование - фронтенд отправляет правильные поля
+        print(f"✅ Используем оригинальные поля из replacements для photo template")
         
         print(f"🔍 Filtered replacements для main: {filtered_replacements_main}")
         print(f"🔍 Filtered replacements для photo: {filtered_replacements_photo}")
