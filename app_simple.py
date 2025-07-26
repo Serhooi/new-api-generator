@@ -276,6 +276,10 @@ def demo_solution():
 def test_jpg_urls():
     return render_template('test_jpg_urls.html')
 
+@app.route('/test_frontend_access.html')
+def test_frontend_access():
+    return render_template('test_frontend_access.html')
+
 @app.route('/api/health')
 def health():
     return jsonify({'status': 'ok', 'message': 'API работает'})

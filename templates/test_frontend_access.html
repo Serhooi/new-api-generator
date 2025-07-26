@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест доступа фронтенда к JPG файлам</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8fafc;
+        }
+        
+        .test-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .btn:hover {
+            background: #5a67d8;
+        }
+        
+        .result {
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        
+        .success {
+            background: #c6f6d5;
+            border-left-color: #38a169;
+            color: #22543d;
+        }
+        
+        .error {
+            background: #fed7d7;
+            border-left-color: #e53e3e;
+            color: #742a2a;
+        }
+        
+        .image-test {
+            margin: 1rem 0;
+            text-align: center;
+        }
+        
+        .image-test img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .url-info {
+            background: #edf2f7;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+            font-family: monospace;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Тест доступа фронтенда к JPG файлам</h1>
+    
+    <div class="test-section">
+        <h2>Тест 1: Проверка существующих JPG файлов</h2>
+        <button class="btn" onclick="testExistingFiles()">📁 Проверить существующие файлы</button>
+        <div id="existing-files" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Тест 2: Генерация нового каруселя</h2>
+        <button class="btn" onclick="generateNewCarousel()">🎠 Сгенерировать новый карусель</button>
+        <div id="new-carousel" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Тест 3: Отображение изображений</h2>
+        <div id="images-container"></div>
+    </div>
+
+    <script>
+        async function testExistingFiles() {
+            const resultDiv = document.getElementById('existing-files');
+            resultDiv.innerHTML = '⏳ Проверяем существующие файлы...';
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'block';
+            
+            try {
+                // Проверяем существующие JPG файлы
+                const testUrls = [
+                    '/output/carousel/carousel_cc1e0a4f-827a-44f9-b21e-28e3390f5475_main.jpg',
+                    '/output/carousel/carousel_cc1e0a4f-827a-44f9-b21e-28e3390f5475_photo.jpg',
+                    '/output/carousel/carousel_4a2dfe53-1081-421f-8bf7-6acae63da4d7_main.jpg',
+                    '/output/carousel/carousel_4a2dfe53-1081-421f-8bf7-6acae63da4d7_photo.jpg'
+                ];
+                
+                let html = '<div class="success">✅ Проверка существующих файлов:<br>';
+                
+                for (const url of testUrls) {
+                    try {
+                        const response = await fetch(url, { method: 'HEAD' });
+                        if (response.ok) {
+                            html += `<div class="url-info">
+                                <span class="status success">✅ Доступен</span> ${url}
+                                <br>Content-Type: ${response.headers.get('content-type')}
+                            </div>`;
+                        } else {
+                            html += `<div class="url-info">
+                                <span class="status error">❌ Не найден</span> ${url}
+                                <br>Status: ${response.status}
+                            </div>`;
+                        }
+                    } catch (error) {
+                        html += `<div class="url-info">
+                            <span class="status error">❌ Ошибка</span> ${url}
+                            <br>Error: ${error.message}
+                        </div>`;
+                    }
+                }
+                
+                html += '</div>';
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${error.message}</div>`;
+            }
+        }
+        
+        async function generateNewCarousel() {
+            const resultDiv = document.getElementById('new-carousel');
+            resultDiv.innerHTML = '⏳ Генерируем новый карусель...';
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'block';
+            
+            try {
+                const testData = {
+                    main_template_id: "cf8e899f-1523-4105-9551-e122e6cbcb33",
+                    photo_template_id: "8041c4c1-e099-4101-bc17-58ef1fb24c99",
+                    data: {
+                        'dyno.agentName': 'Serhii Tabachnyi',
+                        'dyno.agentPhone': '4376618985'
+                    }
+                };
+                
+                const response = await fetch('/api/generate/carousel', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = `<div class="success">
+                        ✅ Новый карусель сгенерирован!<br>
+                        <strong>ID:</strong> ${data.carousel_id}<br>
+                        <strong>Формат:</strong> ${data.format}<br>
+                        <strong>URL изображений:</strong><br>
+                    `;
+                    
+                    data.images.forEach((url, index) => {
+                        html += `<div class="url-info">${index + 1}. ${url}</div>`;
+                    });
+                    
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                    
+                    // Показываем изображения
+                    showImages(data.images);
+                    
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${data.error}</div>`;
+                }
+                
+            } catch (error) {
+                console.error('Ошибка:', error);
+                resultDiv.innerHTML = `<div class="error">❌ Ошибка сети: ${error.message}</div>`;
+            }
+        }
+        
+        function showImages(imageUrls) {
+            const container = document.getElementById('images-container');
+            container.innerHTML = '<h3>🎠 Сгенерированные изображения:</h3>';
+            
+            imageUrls.forEach((url, index) => {
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'image-test';
+                imgDiv.innerHTML = `
+                    <h4>Слайд ${index + 1}</h4>
+                    <div class="url-info">${url}</div>
+                    <img src="${url}" alt="Slide ${index + 1}" 
+                         onload="console.log('✅ Изображение загружено:', url); this.nextElementSibling.innerHTML='<span class=status success>✅ Загружено</span>';"
+                         onerror="console.error('❌ Ошибка загрузки:', url); this.nextElementSibling.innerHTML='<span class=status error>❌ Ошибка загрузки</span>';">
+                    <div class="status">⏳ Загрузка...</div>
+                `;
+                container.appendChild(imgDiv);
+            });
+        }
+        
+        // Автоматически запускаем тест при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(testExistingFiles, 1000);
+        });
+    </script>
+</body>
+</html> 
