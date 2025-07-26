@@ -968,13 +968,20 @@ def generate_carousel():
         main_name, main_svg_content = main_result
         photo_name, photo_svg_content = photo_result
         
-        # Обрабатываем SVG с идеальным сохранением шрифтов
-        print(f"🔍 Replacements получены: {replacements}")
-        print(f"🔍 Main SVG поля: {extract_dyno_fields_simple(main_svg_content)}")
-        print(f"🔍 Photo SVG поля: {extract_dyno_fields_simple(photo_svg_content)}")
+        # Получаем реальные поля из SVG
+        svg_fields_main = extract_dyno_fields_simple(main_svg_content)
+        svg_fields_photo = extract_dyno_fields_simple(photo_svg_content)
         
-        processed_main_svg = process_svg_font_perfect(main_svg_content, replacements)
-        processed_photo_svg = process_svg_font_perfect(photo_svg_content, replacements)
+        # Фильтруем replacements для main SVG
+        filtered_replacements_main = {k: v for k, v in replacements.items() if k in svg_fields_main or field_mapping.get(k, k) in svg_fields_main}
+        # Фильтруем replacements для photo SVG
+        filtered_replacements_photo = {k: v for k, v in replacements.items() if k in svg_fields_photo or field_mapping.get(k, k) in svg_fields_photo}
+        
+        # Обрабатываем SVG с идеальным сохранением шрифтов
+        print(f"🔍 Replacements для main SVG: {filtered_replacements_main}")
+        print(f"🔍 Replacements для photo SVG: {filtered_replacements_photo}")
+        processed_main_svg = process_svg_font_perfect(main_svg_content, filtered_replacements_main)
+        processed_photo_svg = process_svg_font_perfect(photo_svg_content, filtered_replacements_photo)
         
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
