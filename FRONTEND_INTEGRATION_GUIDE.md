@@ -1,285 +1,598 @@
-# 🌐 РУКОВОДСТВО ПО ИНТЕГРАЦИИ С ФРОНТЕНДОМ
+# 🎯 РУКОВОДСТВО ПО ИНТЕГРАЦИИ ДЛЯ ФРОНТЕНДА
 
-## 🎯 Быстрый старт
+## 📋 Обновление API: SVG → JPG URLs
 
-### **1. Получение списка шаблонов с превью:**
-```javascript
-const response = await fetch('/api/templates/all-previews');
-const data = await response.json();
+**ВАЖНО:** API теперь возвращает JPG URL вместо SVG URL для отображения изображений в `<img>` тегах.
 
-// data.templates содержит массив шаблонов с превью
-data.templates.forEach(template => {
-  console.log(template.name, template.preview_url);
-});
+## 🚀 Основные изменения
+
+### ❌ Было (проблема):
+```json
+{
+  "images": [
+    "/output/carousel/carousel_xxx_main.svg",
+    "/output/carousel/carousel_xxx_photo.svg"
+  ]
+}
 ```
+**Проблема:** SVG файлы не отображаются в `<img>` тегах, вызывают ошибку "Failed to load slide"
 
-### **2. Отображение превью:**
-```html
-<img src="/output/template_previews/template_uuid_preview.png" 
-     alt="Template Preview"
-     onerror="this.src='/fallback-preview.png'">
+### ✅ Стало (решение):
+```json
+{
+  "images": [
+    "/output/carousel/carousel_xxx_main.jpg",
+    "/output/carousel/carousel_xxx_photo.jpg"
+  ],
+  "format": "jpg"
+}
 ```
+**Решение:** JPG файлы корректно отображаются в `<img>` тегах
 
 ## 📡 API Endpoints
 
-### **GET `/api/templates/all-previews`**
-Возвращает все шаблоны с URL превью
+### 1. Генерация карусели (основной)
 
-**Ответ:**
-```json
-{
-  "templates": [
-    {
-      "id": "uuid-123",
-      "name": "Modern Open House",
-      "category": "open-house", 
-      "template_role": "main",
-      "preview_url": "/output/template_previews/template_uuid-123_preview.png",
-      "preview_type": "manual"
+**Endpoint:** `POST /api/generate/carousel`
+
+**Request:**
+```javascript
+const response = await fetch('/api/generate/carousel', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    main_template_id: "template-id",
+    photo_template_id: "template-id", 
+    data: {
+      'dyno.agentName': 'John Smith',
+      'dyno.propertyAddress': '123 Main Street',
+      'dyno.price': '$450,000',
+      'dyno.agentPhone': '(555) 123-4567'
     }
-  ],
-  "total": 1
-}
-```
-
-**Типы превью:**
-- `manual` - загружено вручную (лучшее качество)
-- `default` - создано автоматически с названием шаблона
-- `auto` - старая система автоматической генерации
-
-## 🖼️ Работа с превью
-
-### **Рекомендуемый HTML:**
-```html
-<div class="template-card">
-  <img src="${template.preview_url}" 
-       alt="${template.name}"
-       class="template-preview"
-       loading="lazy"
-       onerror="handleImageError(this, '${template.id}')">
-  
-  <h3>${template.name}</h3>
-  <p>${template.category}</p>
-  
-  <span class="preview-badge ${template.preview_type}">
-    ${template.preview_type === 'manual' ? '✅ Ручное' : '🔄 Авто'}
-  </span>
-</div>
-```
-
-### **Обработка ошибок загрузки:**
-```javascript
-function handleImageError(img, templateId) {
-  // Fallback на placeholder
-  img.src = '/assets/template-placeholder.png';
-  img.alt = 'Preview not available';
-}
-```
-
-## 🎨 CSS стили
-
-### **Базовые стили:**
-```css
-.template-preview {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #eee;
-  background: #f8f9fa;
-}
-
-.preview-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
-}
-
-.preview-badge.manual {
-  background: #d4edda;
-  color: #155724;
-}
-
-.preview-badge.default {
-  background: #f8d7da; 
-  color: #721c24;
-}
-```
-
-## 🚀 React компонент
-
-### **Хук для загрузки шаблонов:**
-```jsx
-import { useState, useEffect } from 'react';
-
-function useTemplates() {
-  const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    fetch('/api/templates/all-previews')
-      .then(res => res.json())
-      .then(data => {
-        setTemplates(data.templates || []);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, []);
-
-  return { templates, loading, error };
-}
-```
-
-### **Компонент выбора шаблона:**
-```jsx
-function TemplateSelector({ onSelect }) {
-  const { templates, loading, error } = useTemplates();
-  const [selected, setSelected] = useState(null);
-
-  if (loading) return <div>⏳ Загружаю шаблоны...</div>;
-  if (error) return <div>❌ Ошибка: {error}</div>;
-
-  return (
-    <div className="template-grid">
-      {templates.map(template => (
-        <div 
-          key={template.id}
-          className={`template-card ${selected === template.id ? 'selected' : ''}`}
-          onClick={() => {
-            setSelected(template.id);
-            onSelect?.(template);
-          }}
-        >
-          <img 
-            src={template.preview_url}
-            alt={template.name}
-            className="template-preview"
-            onError={(e) => {
-              e.target.src = '/assets/template-placeholder.png';
-            }}
-          />
-          
-          <h3>{template.name}</h3>
-          <p>{template.category}</p>
-          
-          <span className={`preview-badge ${template.preview_type}`}>
-            {template.preview_type === 'manual' ? '✅ Ручное' : '🔄 Авто'}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
-## 📱 Мобильная адаптация
-
-### **Responsive CSS:**
-```css
-.template-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-}
-
-@media (max-width: 768px) {
-  .template-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 15px;
-  }
-  
-  .template-preview {
-    height: 150px;
-  }
-}
-
-@media (max-width: 480px) {
-  .template-grid {
-    grid-template-columns: 1fr;
-  }
-}
-```
-
-## ⚡ Оптимизация производительности
-
-### **Lazy loading:**
-```html
-<img src="${template.preview_url}" 
-     loading="lazy"
-     decoding="async">
-```
-
-### **Preload критичных превью:**
-```html
-<link rel="preload" as="image" href="/output/template_previews/popular_template.png">
-```
-
-### **Кэширование:**
-```javascript
-// Service Worker для кэширования превью
-self.addEventListener('fetch', event => {
-  if (event.request.url.includes('/output/template_previews/')) {
-    event.respondWith(
-      caches.match(event.request).then(response => {
-        return response || fetch(event.request);
-      })
-    );
-  }
+  })
 });
 ```
 
-## 🔄 Обновление превью
-
-### **Автоматическое обновление:**
-```javascript
-// Проверяем обновления каждые 30 секунд
-setInterval(async () => {
-  const response = await fetch('/api/templates/all-previews');
-  const data = await response.json();
-  
-  if (data.templates.length !== currentTemplates.length) {
-    updateTemplatesList(data.templates);
-  }
-}, 30000);
+**Response:**
+```json
+{
+  "success": true,
+  "carousel_id": "c6aa98a6-8f15-4ba7-ac99-2b0ef35118dc",
+  "main_template_name": "Test Main Template",
+  "photo_template_name": "Test Photo Template",
+  "main_url": "/output/carousel/carousel_xxx_main.jpg",
+  "photo_url": "/output/carousel/carousel_xxx_photo.jpg",
+  "replacements_applied": 4,
+  "images": [
+    "/output/carousel/carousel_xxx_main.jpg",
+    "/output/carousel/carousel_xxx_photo.jpg"
+  ],
+  "slides": [
+    "/output/carousel/carousel_xxx_main.jpg",
+    "/output/carousel/carousel_xxx_photo.jpg"
+  ],
+  "urls": [
+    "/output/carousel/carousel_xxx_main.jpg",
+    "/output/carousel/carousel_xxx_photo.jpg"
+  ],
+  "image_url": "/output/carousel/carousel_xxx_main.jpg",
+  "data": {
+    "images": [
+      "/output/carousel/carousel_xxx_main.jpg",
+      "/output/carousel/carousel_xxx_photo.jpg"
+    ]
+  },
+  "slides_count": 2,
+  "status": "completed",
+  "format": "jpg"
+}
 ```
 
-## 🧪 Тестирование
+### 2. Генерация карусели по именам шаблонов
 
-### **Файлы для тестирования:**
-- `frontend_example.html` - полный пример интеграции
-- `test_manual_preview.html` - тестирование системы превью
+**Endpoint:** `POST /api/generate/carousel-by-name`
 
-### **Как протестировать:**
-1. Откройте `frontend_example.html` в браузере
-2. Проверьте что превью загружаются
-3. Попробуйте выбрать разные шаблоны
-4. Проверьте работу на мобильных устройствах
+**Request:**
+```javascript
+const response = await fetch('/api/generate/carousel-by-name', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    main_template_name: "template-name",
+    photo_template_name: "template-name",
+    replacements: {
+      'dyno.agentName': 'John Smith',
+      'dyno.propertyAddress': '123 Main Street'
+    }
+  })
+});
+```
 
-## ✅ Чек-лист интеграции
+### 3. Создание полноценной карусели (до 10 слайдов)
 
-- [ ] API endpoint `/api/templates/all-previews` работает
-- [ ] Превью изображения отображаются корректно
-- [ ] Обработка ошибок загрузки изображений
-- [ ] Мобильная адаптация
-- [ ] Индикаторы типа превью (ручное/авто)
-- [ ] Выбор шаблона работает
-- [ ] Fallback на placeholder изображения
-- [ ] Lazy loading для оптимизации
-- [ ] Кэширование превью
+**Endpoint:** `POST /api/carousel/create-and-generate`
 
-## 🎯 Итог
+**Request:**
+```javascript
+const response = await fetch('/api/carousel/create-and-generate', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    name: "Property Carousel",
+    slides: [
+      {
+        templateId: "main-template-id",
+        replacements: {
+          'dyno.agentName': 'John Smith',
+          'dyno.propertyAddress': '123 Main Street'
+        },
+        imagePath: "https://example.com/photo1.jpg"
+      },
+      {
+        templateId: "photo-template-id", 
+        replacements: {
+          'dyno.propertyimage2': 'https://example.com/photo2.jpg'
+        },
+        imagePath: "https://example.com/photo2.jpg"
+      }
+    ]
+  })
+});
+```
 
-**Превью система полностью готова для интеграции с фронтендом!**
+**Response:**
+```json
+{
+  "success": true,
+  "carousel_id": "xxx-xxx-xxx",
+  "slides_count": 2,
+  "status": "completed"
+}
+```
 
-1. **📡 Простой API** - один endpoint возвращает все превью
-2. **🖼️ Готовые изображения** - мгновенная загрузка
-3. **🔄 Fallback система** - всегда есть превью
-4. **📱 Адаптивность** - работает на всех устройствах
-5. **⚡ Оптимизация** - lazy loading и кэширование
+### 4. Получение информации о слайдах карусели
 
-**Пользователи увидят красивые превью и смогут легко выбрать нужный шаблон!** 🎉
+**Endpoint:** `GET /api/carousel/{carousel_id}/slides`
+
+**Request:**
+```javascript
+const response = await fetch(`/api/carousel/${carouselId}/slides`);
+```
+
+**Response:**
+```json
+{
+  "carousel_id": "xxx-xxx-xxx",
+  "name": "Property Carousel",
+  "status": "completed",
+  "slides_count": 2,
+  "created_at": "2025-07-26T00:00:00",
+  "slides": [
+    {
+      "slide_number": 1,
+      "filename": "slide_01.jpg",
+      "image_url": "/output/carousel/xxx/slide_01.jpg",
+      "status": "completed",
+      "format": "jpg"
+    },
+    {
+      "slide_number": 2,
+      "filename": "slide_02.jpg", 
+      "image_url": "/output/carousel/xxx/slide_02.jpg",
+      "status": "completed",
+      "format": "jpg"
+    }
+  ]
+}
+```
+
+## 🎨 Интеграция в React
+
+### React Hook для генерации карусели:
+
+```typescript
+import { useState, useCallback } from 'react';
+
+interface CarouselData {
+  carousel_id: string;
+  images: string[];
+  format: 'jpg' | 'svg';
+  status: string;
+}
+
+interface CarouselRequest {
+  main_template_id: string;
+  photo_template_id: string;
+  data: Record<string, string>;
+}
+
+export const useCarouselGeneration = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [carouselData, setCarouselData] = useState<CarouselData | null>(null);
+
+  const generateCarousel = useCallback(async (request: CarouselRequest) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/generate/carousel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request)
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setCarouselData(data);
+      } else {
+        setError(data.error || 'Unknown error');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  return {
+    isLoading,
+    error,
+    carouselData,
+    generateCarousel
+  };
+};
+```
+
+### React компонент для отображения карусели:
+
+```typescript
+import React from 'react';
+import { useCarouselGeneration } from './useCarouselGeneration';
+
+interface CarouselProps {
+  mainTemplateId: string;
+  photoTemplateId: string;
+  replacements: Record<string, string>;
+}
+
+export const CarouselGenerator: React.FC<CarouselProps> = ({
+  mainTemplateId,
+  photoTemplateId,
+  replacements
+}) => {
+  const { isLoading, error, carouselData, generateCarousel } = useCarouselGeneration();
+
+  const handleGenerate = async () => {
+    await generateCarousel({
+      main_template_id: mainTemplateId,
+      photo_template_id: photoTemplateId,
+      data: replacements
+    });
+  };
+
+  return (
+    <div className="carousel-generator">
+      <button 
+        onClick={handleGenerate}
+        disabled={isLoading}
+        className="generate-btn"
+      >
+        {isLoading ? 'Генерируем...' : 'Сгенерировать карусель'}
+      </button>
+
+      {error && (
+        <div className="error">
+          Ошибка: {error}
+        </div>
+      )}
+
+      {carouselData && (
+        <div className="carousel-images">
+          <h3>Сгенерированные изображения:</h3>
+          <div className="images-grid">
+            {carouselData.images.map((imageUrl, index) => (
+              <div key={index} className="image-container">
+                <img 
+                  src={imageUrl}
+                  alt={`Slide ${index + 1}`}
+                  className="carousel-image"
+                  onError={(e) => {
+                    console.error('Failed to load image:', imageUrl);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <div className="image-info">
+                  Формат: {carouselData.format}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+## 🎨 Интеграция в Vue.js
+
+### Vue Composition API:
+
+```typescript
+import { ref, reactive } from 'vue';
+
+interface CarouselData {
+  carousel_id: string;
+  images: string[];
+  format: 'jpg' | 'svg';
+  status: string;
+}
+
+export const useCarouselGeneration = () => {
+  const isLoading = ref(false);
+  const error = ref<string | null>(null);
+  const carouselData = ref<CarouselData | null>(null);
+
+  const generateCarousel = async (request: {
+    main_template_id: string;
+    photo_template_id: string;
+    data: Record<string, string>;
+  }) => {
+    isLoading.value = true;
+    error.value = null;
+    
+    try {
+      const response = await fetch('/api/generate/carousel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request)
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        carouselData.value = data;
+      } else {
+        error.value = data.error || 'Unknown error';
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Network error';
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  return {
+    isLoading,
+    error,
+    carouselData,
+    generateCarousel
+  };
+};
+```
+
+### Vue компонент:
+
+```vue
+<template>
+  <div class="carousel-generator">
+    <button 
+      @click="handleGenerate"
+      :disabled="isLoading"
+      class="generate-btn"
+    >
+      {{ isLoading ? 'Генерируем...' : 'Сгенерировать карусель' }}
+    </button>
+
+    <div v-if="error" class="error">
+      Ошибка: {{ error }}
+    </div>
+
+    <div v-if="carouselData" class="carousel-images">
+      <h3>Сгенерированные изображения:</h3>
+      <div class="images-grid">
+        <div 
+          v-for="(imageUrl, index) in carouselData.images" 
+          :key="index"
+          class="image-container"
+        >
+          <img 
+            :src="imageUrl"
+            :alt="`Slide ${index + 1}`"
+            class="carousel-image"
+            @error="handleImageError"
+          />
+          <div class="image-info">
+            Формат: {{ carouselData.format }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { useCarouselGeneration } from './useCarouselGeneration';
+
+const props = defineProps<{
+  mainTemplateId: string;
+  photoTemplateId: string;
+  replacements: Record<string, string>;
+}>();
+
+const { isLoading, error, carouselData, generateCarousel } = useCarouselGeneration();
+
+const handleGenerate = async () => {
+  await generateCarousel({
+    main_template_id: props.mainTemplateId,
+    photo_template_id: props.photoTemplateId,
+    data: props.replacements
+  });
+};
+
+const handleImageError = (event: Event) => {
+  console.error('Failed to load image:', (event.target as HTMLImageElement).src);
+  (event.target as HTMLImageElement).style.display = 'none';
+};
+</script>
+```
+
+## 🎨 Интеграция в Vanilla JavaScript
+
+### Простая интеграция:
+
+```javascript
+class CarouselGenerator {
+  constructor(baseUrl = '') {
+    this.baseUrl = baseUrl;
+  }
+
+  async generateCarousel(request) {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/generate/carousel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request)
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        return data;
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
+    } catch (error) {
+      console.error('Carousel generation error:', error);
+      throw error;
+    }
+  }
+
+  displayImages(images, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    container.innerHTML = '';
+    
+    images.forEach((imageUrl, index) => {
+      const imgDiv = document.createElement('div');
+      imgDiv.className = 'image-container';
+      
+      const img = document.createElement('img');
+      img.src = imageUrl;
+      img.alt = `Slide ${index + 1}`;
+      img.className = 'carousel-image';
+      
+      img.onerror = () => {
+        console.error('Failed to load image:', imageUrl);
+        img.style.display = 'none';
+      };
+      
+      imgDiv.appendChild(img);
+      container.appendChild(imgDiv);
+    });
+  }
+}
+
+// Использование:
+const generator = new CarouselGenerator();
+
+const request = {
+  main_template_id: "template-id",
+  photo_template_id: "template-id",
+  data: {
+    'dyno.agentName': 'John Smith',
+    'dyno.propertyAddress': '123 Main Street',
+    'dyno.price': '$450,000'
+  }
+};
+
+try {
+  const result = await generator.generateCarousel(request);
+  generator.displayImages(result.images, 'carousel-container');
+} catch (error) {
+  console.error('Error:', error);
+}
+```
+
+## 🔄 Fallback механизм
+
+Если конвертация в JPG не удалась, API возвращает SVG URL с `"format": "svg"`:
+
+```json
+{
+  "images": [
+    "/output/carousel/carousel_xxx_main.svg",
+    "/output/carousel/carousel_xxx_photo.svg"
+  ],
+  "format": "svg"
+}
+```
+
+В этом случае фронтенд может:
+
+1. **Использовать `<object>` для SVG:**
+```html
+<object data="/output/carousel/carousel_xxx_main.svg" type="image/svg+xml">
+  <img src="fallback-image.jpg" alt="Fallback">
+</object>
+```
+
+2. **Или использовать `<embed>`:**
+```html
+<embed src="/output/carousel/carousel_xxx_main.svg" type="image/svg+xml">
+```
+
+## 🎯 Ключевые моменты
+
+1. **Все URL теперь JPG** - готовы для использования в `<img>` тегах
+2. **Поле `format`** указывает тип файла (`"jpg"` или `"svg"`)
+3. **Fallback механизм** - если JPG не удался, возвращается SVG
+4. **Обратная совместимость** - старый код продолжит работать
+5. **Высокое качество** - JPG генерируются с DPI 300
+
+## ✅ Тестирование
+
+Для тестирования API используйте:
+
+```bash
+curl -X POST http://localhost:5000/api/generate/carousel \
+  -H "Content-Type: application/json" \
+  -d '{
+    "main_template_id": "test-main-template",
+    "photo_template_id": "test-photo-template", 
+    "data": {
+      "dyno.agentName": "John Smith",
+      "dyno.propertyAddress": "123 Main Street",
+      "dyno.price": "$450,000"
+    }
+  }'
+```
+
+**Ожидаемый результат:**
+```json
+{
+  "success": true,
+  "images": [
+    "/output/carousel/carousel_xxx_main.jpg",
+    "/output/carousel/carousel_xxx_photo.jpg"
+  ],
+  "format": "jpg"
+}
+```
+
+Теперь фронтенд может корректно отображать изображения без ошибок "Failed to load slide"! 🎉
