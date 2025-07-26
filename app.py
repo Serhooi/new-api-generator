@@ -219,8 +219,8 @@ def process_svg_font_perfect(svg_content, replacements):
         
         if image_type == 'headshot':
             if element_shape == 'circular':
-                # Для круглых хедшотов используем meet - лучшее центрирование лица
-                return 'xMidYMid meet'
+                # Для круглых хедшотов используем slice - заполняем весь круг
+                return 'xMidYMid slice'
             else:
                 # Для прямоугольных хедшотов используем meet
                 return 'xMidYMid meet'
@@ -261,6 +261,31 @@ def process_svg_font_perfect(svg_content, replacements):
                 return True
         
         return False
+    
+    def wrap_address_text(address_text, max_length=35):
+        """Автоматически переносит длинный адрес на строки"""
+        if len(address_text) <= max_length:
+            return address_text, ""
+        
+        # Разбиваем по запятым
+        parts = address_text.split(', ')
+        if len(parts) >= 2:
+            # Первая строка: номер дома + улица
+            line1 = parts[0]
+            # Вторая строка: остальное
+            line2 = ', '.join(parts[1:])
+            return line1, line2
+        
+        # Если нет запятых, разбиваем по словам
+        words = address_text.split()
+        if len(words) <= 3:
+            return address_text, ""
+        
+        # Ищем середину для разбивки
+        mid = len(words) // 2
+        line1 = ' '.join(words[:mid])
+        line2 = ' '.join(words[mid:])
+        return line1, line2
     
     def wrap_address_text(address_text, max_length=35):
         """
