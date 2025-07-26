@@ -1301,7 +1301,11 @@ def generate_carousel():
         data = request.get_json()
         main_template_id = data.get('main_template_id')
         photo_template_id = data.get('photo_template_id')
-        replacements = data.get('replacements', {})
+        # Фронтенд отправляет 'data' вместо 'replacements'
+        replacements = data.get('data', data.get('replacements', {}))
+        
+        print(f"🔍 Received data: {data}")
+        print(f"📋 Replacements: {replacements}")
         
         if not main_template_id or not photo_template_id:
             return jsonify({'error': 'main_template_id и photo_template_id обязательны'}), 400
@@ -1369,6 +1373,12 @@ def generate_carousel():
             }
         ]
         
+        # Создаем простые массивы URL для фронтенда
+        image_urls = [
+            f'/output/carousel/{main_filename}',
+            f'/output/carousel/{photo_filename}'
+        ]
+        
         response_data = {
             'success': True,
             'carousel_id': carousel_id,
@@ -1377,8 +1387,12 @@ def generate_carousel():
             'main_url': f'/output/carousel/{main_filename}',
             'photo_url': f'/output/carousel/{photo_filename}',
             'replacements_applied': len(replacements),
-            'images': images,  # Добавляем массив изображений для фронтенда
-            'slides': images,  # Дублируем для совместимости
+            # Все возможные форматы для фронтенда
+            'images': image_urls,  # Вариант 1 (предпочтительный)
+            'slides': image_urls,  # Вариант 2
+            'urls': image_urls,    # Вариант 3
+            'image_url': image_urls[0],  # Вариант 4 (первое изображение)
+            'data': {'images': image_urls},  # Вариант 5 (с вложенными данными)
             'slides_count': 2,
             'status': 'completed'
         }
