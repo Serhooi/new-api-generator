@@ -1144,8 +1144,8 @@ def get_all_carousels():
             photo_dyno_fields = carousel[9] if carousel[9] else ""
             
             # Получаем URL превью для main и photo шаблонов
-            main_preview_url = get_template_preview_url(main_template_id) if main_template_id else None
-            photo_preview_url = get_template_preview_url(photo_template_id) if photo_template_id else None
+            main_preview_url = get_template_preview_url(main_template_id) if main_template_id else ''
+            photo_preview_url = get_template_preview_url(photo_template_id) if photo_template_id else ''
             
             carousel_info = {
                 'id': carousel_id,
@@ -1217,8 +1217,8 @@ def get_carousel(carousel_id):
         photo_dyno_fields = carousel_data[9] if carousel_data[9] else ""
         
         # Получаем URL превью для main и photo шаблонов
-        main_preview_url = get_template_preview_url(main_template_id) if main_template_id else None
-        photo_preview_url = get_template_preview_url(photo_template_id) if photo_template_id else None
+        main_preview_url = get_template_preview_url(main_template_id) if main_template_id else ''
+        photo_preview_url = get_template_preview_url(photo_template_id) if photo_template_id else ''
         
         carousel_info = {
             'id': carousel_id,
@@ -1620,7 +1620,7 @@ def get_carousel_slides(carousel_id):
                 slides.append({
                     'slide_number': i,
                     'filename': slide_filename,
-                    'image_url': None,
+                    'image_url': '',
                     'status': 'error'
                 })
         

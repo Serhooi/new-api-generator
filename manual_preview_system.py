@@ -102,7 +102,7 @@ def get_template_preview_url(template_id):
         if os.path.exists(preview_path):
             return f'/output/template_previews/{preview_filename}'
     
-    return None
+    return ''
 
 def delete_template_preview(template_id):
     """
