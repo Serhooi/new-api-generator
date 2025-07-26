@@ -305,21 +305,30 @@ def process_svg_font_perfect(svg_content, replacements):
             safe_url = safe_escape_for_svg(str(replacement))
             print(f"      🔒 Применено полное экранирование URL")
             
-            # Ищем элемент с id и извлекаем pattern
-            element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
+            # Ищем элемент с id (любой элемент, не только с fill)
+            element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*>'
             match = re.search(element_pattern, processed_svg)
             
             # Если не нашли по основному имени, пробуем альтернативное
             if not match and alternative_field:
-                element_pattern = f'<[^>]*id="{re.escape(alternative_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
+                element_pattern = f'<[^>]*id="{re.escape(alternative_field)}"[^>]*>'
                 match = re.search(element_pattern, processed_svg)
                 if match:
                     print(f"      ✅ Найдено по альтернативному имени: {alternative_field}")
                     dyno_field = alternative_field
             
             if match:
-                pattern_id = match.group(1)
-                print(f"      🎯 Найден pattern: {pattern_id}")
+                # Ищем pattern_id в fill атрибуте или в связанных элементах
+                element_content = match.group(0)
+                pattern_match = re.search(r'fill="url\\(#([^)]+)\\)"', element_content)
+                
+                if pattern_match:
+                    pattern_id = pattern_match.group(1)
+                    print(f"      🎯 Найден pattern: {pattern_id}")
+                else:
+                    # Если нет fill, ищем pattern по id элемента
+                    pattern_id = dyno_field.replace('dyno.', 'pattern_')
+                    print(f"      🎯 Используем pattern по умолчанию: {pattern_id}")
                 
                 # ОПРЕДЕЛЯЕМ ФОРМУ ЭЛЕМЕНТА
                 element_shape = determine_element_shape(processed_svg, pattern_id)
