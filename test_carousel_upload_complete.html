@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест полной системы загрузки карусели</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8fafc;
+        }
+        
+        .test-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .test-title {
+            color: #2d3748;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .form-input, .form-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        
+        .file-input {
+            margin-bottom: 1rem;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .btn:hover {
+            background: #5a67d8;
+        }
+        
+        .btn-secondary {
+            background: #718096;
+        }
+        
+        .btn-secondary:hover {
+            background: #4a5568;
+        }
+        
+        .result {
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        
+        .success {
+            background: #c6f6d5;
+            border-left-color: #38a169;
+            color: #22543d;
+        }
+        
+        .error {
+            background: #fed7d7;
+            border-left-color: #e53e3e;
+            color: #742a2a;
+        }
+        
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .preview-item {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .preview-image {
+            width: 100%;
+            max-width: 200px;
+            height: auto;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+        }
+        
+        .template-files {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .template-section {
+            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .template-section h3 {
+            margin: 0 0 1rem 0;
+            color: #2d3748;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест полной системы загрузки карусели</h1>
+    
+    <!-- Тест 1: Создание тестовых SVG файлов -->
+    <div class="test-section">
+        <h2 class="test-title">1. Создание тестовых SVG файлов</h2>
+        <button class="btn" onclick="createTestSVGs()">🎨 Создать тестовые SVG</button>
+        <div id="svg-result" class="result" style="display: none;"></div>
+    </div>
+    
+    <!-- Тест 2: Загрузка карусели с превью -->
+    <div class="test-section">
+        <h2 class="test-title">2. Загрузка карусели с превью</h2>
+        
+        <form id="carousel-form">
+            <div class="form-group">
+                <label class="form-label">Название набора</label>
+                <input type="text" id="carousel-name" class="form-input" value="Test Modern Carousel" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Категория</label>
+                <select id="carousel-category" class="form-select" required>
+                    <option value="open-house">Open House</option>
+                    <option value="sold">Sold</option>
+                    <option value="for-rent">For Rent</option>
+                </select>
+            </div>
+            
+            <div class="template-files">
+                <div class="template-section">
+                    <h3>🎯 Main Template</h3>
+                    <div class="form-group">
+                        <label class="form-label">SVG файл Main</label>
+                        <input type="file" id="main-svg" class="file-input" accept=".svg" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Превью Main (необязательно)</label>
+                        <input type="file" id="main-preview" class="file-input" accept="image/*">
+                    </div>
+                </div>
+                
+                <div class="template-section">
+                    <h3>📸 Photo Template</h3>
+                    <div class="form-group">
+                        <label class="form-label">SVG файл Photo</label>
+                        <input type="file" id="photo-svg" class="file-input" accept=".svg" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Превью Photo (необязательно)</label>
+                        <input type="file" id="photo-preview" class="file-input" accept="image/*">
+                    </div>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn">🚀 Загрузить карусель</button>
+            <button type="button" class="btn btn-secondary" onclick="uploadWithTestFiles()">🧪 Загрузить с тестовыми файлами</button>
+        </form>
+        
+        <div id="upload-result" class="result" style="display: none;"></div>
+    </div>
+    
+    <!-- Тест 3: Проверка результата -->
+    <div class="test-section">
+        <h2 class="test-title">3. Проверка загруженной карусели</h2>
+        <button class="btn" onclick="checkCarousels()">📋 Проверить карусели</button>
+        <button class="btn btn-secondary" onclick="checkPreviews()">🖼️ Проверить превью</button>
+        <div id="check-result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Создание тестовых SVG файлов
+        function createTestSVGs() {
+            const mainSVG = `<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg">
+                <rect width="1080" height="1080" fill="#667eea"/>
+                <text x="540" y="300" text-anchor="middle" fill="white" font-size="48" font-weight="bold">MAIN TEMPLATE</text>
+                <text x="540" y="400" text-anchor="middle" fill="white" font-size="32">{{property_address}}</text>
+                <text x="540" y="500" text-anchor="middle" fill="white" font-size="28">{{property_price}}</text>
+                <text x="540" y="600" text-anchor="middle" fill="white" font-size="24">{{agent_name}}</text>
+                <text x="540" y="700" text-anchor="middle" fill="white" font-size="20">{{agent_phone}}</text>
+            </svg>`;
+            
+            const photoSVG = `<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg">
+                <rect width="1080" height="1080" fill="#764ba2"/>
+                <rect x="90" y="90" width="900" height="600" fill="#f0f0f0" stroke="#333" stroke-width="2"/>
+                <text x="540" y="750" text-anchor="middle" fill="white" font-size="32">{{property_address}}</text>
+                <text x="540" y="800" text-anchor="middle" fill="white" font-size="24">{{agent_name}}</text>
+                <text x="540" y="850" text-anchor="middle" fill="white" font-size="20">{{agent_phone}}</text>
+                <text x="540" y="400" text-anchor="middle" fill="#666" font-size="24">PHOTO TEMPLATE</text>
+            </svg>`;
+            
+            // Создаем Blob файлы
+            window.testMainSVG = new Blob([mainSVG], { type: 'image/svg+xml' });
+            window.testPhotoSVG = new Blob([photoSVG], { type: 'image/svg+xml' });
+            
+            document.getElementById('svg-result').innerHTML = `
+                <div class="success">
+                    ✅ Тестовые SVG файлы созданы:<br>
+                    • Main Template: ${mainSVG.length} символов<br>
+                    • Photo Template: ${photoSVG.length} символов<br>
+                    • Оба содержат dyno поля для тестирования
+                </div>
+            `;
+            document.getElementById('svg-result').style.display = 'block';
+        }
+        
+        // Загрузка с тестовыми файлами
+        function uploadWithTestFiles() {
+            if (!window.testMainSVG || !window.testPhotoSVG) {
+                alert('Сначала создайте тестовые SVG файлы!');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('name', document.getElementById('carousel-name').value);
+            formData.append('category', document.getElementById('carousel-category').value);
+            formData.append('main_file', window.testMainSVG, 'test-main.svg');
+            formData.append('photo_file', window.testPhotoSVG, 'test-photo.svg');
+            
+            uploadCarousel(formData);
+        }
+        
+        // Обработка формы
+        document.getElementById('carousel-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('name', document.getElementById('carousel-name').value);
+            formData.append('category', document.getElementById('carousel-category').value);
+            
+            const mainSVG = document.getElementById('main-svg').files[0];
+            const photoSVG = document.getElementById('photo-svg').files[0];
+            const mainPreview = document.getElementById('main-preview').files[0];
+            const photoPreview = document.getElementById('photo-preview').files[0];
+            
+            if (!mainSVG || !photoSVG) {
+                alert('Выберите оба SVG файла!');
+                return;
+            }
+            
+            formData.append('main_file', mainSVG);
+            formData.append('photo_file', photoSVG);
+            
+            if (mainPreview) {
+                formData.append('main_preview_file', mainPreview);
+            }
+            
+            if (photoPreview) {
+                formData.append('photo_preview_file', photoPreview);
+            }
+            
+            uploadCarousel(formData);
+        });
+        
+        // Функция загрузки карусели
+        function uploadCarousel(formData) {
+            const resultDiv = document.getElementById('upload-result');
+            resultDiv.innerHTML = '⏳ Загружаем карусель...';
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'block';
+            
+            fetch('/api/upload-carousel', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let html = `<div class="success">
+                        ✅ Карусель успешно загружена!<br>
+                        <strong>ID карусели:</strong> ${data.carousel_id}<br>
+                        <strong>Main Template ID:</strong> ${data.main_template_id}<br>
+                        <strong>Photo Template ID:</strong> ${data.photo_template_id}<br>
+                        <strong>Main dyno поля:</strong> ${data.main_dyno_fields.join(', ') || 'нет'}<br>
+                        <strong>Photo dyno поля:</strong> ${data.photo_dyno_fields.join(', ') || 'нет'}<br>
+                    `;
+                    
+                    if (data.main_preview_url) {
+                        html += `<strong>Main превью:</strong> <a href="${data.main_preview_url}" target="_blank">${data.main_preview_url}</a><br>`;
+                    }
+                    
+                    if (data.photo_preview_url) {
+                        html += `<strong>Photo превью:</strong> <a href="${data.photo_preview_url}" target="_blank">${data.photo_preview_url}</a><br>`;
+                    }
+                    
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${data.error}</div>`;
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                resultDiv.innerHTML = `<div class="error">❌ Ошибка сети: ${error.message}</div>`;
+            });
+        }
+        
+        // Проверка карусели
+        function checkCarousels() {
+            const resultDiv = document.getElementById('check-result');
+            resultDiv.innerHTML = '⏳ Проверяем карусели...';
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'block';
+            
+            fetch('/api/carousels')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.carousels.length > 0) {
+                    let html = '<div class="success">✅ Найденные карусели:<br>';
+                    data.carousels.forEach(carousel => {
+                        html += `
+                            <div style="margin: 1rem 0; padding: 1rem; background: white; border-radius: 4px;">
+                                <strong>${carousel.name}</strong> (${carousel.category})<br>
+                                ID: ${carousel.id}<br>
+                                Main Template: ${carousel.main_template_id}<br>
+                                Photo Template: ${carousel.photo_template_id}
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = '<div class="error">❌ Карусели не найдены</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${error.message}</div>`;
+            });
+        }
+        
+        // Проверка превью
+        function checkPreviews() {
+            const resultDiv = document.getElementById('check-result');
+            resultDiv.innerHTML = '⏳ Проверяем превью...';
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'block';
+            
+            fetch('/api/templates')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.templates.length > 0) {
+                    let html = '<div class="success">✅ Шаблоны с превью:<br><div class="preview-grid">';
+                    
+                    data.templates.forEach(template => {
+                        const previewUrl = `/api/template-preview/${template.id}`;
+                        html += `
+                            <div class="preview-item">
+                                <strong>${template.name}</strong><br>
+                                <small>Роль: ${template.template_role || 'не указана'}</small><br>
+                                <img src="${previewUrl}" class="preview-image" alt="Preview" 
+                                     onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y4ZmFmYyIvPjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNzE4MDk2Ij5ObyBQcmV2aWV3PC90ZXh0Pjwvc3ZnPg=='">
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div></div>';
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = '<div class="error">❌ Шаблоны не найдены</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${error.message}</div>`;
+            });
+        }
+    </script>
+</body>
+</html>

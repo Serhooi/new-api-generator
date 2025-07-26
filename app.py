@@ -22,7 +22,6 @@ import html
 import cairosvg
 from PIL import Image
 
-# Импортируем систему превью
 from preview_system import generate_svg_preview, create_preview_with_data, cleanup_old_previews
 
 app = Flask(__name__)
@@ -1068,6 +1067,186 @@ def delete_template(template_id):
     except Exception as e:
         return jsonify({'error': f'Ошибка удаления: {str(e)}'}), 500
 
+# API для получения всех каруселей (простой)
+@app.route('/api/carousels', methods=['GET'])
+def get_carousels():
+    """Простой endpoint для получения списка карусели"""
+    try:
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, name, category, main_template_id, photo_template_id, created_at
+            FROM carousels
+            ORDER BY created_at DESC
+        ''')
+        
+        carousels_data = cursor.fetchall()
+        conn.close()
+        
+        carousels = []
+        for carousel in carousels_data:
+            carousels.append({
+                'id': carousel[0],
+                'name': carousel[1],
+                'category': carousel[2],
+                'main_template_id': carousel[3],
+                'photo_template_id': carousel[4],
+                'created_at': carousel[5]
+            })
+        
+        return jsonify({
+            'success': True,
+            'carousels': carousels,
+            'count': len(carousels)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка получения карусели: {str(e)}'}), 500
+
+# API для получения всех каруселей (полный)
+@app.route('/api/carousels/all', methods=['GET'])
+def get_all_carousels():
+    """Получает все карусели с превью для main и photo шаблонов"""
+    try:
+        from manual_preview_system import get_template_preview_url
+        
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Получаем все карусели с информацией о шаблонах
+        cursor.execute('''
+            SELECT c.id, c.name, c.category, c.main_template_id, c.photo_template_id, c.created_at,
+                   mt.name as main_name, pt.name as photo_name,
+                   mt.dyno_fields as main_dyno_fields, pt.dyno_fields as photo_dyno_fields
+            FROM carousels c
+            LEFT JOIN templates mt ON c.main_template_id = mt.id
+            LEFT JOIN templates pt ON c.photo_template_id = pt.id
+            ORDER BY c.created_at DESC
+        ''')
+        
+        carousels_data = cursor.fetchall()
+        conn.close()
+        
+        carousels = []
+        for carousel in carousels_data:
+            carousel_id = carousel[0]
+            carousel_name = carousel[1]
+            category = carousel[2]
+            main_template_id = carousel[3]
+            photo_template_id = carousel[4]
+            created_at = carousel[5]
+            main_name = carousel[6]
+            photo_name = carousel[7]
+            main_dyno_fields = carousel[8] if carousel[8] else ""
+            photo_dyno_fields = carousel[9] if carousel[9] else ""
+            
+            # Получаем URL превью для main и photo шаблонов
+            main_preview_url = get_template_preview_url(main_template_id) if main_template_id else None
+            photo_preview_url = get_template_preview_url(photo_template_id) if photo_template_id else None
+            
+            carousel_info = {
+                'id': carousel_id,
+                'name': carousel_name,
+                'category': category,
+                'created_at': created_at,
+                'main_template': {
+                    'id': main_template_id,
+                    'name': main_name,
+                    'preview_url': main_preview_url,
+                    'dyno_fields': main_dyno_fields.split(',') if main_dyno_fields else []
+                },
+                'photo_template': {
+                    'id': photo_template_id,
+                    'name': photo_name,
+                    'preview_url': photo_preview_url,
+                    'dyno_fields': photo_dyno_fields.split(',') if photo_dyno_fields else []
+                }
+            }
+            
+            carousels.append(carousel_info)
+        
+        return jsonify({
+            'success': True,
+            'carousels': carousels,
+            'total_count': len(carousels)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка получения каруселей: {str(e)}'}), 500
+
+# API для получения конкретной карусели
+@app.route('/api/carousels/<carousel_id>', methods=['GET'])
+def get_carousel(carousel_id):
+    """Получает информацию о конкретной карусели"""
+    try:
+        from manual_preview_system import get_template_preview_url
+        
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Получаем карусель с информацией о шаблонах
+        cursor.execute('''
+            SELECT c.id, c.name, c.category, c.main_template_id, c.photo_template_id, c.created_at,
+                   mt.name as main_name, pt.name as photo_name,
+                   mt.dyno_fields as main_dyno_fields, pt.dyno_fields as photo_dyno_fields
+            FROM carousels c
+            LEFT JOIN templates mt ON c.main_template_id = mt.id
+            LEFT JOIN templates pt ON c.photo_template_id = pt.id
+            WHERE c.id = ?
+        ''', [carousel_id])
+        
+        carousel_data = cursor.fetchone()
+        conn.close()
+        
+        if not carousel_data:
+            return jsonify({'error': 'Карусель не найдена'}), 404
+        
+        carousel_id = carousel_data[0]
+        carousel_name = carousel_data[1]
+        category = carousel_data[2]
+        main_template_id = carousel_data[3]
+        photo_template_id = carousel_data[4]
+        created_at = carousel_data[5]
+        main_name = carousel_data[6]
+        photo_name = carousel_data[7]
+        main_dyno_fields = carousel_data[8] if carousel_data[8] else ""
+        photo_dyno_fields = carousel_data[9] if carousel_data[9] else ""
+        
+        # Получаем URL превью для main и photo шаблонов
+        main_preview_url = get_template_preview_url(main_template_id) if main_template_id else None
+        photo_preview_url = get_template_preview_url(photo_template_id) if photo_template_id else None
+        
+        carousel_info = {
+            'id': carousel_id,
+            'name': carousel_name,
+            'category': category,
+            'created_at': created_at,
+            'main_template': {
+                'id': main_template_id,
+                'name': main_name,
+                'preview_url': main_preview_url,
+                'dyno_fields': main_dyno_fields.split(',') if main_dyno_fields else []
+            },
+            'photo_template': {
+                'id': photo_template_id,
+                'name': photo_name,
+                'preview_url': photo_preview_url,
+                'dyno_fields': photo_dyno_fields.split(',') if photo_dyno_fields else []
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'carousel': carousel_info
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка получения карусели: {str(e)}'}), 500
+
 # API для генерации одиночного изображения
 @app.route('/api/generate/single', methods=['POST'])
 def generate_single():
@@ -1606,8 +1785,7 @@ def cleanup_previews():
 if __name__ == '__main__':
     ensure_db_exists()
     
-    # Очищаем старые превью при запуске
     cleanup_old_previews()
     
     # Для локальной разработки
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)

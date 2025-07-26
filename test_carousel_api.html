@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎠 Тест API Каруселей</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .carousel-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .carousel-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        
+        .carousel-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .carousel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .carousel-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .carousel-category {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .templates-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .template-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+            background: #fafafa;
+        }
+        
+        .template-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .template-icon {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+        
+        .template-name {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .template-preview {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .template-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 6px;
+        }
+        
+        .dyno-fields {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .dyno-field {
+            background: #fff3e0;
+            color: #f57c00;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-right: 4px;
+            margin-bottom: 2px;
+            display: inline-block;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .refresh-btn {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+        
+        .refresh-btn:hover {
+            background: #1565c0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎠 Тест API Каруселей</h1>
+        <p>Проверяем новый endpoint <code>/api/carousels/all</code></p>
+        <button class="refresh-btn" onclick="loadCarousels()">🔄 Обновить</button>
+    </div>
+
+    <div class="stats" id="stats" style="display: none;">
+        <div class="stat">
+            <div class="stat-number" id="total-count">0</div>
+            <div class="stat-label">Всего каруселей</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number" id="with-previews">0</div>
+            <div class="stat-label">С превью</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number" id="categories-count">0</div>
+            <div class="stat-label">Категорий</div>
+        </div>
+    </div>
+
+    <div id="loading" class="loading">
+        🔄 Загружаем карусели...
+    </div>
+
+    <div id="error" class="error" style="display: none;"></div>
+
+    <div id="carousels-container" class="carousel-grid"></div>
+
+    <script>
+        async function loadCarousels() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const container = document.getElementById('carousels-container');
+            const stats = document.getElementById('stats');
+            
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            stats.style.display = 'none';
+            container.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/carousels/all');
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Неизвестная ошибка');
+                }
+                
+                const carousels = data.carousels || [];
+                
+                // Показываем статистику
+                updateStats(carousels);
+                stats.style.display = 'flex';
+                
+                if (carousels.length === 0) {
+                    container.innerHTML = '<div class="loading">📭 Карусели не найдены. Загрузите карусель через /upload</div>';
+                    return;
+                }
+                
+                // Отображаем карусели
+                carousels.forEach(carousel => {
+                    const carouselCard = createCarouselCard(carousel);
+                    container.appendChild(carouselCard);
+                });
+                
+            } catch (err) {
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.textContent = `❌ Ошибка: ${err.message}`;
+                console.error('Ошибка загрузки каруселей:', err);
+            }
+        }
+        
+        function updateStats(carousels) {
+            const totalCount = carousels.length;
+            const withPreviews = carousels.filter(c => 
+                (c.main_template.preview_url && c.main_template.preview_url !== '/static/default-preview.png') ||
+                (c.photo_template.preview_url && c.photo_template.preview_url !== '/static/default-preview.png')
+            ).length;
+            const categories = new Set(carousels.map(c => c.category).filter(c => c)).size;
+            
+            document.getElementById('total-count').textContent = totalCount;
+            document.getElementById('with-previews').textContent = withPreviews;
+            document.getElementById('categories-count').textContent = categories;
+        }
+        
+        function createCarouselCard(carousel) {
+            const card = document.createElement('div');
+            card.className = 'carousel-card';
+            
+            card.innerHTML = `
+                <div class="carousel-header">
+                    <div class="carousel-name">🎠 ${carousel.name}</div>
+                    ${carousel.category ? `<div class="carousel-category">${carousel.category}</div>` : ''}
+                </div>
+                
+                <div class="templates-section">
+                    <div class="template-card">
+                        <div class="template-header">
+                            <div class="template-icon">🎯</div>
+                            <div class="template-name">${carousel.main_template.name || 'Main Template'}</div>
+                        </div>
+                        <div class="template-preview">
+                            ${carousel.main_template.preview_url ? 
+                                `<img src="${carousel.main_template.preview_url}" alt="Main Preview" onerror="this.parentElement.innerHTML='🖼️ Превью недоступно'">` :
+                                '🖼️ Нет превью'
+                            }
+                        </div>
+                        <div class="dyno-fields">
+                            ${carousel.main_template.dyno_fields.map(field => 
+                                `<span class="dyno-field">${field}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="template-card">
+                        <div class="template-header">
+                            <div class="template-icon">📸</div>
+                            <div class="template-name">${carousel.photo_template.name || 'Photo Template'}</div>
+                        </div>
+                        <div class="template-preview">
+                            ${carousel.photo_template.preview_url ? 
+                                `<img src="${carousel.photo_template.preview_url}" alt="Photo Preview" onerror="this.parentElement.innerHTML='🖼️ Превью недоступно'">` :
+                                '🖼️ Нет превью'
+                            }
+                        </div>
+                        <div class="dyno-fields">
+                            ${carousel.photo_template.dyno_fields.map(field => 
+                                `<span class="dyno-field">${field}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 10px; font-size: 11px; color: #999; text-align: center;">
+                    ID: ${carousel.id} • Создано: ${new Date(carousel.created_at).toLocaleString('ru')}
+                </div>
+            `;
+            
+            return card;
+        }
+        
+        // Загружаем карусели при загрузке страницы
+        document.addEventListener('DOMContentLoaded', loadCarousels);
+    </script>
+</body>
+</html>
