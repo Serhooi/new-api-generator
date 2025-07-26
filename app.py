@@ -1345,6 +1345,26 @@ def generate_carousel():
         with open(photo_path, 'w', encoding='utf-8') as f:
             f.write(processed_photo_svg)
         
+        # Создаем массив изображений для совместимости с фронтендом
+        images = [
+            {
+                'slide_number': 1,
+                'template_id': main_template_id,
+                'template_name': main_name,
+                'filename': main_filename,
+                'url': f'/output/carousel/{main_filename}',
+                'status': 'completed'
+            },
+            {
+                'slide_number': 2,
+                'template_id': photo_template_id,
+                'template_name': photo_name,
+                'filename': photo_filename,
+                'url': f'/output/carousel/{photo_filename}',
+                'status': 'completed'
+            }
+        ]
+        
         return jsonify({
             'success': True,
             'carousel_id': carousel_id,
@@ -1352,7 +1372,11 @@ def generate_carousel():
             'photo_template_name': photo_name,
             'main_url': f'/output/carousel/{main_filename}',
             'photo_url': f'/output/carousel/{photo_filename}',
-            'replacements_applied': len(replacements)
+            'replacements_applied': len(replacements),
+            'images': images,  # Добавляем массив изображений для фронтенда
+            'slides': images,  # Дублируем для совместимости
+            'slides_count': 2,
+            'status': 'completed'
         })
         
     except Exception as e:
