@@ -944,6 +944,10 @@ def generate_carousel():
         photo_name, photo_svg_content = photo_result
         
         # Обрабатываем SVG с идеальным сохранением шрифтов
+        print(f"🔍 Replacements получены: {replacements}")
+        print(f"🔍 Main SVG поля: {extract_dyno_fields_simple(main_svg_content)}")
+        print(f"🔍 Photo SVG поля: {extract_dyno_fields_simple(photo_svg_content)}")
+        
         processed_main_svg = process_svg_font_perfect(main_svg_content, replacements)
         processed_photo_svg = process_svg_font_perfect(photo_svg_content, replacements)
         
@@ -1038,6 +1042,10 @@ def generate_carousel_by_name():
         print(f"   Photo: {photo_name} (ID: {photo_id})")
         
         # Обрабатываем SVG с идеальным сохранением шрифтов
+        print(f"🔍 Replacements получены: {replacements}")
+        print(f"🔍 Main SVG поля: {extract_dyno_fields_simple(main_svg)}")
+        print(f"🔍 Photo SVG поля: {extract_dyno_fields_simple(photo_svg)}")
+        
         print("🎨 Обрабатываю Main шаблон...")
         processed_main_svg = process_svg_font_perfect(main_svg, replacements)
         
