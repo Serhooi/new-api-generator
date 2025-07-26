@@ -968,6 +968,18 @@ def generate_carousel():
             'carousel_id': carousel_id,
             'main_template_name': main_name,
             'photo_template_name': photo_name,
+            'images': [
+                {
+                    'type': 'main',
+                    'url': f'/output/carousel/{main_filename}',
+                    'template_name': main_name
+                },
+                {
+                    'type': 'photo',
+                    'url': f'/output/carousel/{photo_filename}',
+                    'template_name': photo_name
+                }
+            ],
             'main_url': f'/output/carousel/{main_filename}',
             'photo_url': f'/output/carousel/{photo_filename}',
             'replacements_applied': len(replacements)
@@ -1060,6 +1072,18 @@ def generate_carousel_by_name():
             'photo_template_id': photo_id,
             'main_template_name': main_name,
             'photo_template_name': photo_name,
+            'images': [
+                {
+                    'type': 'main',
+                    'url': f'/output/carousel/{main_filename}',
+                    'template_name': main_name
+                },
+                {
+                    'type': 'photo',
+                    'url': f'/output/carousel/{photo_filename}',
+                    'template_name': photo_name
+                }
+            ],
             'main_url': f'/output/carousel/{main_filename}',
             'photo_url': f'/output/carousel/{photo_filename}',
             'replacements_applied': len(replacements)
