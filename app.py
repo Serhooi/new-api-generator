@@ -219,8 +219,8 @@ def process_svg_font_perfect(svg_content, replacements):
         
         if image_type == 'headshot':
             if element_shape == 'circular':
-                # Для круглых хедшотов используем slice - заполняем весь круг
-                return 'xMidYMid slice'
+                # Для круглых хедшотов используем meet - лучшее центрирование лица
+                return 'xMidYMid meet'
             else:
                 # Для прямоугольных хедшотов используем meet
                 return 'xMidYMid meet'
