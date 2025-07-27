@@ -413,14 +413,19 @@ def process_svg_font_perfect(svg_content, replacements):
                         new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
                         new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
                         
-                        # Устанавливаем preserveAspectRatio
-                        if 'preserveAspectRatio=' in new_image:
-                            new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                        # Для хедшотов сохраняем оригинальные настройки из Figma
+                        if image_type == 'headshot':
+                            # Только заменяем URL, не трогаем preserveAspectRatio
+                            print(f"      🎯 Сохраняем оригинальные настройки хедшота из Figma")
                         else:
-                            if new_image.endswith('/>'):
-                                new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
-                            elif new_image.endswith('>'):
-                                new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
+                            # Устанавливаем preserveAspectRatio для других изображений
+                            if 'preserveAspectRatio=' in new_image:
+                                new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                            else:
+                                if new_image.endswith('/>'):
+                                    new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
+                                elif new_image.endswith('>'):
+                                    new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
                         
                         processed_svg = processed_svg.replace(old_image, new_image)
                         print(f"      ✅ Прямое изображение {dyno_field} заменено!")
@@ -533,14 +538,19 @@ def process_svg_font_perfect(svg_content, replacements):
                             new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
                             new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
                             
-                            # КРИТИЧНО: Устанавливаем правильный preserveAspectRatio
-                            if 'preserveAspectRatio=' in new_image:
-                                new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                            # Для хедшотов сохраняем оригинальные настройки из Figma
+                            if image_type == 'headshot':
+                                # Только заменяем URL, не трогаем preserveAspectRatio
+                                print(f"      🎯 Сохраняем оригинальные настройки хедшота из Figma")
                             else:
-                                if new_image.endswith('/>'):
-                                    new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
-                                elif new_image.endswith('>'):
-                                    new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
+                                # КРИТИЧНО: Устанавливаем правильный preserveAspectRatio для других изображений
+                                if 'preserveAspectRatio=' in new_image:
+                                    new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                                else:
+                                    if new_image.endswith('/>'):
+                                        new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
+                                    elif new_image.endswith('>'):
+                                        new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
                             
                             processed_svg = processed_svg.replace(old_image, new_image)
                             print(f"      ✅ Изображение {dyno_field} заменено!")
