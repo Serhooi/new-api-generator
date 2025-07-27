@@ -382,6 +382,15 @@ def process_svg_font_perfect(svg_content, replacements):
             if match:
                 element_content = match.group(0)
                 print(f"      🔍 Найден элемент: {element_content[:200]}...")
+                
+                # Проверяем, есть ли fill атрибут
+                fill_match = re.search(r'fill="url\(#([^)]+)\)"', element_content)
+                if fill_match:
+                    pattern_id = fill_match.group(1)
+                    print(f"      🎯 Найден pattern из fill: {pattern_id}")
+                else:
+                    print(f"      ⚠️ Fill атрибут не найден, ищем pattern по умолчанию")
+                    pattern_id = dyno_field.replace('dyno.', 'pattern_')
             
             # Если не нашли по основному имени, пробуем альтернативное
             if not match and alternative_field:
@@ -436,6 +445,14 @@ def process_svg_font_perfect(svg_content, replacements):
                         # Если нет fill, ищем pattern по id элемента
                         pattern_id = dyno_field.replace('dyno.', 'pattern_')
                         print(f"      🎯 Используем pattern по умолчанию: {pattern_id}")
+                        
+                        # Попробуем найти реальный pattern в SVG
+                        all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
+                        if all_patterns:
+                            print(f"      🔍 Доступные patterns: {all_patterns}")
+                            # Используем первый доступный pattern
+                            pattern_id = all_patterns[0]
+                            print(f"      🎯 Используем найденный pattern: {pattern_id}")
                 
                 # ОПРЕДЕЛЯЕМ ФОРМУ ЭЛЕМЕНТА
                 element_shape = determine_element_shape(processed_svg, pattern_id)
@@ -497,26 +514,26 @@ def process_svg_font_perfect(svg_content, replacements):
                         # Находим pattern и добавляем transform с масштабированием и центрированием
                         old_pattern = pattern_full
                         
-                        # Уменьшаем масштаб до 0.7 (70%) и добавляем смещение для центрирования
-                        # Смещение translate(0.15, 0.05) помогает центрировать лицо в круге
+                        # Для хедшотов используем больший масштаб (0.9) и лучшее центрирование
+                        # Смещение translate(0.05, 0.05) помогает центрировать лицо в круге
                         if 'transform=' in old_pattern:
                             # Если transform уже есть, добавляем scale и translate к нему
                             new_pattern = re.sub(
                                 r'transform="([^"]*)"', 
-                                r'transform="\1 scale(0.7) translate(0.15, 0.05)"', 
+                                r'transform="\1 scale(0.9) translate(0.05, 0.05)"', 
                                 old_pattern
                             )
                         else:
                             # Если transform нет, добавляем новый атрибут
                             new_pattern = old_pattern.replace(
                                 f'id="{pattern_id}"', 
-                                f'id="{pattern_id}" patternTransform="scale(0.7) translate(0.15, 0.05)"'
+                                f'id="{pattern_id}" patternTransform="scale(0.9) translate(0.05, 0.05)"'
                             )
                         
                         # Заменяем старый pattern на новый с масштабированием и центрированием
                         if new_pattern != old_pattern:
                             processed_svg = processed_svg.replace(old_pattern, new_pattern)
-                            print(f"      ✅ Добавлено масштабирование (scale 0.7) и центрирование для круглого хедшота")
+                            print(f"      ✅ Добавлено масштабирование (scale 0.9) и центрирование для круглого хедшота")
                     
                     # Ищем use элемент внутри pattern
                     use_pattern = r'<use[^>]*xlink:href="#([^"]*)"[^>]*/?>'
