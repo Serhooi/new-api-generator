@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -44,7 +45,7 @@
             background: white;
             border-radius: 20px;
             padding: 2rem;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             margin-bottom: 2rem;
         }
 
@@ -95,6 +96,46 @@
             grid-template-columns: 1fr 1fr;
             gap: 2rem;
             margin-bottom: 2rem;
+        }
+
+        #photo-slots-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .photo-slot {
+            border: 2px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            background: #f8fafc;
+        }
+
+        .photo-slot:hover {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+
+        .photo-slot.dragover {
+            border-color: #667eea;
+            background: #e6fffa;
+            transform: scale(1.02);
+        }
+
+        .photo-slot-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #2d3748;
+        }
+
+        .photo-slot-description {
+            color: #718096;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
         }
 
         .template-upload-area {
@@ -192,7 +233,8 @@
             color: #2d3748;
         }
 
-        .form-input, .form-select {
+        .form-input,
+        .form-select {
             width: 100%;
             padding: 0.75rem;
             border: 2px solid #e2e8f0;
@@ -201,7 +243,8 @@
             transition: border-color 0.3s ease;
         }
 
-        .form-input:focus, .form-select:focus {
+        .form-input:focus,
+        .form-select:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -238,12 +281,12 @@
             margin-bottom: 2rem;
             padding: 0.5rem 1rem;
             border-radius: 8px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             transition: all 0.3s ease;
         }
 
         .nav-link:hover {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.2);
             transform: translateY(-2px);
         }
 
@@ -285,8 +328,15 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         .loading {
@@ -294,10 +344,11 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <a href="/templates" class="nav-link">← Назад к шаблонам</a>
-        
+
         <div class="header">
             <h1>📤 Загрузка шаблонов</h1>
             <p>Загрузите SVG шаблоны для создания карусели недвижимости</p>
@@ -320,7 +371,8 @@
             <form id="single-upload-form" method="POST" action="/api/upload-single" enctype="multipart/form-data">
                 <div class="form-group">
                     <label class="form-label">Название шаблона</label>
-                    <input type="text" name="name" class="form-input" placeholder="Например: Modern Open House" required>
+                    <input type="text" name="name" class="form-input" placeholder="Например: Modern Open House"
+                        required>
                 </div>
 
                 <div class="form-group">
@@ -348,7 +400,8 @@
                     <div class="upload-icon">📁</div>
                     <div class="upload-title">Выберите SVG файл</div>
                     <div class="upload-description">Перетащите файл сюда или нажмите для выбора</div>
-                    <button type="button" class="upload-btn" onclick="document.getElementById('single-file').click()">Выбрать файл</button>
+                    <button type="button" class="upload-btn"
+                        onclick="document.getElementById('single-file').click()">Выбрать файл</button>
                     <input type="file" id="single-file" name="svg_file" class="file-input" accept=".svg" required>
                     <div id="single-preview" class="file-preview">
                         <div class="file-name"></div>
@@ -367,10 +420,12 @@
 
             <!-- Карусель шаблонов -->
             <div id="carousel-upload" class="carousel-upload">
-                <form id="carousel-upload-form" method="POST" action="/api/upload-carousel" enctype="multipart/form-data">
+                <form id="carousel-upload-form" method="POST" action="/api/upload-carousel-multi"
+                    enctype="multipart/form-data">
                     <div class="form-group">
                         <label class="form-label">Название набора шаблонов</label>
-                        <input type="text" name="name" class="form-input" placeholder="Например: Modern Real Estate Set" required>
+                        <input type="text" name="name" class="form-input" placeholder="Например: Modern Real Estate Set"
+                            required>
                     </div>
 
                     <div class="form-group">
@@ -385,29 +440,39 @@
                         </select>
                     </div>
 
+                    <div class="form-group">
+                        <label class="form-label">Количество photo слайдов</label>
+                        <select id="photo-count-select" name="photo_count" class="form-select"
+                            onchange="updatePhotoSlots()" required>
+                            <option value="1">1 photo слайд</option>
+                            <option value="2">2 photo слайда</option>
+                            <option value="3">3 photo слайда</option>
+                            <option value="4">4 photo слайда</option>
+                            <option value="5">5 photo слайдов</option>
+                            <option value="6">6 photo слайдов</option>
+                            <option value="7">7 photo слайдов</option>
+                            <option value="8">8 photo слайдов</option>
+                            <option value="9">9 photo слайдов</option>
+                        </select>
+                    </div>
+
                     <div class="carousel-templates">
                         <div class="template-upload-area" onclick="document.getElementById('main-template').click()">
                             <div class="upload-icon">🎯</div>
                             <div class="upload-title">Main Template</div>
                             <div class="upload-description">Основной шаблон для первого слайда карусели</div>
-                            <button type="button" class="upload-btn" onclick="document.getElementById('main-template').click()">Выбрать Main</button>
-                            <input type="file" id="main-template" name="main_file" class="file-input" accept=".svg" required>
+                            <button type="button" class="upload-btn"
+                                onclick="document.getElementById('main-template').click()">Выбрать Main</button>
+                            <input type="file" id="main-template" name="main_file" class="file-input" accept=".svg"
+                                required>
                             <div id="main-preview" class="file-preview">
                                 <div class="file-name"></div>
                                 <div class="file-size"></div>
                             </div>
                         </div>
 
-                        <div class="template-upload-area" onclick="document.getElementById('photo-template').click()">
-                            <div class="upload-icon">📸</div>
-                            <div class="upload-title">Photo Template</div>
-                            <div class="upload-description">Шаблон для последующих слайдов с фотографиями</div>
-                            <button type="button" class="upload-btn" onclick="document.getElementById('photo-template').click()">Выбрать Photo</button>
-                            <input type="file" id="photo-template" name="photo_file" class="file-input" accept=".svg" required>
-                            <div id="photo-preview" class="file-preview">
-                                <div class="file-name"></div>
-                                <div class="file-size"></div>
-                            </div>
+                        <div id="photo-slots-container">
+                            <!-- Photo слоты будут добавлены динамически -->
                         </div>
                     </div>
 
@@ -431,7 +496,7 @@
             const carouselForm = document.getElementById('carousel-upload');
 
             buttons.forEach(btn => btn.classList.remove('active'));
-            
+
             if (type === 'single') {
                 buttons[0].classList.add('active');
                 singleForm.style.display = 'block';
@@ -447,21 +512,21 @@
         function setupFileInput(inputId, previewId) {
             const input = document.getElementById(inputId);
             const preview = document.getElementById(previewId);
-            const uploadArea = input.closest('.template-upload-area');
-            
+            const uploadArea = input ? input.closest('.template-upload-area, .photo-slot') : null;
+
             if (!input || !preview || !uploadArea) {
                 console.log(`Не найдены элементы для ${inputId}`);
                 return;
             }
 
-            input.addEventListener('change', function(e) {
+            input.addEventListener('change', function (e) {
                 const file = e.target.files[0];
                 if (file) {
                     console.log(`Файл выбран для ${inputId}:`, file.name);
                     showFilePreview(file, preview);
                     uploadArea.style.borderColor = '#38a169';
                     uploadArea.style.background = '#e6fffa';
-                    
+
                     // Обновляем текст кнопки
                     const button = uploadArea.querySelector('.upload-btn');
                     if (button) {
@@ -472,27 +537,27 @@
             });
 
             // Drag & Drop
-            uploadArea.addEventListener('dragover', function(e) {
+            uploadArea.addEventListener('dragover', function (e) {
                 e.preventDefault();
                 uploadArea.classList.add('dragover');
             });
 
-            uploadArea.addEventListener('dragleave', function(e) {
+            uploadArea.addEventListener('dragleave', function (e) {
                 e.preventDefault();
                 uploadArea.classList.remove('dragover');
             });
 
-            uploadArea.addEventListener('drop', function(e) {
+            uploadArea.addEventListener('drop', function (e) {
                 e.preventDefault();
                 uploadArea.classList.remove('dragover');
-                
+
                 const files = e.dataTransfer.files;
                 if (files.length > 0 && files[0].type === 'image/svg+xml') {
                     input.files = files;
                     showFilePreview(files[0], preview);
                     uploadArea.style.borderColor = '#38a169';
                     uploadArea.style.background = '#e6fffa';
-                    
+
                     // Обновляем текст кнопки
                     const button = uploadArea.querySelector('.upload-btn');
                     if (button) {
@@ -506,7 +571,7 @@
         function showFilePreview(file, preview) {
             const fileName = preview.querySelector('.file-name');
             const fileSize = preview.querySelector('.file-size');
-            
+
             if (fileName && fileSize) {
                 fileName.textContent = file.name;
                 fileSize.textContent = `${(file.size / 1024).toFixed(1)} KB`;
@@ -515,25 +580,59 @@
             }
         }
 
+        // Функция для создания photo слотов
+        function updatePhotoSlots() {
+            const photoCount = parseInt(document.getElementById('photo-count-select').value);
+            const container = document.getElementById('photo-slots-container');
+
+            // Очищаем контейнер
+            container.innerHTML = '';
+
+            // Создаем photo слоты
+            for (let i = 1; i <= photoCount; i++) {
+                const slotHtml = `
+                    <div class="photo-slot" onclick="document.getElementById('photo-template-${i}').click()">
+                        <div class="upload-icon">📸</div>
+                        <div class="photo-slot-title">Photo Template ${i}</div>
+                        <div class="photo-slot-description">SVG шаблон для ${i}-го photo слайда</div>
+                        <button type="button" class="upload-btn" onclick="document.getElementById('photo-template-${i}').click()">Выбрать Photo ${i}</button>
+                        <input type="file" id="photo-template-${i}" name="photo_file_${i}" class="file-input" accept=".svg" required>
+                        <div id="photo-preview-${i}" class="file-preview">
+                            <div class="file-name"></div>
+                            <div class="file-size"></div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += slotHtml;
+            }
+
+            // Настраиваем обработчики для новых input'ов
+            for (let i = 1; i <= photoCount; i++) {
+                setupFileInput(`photo-template-${i}`, `photo-preview-${i}`);
+            }
+        }
+
         // Инициализация
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             setupFileInput('single-file', 'single-preview');
             setupFileInput('main-template', 'main-preview');
-            setupFileInput('photo-template', 'photo-preview');
+
+            // Создаем начальные photo слоты
+            updatePhotoSlots();
 
             // Обработка форм
-            document.getElementById('single-upload-form').addEventListener('submit', function(e) {
+            document.getElementById('single-upload-form').addEventListener('submit', function (e) {
                 handleFormSubmit(e, 'single-progress');
             });
 
-            document.getElementById('carousel-upload-form').addEventListener('submit', function(e) {
+            document.getElementById('carousel-upload-form').addEventListener('submit', function (e) {
                 handleFormSubmit(e, 'carousel-progress');
             });
         });
 
         function handleFormSubmit(e, progressId) {
             e.preventDefault(); // Предотвращаем стандартную отправку формы
-            
+
             const form = e.target;
             const submitBtn = form.querySelector('.submit-btn');
             const progressBar = document.getElementById(progressId);
@@ -542,14 +641,14 @@
             // Проверяем что файлы выбраны
             const fileInputs = form.querySelectorAll('input[type="file"]');
             let allFilesSelected = true;
-            
+
             fileInputs.forEach(input => {
                 if (input.required && (!input.files || input.files.length === 0)) {
                     allFilesSelected = false;
                     console.log(`Файл не выбран для ${input.id}`);
                 }
             });
-            
+
             if (!allFilesSelected) {
                 showMessage('error', 'Пожалуйста, выберите все необходимые файлы');
                 return;
@@ -559,66 +658,139 @@
             submitBtn.classList.add('loading');
             progressBar.style.display = 'block';
 
-            // Отправляем форму через AJAX
-            const formData = new FormData(form);
-            
-            fetch(form.action, {
+            // Для карусели с множественными файлами используем специальную обработку
+            if (form.id === 'carousel-upload-form') {
+                handleCarouselMultiUpload(form, progressBar, progressFill, submitBtn);
+            } else {
+                // Стандартная отправка для одиночных файлов
+                const formData = new FormData(form);
+
+                fetch(form.action, {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        progressFill.style.width = '100%';
+
+                        setTimeout(() => {
+                            if (data.success) {
+                                showMessage('success', data.message || 'Файлы успешно загружены!');
+                                form.reset(); // Очищаем форму
+
+                                // Сбрасываем состояние кнопок и превью
+                                resetFormState(form);
+                            } else {
+                                showMessage('error', data.error || 'Произошла ошибка при загрузке');
+                            }
+
+                            submitBtn.disabled = false;
+                            submitBtn.classList.remove('loading');
+                            progressBar.style.display = 'none';
+                            progressFill.style.width = '0%';
+                        }, 500);
+                    })
+                    .catch(error => {
+                        console.error('Ошибка:', error);
+                        showMessage('error', 'Произошла ошибка при загрузке файлов');
+
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('loading');
+                        progressBar.style.display = 'none';
+                        progressFill.style.width = '0%';
+                    });
+            }
+        }
+
+        function handleCarouselMultiUpload(form, progressBar, progressFill, submitBtn) {
+            const formData = new FormData();
+
+            // Добавляем основные поля
+            formData.append('name', form.querySelector('input[name="name"]').value);
+            formData.append('category', form.querySelector('select[name="category"]').value);
+            formData.append('photo_count', form.querySelector('select[name="photo_count"]').value);
+
+            // Добавляем main файл
+            const mainFile = form.querySelector('input[name="main_file"]').files[0];
+            if (mainFile) {
+                formData.append('main_file', mainFile);
+            }
+
+            // Добавляем все photo файлы
+            const photoCount = parseInt(form.querySelector('select[name="photo_count"]').value);
+            for (let i = 1; i <= photoCount; i++) {
+                const photoFile = form.querySelector(`input[name="photo_file_${i}"]`).files[0];
+                if (photoFile) {
+                    formData.append(`photo_file_${i}`, photoFile);
+                }
+            }
+
+            fetch('/api/upload-carousel-multi', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
-            .then(data => {
-                progressFill.style.width = '100%';
-                
-                setTimeout(() => {
-                    if (data.success) {
-                        showMessage('success', data.message || 'Файлы успешно загружены!');
-                        form.reset(); // Очищаем форму
-                        
-                        // Сбрасываем состояние кнопок и превью
-                        resetFormState(form);
-                    } else {
-                        showMessage('error', data.error || 'Произошла ошибка при загрузке');
-                    }
-                    
+                .then(response => response.json())
+                .then(data => {
+                    progressFill.style.width = '100%';
+
+                    setTimeout(() => {
+                        if (data.success) {
+                            showMessage('success', data.message || 'Карусель успешно загружена!');
+                            form.reset(); // Очищаем форму
+
+                            // Пересоздаем photo слоты
+                            updatePhotoSlots();
+
+                            // Сбрасываем состояние кнопок и превью
+                            resetFormState(form);
+                        } else {
+                            showMessage('error', data.error || 'Произошла ошибка при загрузке');
+                        }
+
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('loading');
+                        progressBar.style.display = 'none';
+                        progressFill.style.width = '0%';
+                    }, 500);
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    showMessage('error', 'Произошла ошибка при загрузке карусели');
+
                     submitBtn.disabled = false;
                     submitBtn.classList.remove('loading');
                     progressBar.style.display = 'none';
                     progressFill.style.width = '0%';
-                }, 500);
-            })
-            .catch(error => {
-                console.error('Ошибка:', error);
-                showMessage('error', 'Произошла ошибка при загрузке файлов');
-                
-                submitBtn.disabled = false;
-                submitBtn.classList.remove('loading');
-                progressBar.style.display = 'none';
-                progressFill.style.width = '0%';
-            });
+                });
         }
-        
+
         function resetFormState(form) {
             // Сбрасываем состояние всех upload areas
-            const uploadAreas = form.querySelectorAll('.template-upload-area');
+            const uploadAreas = form.querySelectorAll('.template-upload-area, .photo-slot');
             uploadAreas.forEach(area => {
                 area.style.borderColor = '';
                 area.style.background = '';
-                
+
                 const button = area.querySelector('.upload-btn');
                 if (button) {
                     // Восстанавливаем оригинальный текст кнопки
                     if (button.textContent.includes('Main')) {
                         button.textContent = 'Выбрать Main';
                     } else if (button.textContent.includes('Photo')) {
-                        button.textContent = 'Выбрать Photo';
+                        // Для множественных photo кнопок
+                        const match = button.textContent.match(/Photo (\d+)/);
+                        if (match) {
+                            button.textContent = `Выбрать Photo ${match[1]}`;
+                        } else {
+                            button.textContent = 'Выбрать Photo';
+                        }
                     } else {
                         button.textContent = 'Выбрать файл';
                     }
                     button.style.background = '';
                 }
             });
-            
+
             // Скрываем все превью
             const previews = form.querySelectorAll('.file-preview');
             previews.forEach(preview => {
@@ -631,12 +803,12 @@
             const messageEl = document.getElementById(type + '-message');
             messageEl.textContent = text;
             messageEl.style.display = 'block';
-            
+
             setTimeout(() => {
                 messageEl.style.display = 'none';
             }, 5000);
         }
     </script>
 </body>
-</html>
 
+</html>
