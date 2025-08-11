@@ -21,7 +21,7 @@ import io
 import html
 import cairosvg
 from PIL import Image
-
+from supabase import create_client, Client
 from preview_system import generate_svg_preview, create_preview_with_data, cleanup_old_previews
 
 app = Flask(__name__)
@@ -35,11 +35,49 @@ DATABASE_PATH = 'templates.db'
 OUTPUT_DIR = 'output'
 ALLOWED_EXTENSIONS = {'svg'}
 
-# Создаем директории
+# Supabase конфигурация
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://your-project.supabase.co')
+SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY', 'your-anon-key')
+
+# Инициализация Supabase клиента
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Supabase клиент инициализирован")
+except Exception as e:
+    print(f"❌ Ошибка инициализации Supabase: {e}")
+    supabase = None
+
+# Создаем директории (для локальной разработки)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs('output/single', exist_ok=True)
 os.makedirs('output/carousel', exist_ok=True)
 os.makedirs('output/previews', exist_ok=True)
+
+field_mapping = {
+    # Маппинг для main template
+    'dyno.agentName': 'dyno.name',
+    'dyno.agentPhone': 'dyno.phone',
+    'dyno.agentEmail': 'dyno.email',
+    'dyno.agentPhoto': 'dyno.agentheadshot',
+    'dyno.propertyAddress': 'dyno.propertyaddress',
+    'dyno.propertyfeatures': 'dyno.propertyfeatures',
+    
+    # Обратный маппинг для совместимости
+    'dyno.agentname': 'dyno.name',
+    'dyno.agentemail': 'dyno.email', 
+    'dyno.agentphone': 'dyno.phone',
+    'dyno.agentphoto': 'dyno.agentheadshot',
+    'dyno.propertyaddress': 'dyno.propertyaddress',
+    
+    # Маппинг для множественных изображений недвижимости
+    'dyno.propertyimage1': 'dyno.propertyimage',  # Первое изображение на main слайде
+}
+
+# Специальный маппинг для photo template
+photo_field_mapping = {
+    'dyno.propertyimage': 'dyno.propertyimage2',  # В photo template используется propertyimage2
+    'dyno.agentphoto': 'dyno.agentheadshot'       # В photo template может быть agentheadshot
+}
 
 def has_dyno_fields_simple(svg_content):
     """
@@ -277,12 +315,8 @@ def process_svg_font_perfect(svg_content, replacements):
         """Возвращает правильный preserveAspectRatio для типа изображения и формы элемента"""
         
         if image_type == 'headshot':
-            if element_shape == 'circular':
-                # КРИТИЧНО: для круглых хедшотов используем slice!
-                return 'xMidYMid slice'
-            else:
-                # Для прямоугольных хедшотов используем meet
-                return 'xMidYMid meet'
+            # Для хедшотов НЕ МЕНЯЕМ preserveAspectRatio - оставляем как в оригинале
+            return None
         
         elif image_type == 'property':
             # Недвижимость всегда slice (cover эффект)
@@ -325,6 +359,31 @@ def process_svg_font_perfect(svg_content, replacements):
                 return True
         
         return False
+    
+    def wrap_address_text(address_text, max_length=35):
+        """Автоматически переносит длинный адрес на строки"""
+        if len(address_text) <= max_length:
+            return address_text, ""
+        
+        # Разбиваем по запятым
+        parts = address_text.split(', ')
+        if len(parts) >= 2:
+            # Первая строка: номер дома + улица
+            line1 = parts[0]
+            # Вторая строка: остальное
+            line2 = ', '.join(parts[1:])
+            return line1, line2
+        
+        # Если нет запятых, разбиваем по словам
+        words = address_text.split()
+        if len(words) <= 3:
+            return address_text, ""
+        
+        # Ищем середину для разбивки
+        mid = len(words) // 2
+        line1 = ' '.join(words[:mid])
+        line2 = ' '.join(words[mid:])
+        return line1, line2
     
     def wrap_address_text(address_text, max_length=35):
         """
@@ -373,13 +432,6 @@ def process_svg_font_perfect(svg_content, replacements):
     successful_replacements = 0
     total_fields = len(replacements)
     
-    # Маппинг полей для поддержки разных названий
-    field_mapping = {
-        'dyno.agentname': 'dyno.name',
-        'dyno.agentemail': 'dyno.email', 
-        'dyno.agentphone': 'dyno.phone'
-    }
-    
     # Обрабатываем каждое поле с учетом маппинга
     for dyno_field, replacement in replacements.items():
         print(f"\n🔄 Обрабатываю поле: {dyno_field} = {replacement}")
@@ -388,11 +440,20 @@ def process_svg_font_perfect(svg_content, replacements):
         original_field = dyno_field
         
         # Проверяем альтернативные названия полей
+        alternative_field = None
+        
+        # Проверяем точное совпадение
         if dyno_field in field_mapping:
             alternative_field = field_mapping[dyno_field]
             print(f"   🔄 Проверяю альтернативное название поля: {alternative_field}")
         else:
-            alternative_field = None
+            # Проверяем регистронезависимое совпадение
+            dyno_field_lower = dyno_field.lower()
+            for key, value in field_mapping.items():
+                if key.lower() == dyno_field_lower:
+                    alternative_field = value
+                    print(f"   🔄 Найдено регистронезависимое совпадение: {dyno_field} → {alternative_field}")
+                    break
         
         if is_image_field(dyno_field):
             # ОБРАБОТКА ИЗОБРАЖЕНИЙ
@@ -405,21 +466,90 @@ def process_svg_font_perfect(svg_content, replacements):
             safe_url = safe_escape_for_svg(str(replacement))
             print(f"      🔒 Применено полное экранирование URL")
             
-            # Ищем элемент с id и извлекаем pattern
-            element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
+            # Ищем элемент с id (любой элемент, не только с fill)
+            element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*>'
             match = re.search(element_pattern, processed_svg)
+            
+            # Если не нашли, выводим все элементы с id для отладки
+            if not match:
+                all_elements_with_id = re.findall(r'<[^>]*id="([^"]*)"[^>]*>', processed_svg)
+                print(f"      🔍 Все элементы с id в SVG: {all_elements_with_id}")
+                print(f"      🔍 Ищем элемент: {dyno_field}")
+            
+            # Если нашли элемент, выводим его содержимое для отладки
+            if match:
+                element_content = match.group(0)
+                print(f"      🔍 Найден элемент: {element_content[:200]}...")
+                
+                # Проверяем, есть ли fill атрибут
+                fill_match = re.search(r'fill="url\(#([^)]+)\)"', element_content)
+                if fill_match:
+                    pattern_id = fill_match.group(1)
+                    print(f"      🎯 Найден pattern из fill: {pattern_id}")
+                else:
+                    print(f"      ⚠️ Fill атрибут не найден, ищем pattern по умолчанию")
+                    pattern_id = dyno_field.replace('dyno.', 'pattern_')
             
             # Если не нашли по основному имени, пробуем альтернативное
             if not match and alternative_field:
-                element_pattern = f'<[^>]*id="{re.escape(alternative_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
+                element_pattern = f'<[^>]*id="{re.escape(alternative_field)}"[^>]*>'
                 match = re.search(element_pattern, processed_svg)
                 if match:
                     print(f"      ✅ Найдено по альтернативному имени: {alternative_field}")
                     dyno_field = alternative_field
             
             if match:
-                pattern_id = match.group(1)
-                print(f"      🎯 Найден pattern: {pattern_id}")
+                # Ищем pattern_id в fill атрибуте или в связанных элементах
+                element_content = match.group(0)
+                print(f"      🔍 Анализируем элемент: {element_content}")
+                pattern_match = re.search(r'fill="url\(#([^)]+)\)"', element_content)
+                print(f"      🔍 Pattern match результат: {pattern_match}")
+                
+                if pattern_match:
+                    pattern_id = pattern_match.group(1)
+                    print(f"      🎯 Найден pattern из fill: {pattern_id}")
+                else:
+                    # Проверяем, может это прямой image элемент
+                    if '<image' in element_content:
+                        print(f"      🎯 Найден прямой image элемент")
+                        # Обрабатываем прямой image элемент
+                        old_image = element_content
+                        new_image = old_image
+                        
+                        # Заменяем URL
+                        new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
+                        new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
+                        
+                        # Для хедшотов НЕ МЕНЯЕМ preserveAspectRatio - только URL
+                        if image_type == 'headshot':
+                            print(f"      🎯 Хедшот: только замена URL, preserveAspectRatio не трогаем")
+                        else:
+                            # Устанавливаем preserveAspectRatio для других изображений
+                            if aspect_ratio and 'preserveAspectRatio=' in new_image:
+                                new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                            elif aspect_ratio:
+                                if new_image.endswith('/>'):
+                                    new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
+                                elif new_image.endswith('>'):
+                                    new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
+                        
+                        processed_svg = processed_svg.replace(old_image, new_image)
+                        print(f"      ✅ Прямое изображение {dyno_field} заменено!")
+                        print(f"      🎯 Применен aspect ratio: {aspect_ratio}")
+                        successful_replacements += 1
+                        continue
+                    else:
+                        # Если нет fill, ищем pattern по id элемента
+                        pattern_id = dyno_field.replace('dyno.', 'pattern_')
+                        print(f"      🎯 Используем pattern по умолчанию: {pattern_id}")
+                        
+                        # Попробуем найти реальный pattern в SVG
+                        all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
+                        if all_patterns:
+                            print(f"      🔍 Доступные patterns: {all_patterns}")
+                            # Используем первый доступный pattern
+                            pattern_id = all_patterns[0]
+                            print(f"      🎯 Используем найденный pattern: {pattern_id}")
                 
                 # ОПРЕДЕЛЯЕМ ФОРМУ ЭЛЕМЕНТА
                 element_shape = determine_element_shape(processed_svg, pattern_id)
@@ -432,6 +562,42 @@ def process_svg_font_perfect(svg_content, replacements):
                 # Ищем pattern блок
                 pattern_block_pattern = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
                 pattern_match = re.search(pattern_block_pattern, processed_svg, re.DOTALL)
+                
+                if pattern_match:
+                    print(f"      ✅ Найден pattern блок: {pattern_id}")
+                else:
+                    print(f"      ❌ Pattern блок {pattern_id} не найден")
+                    # Попробуем найти pattern по номеру
+                    all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
+                    print(f"      🔍 Все pattern блоки в SVG: {all_patterns}")
+                    
+                    # Попробуем найти pattern по номеру
+                    for i, pattern_name in enumerate(all_patterns):
+                        print(f"      🔍 Проверяем pattern {i}: {pattern_name}")
+                        # Ищем use элемент, который ссылается на этот pattern
+                        use_pattern = f'<use[^>]*xlink:href="#{re.escape(pattern_name)}"[^>]*>'
+                        if re.search(use_pattern, processed_svg):
+                            print(f"      ✅ Найден используемый pattern: {pattern_name}")
+                            pattern_id = pattern_name
+                            pattern_match = re.search(f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>', processed_svg, re.DOTALL)
+                            break
+                
+                # Если не нашли, ищем все pattern блоки для отладки
+                if not pattern_match:
+                    all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
+                    print(f"      🔍 Все pattern блоки в SVG: {all_patterns}")
+                    print(f"      🔍 Ищем pattern: {pattern_id}")
+                    
+                    # Попробуем найти pattern по номеру
+                    for i, pattern_name in enumerate(all_patterns):
+                        print(f"      🔍 Проверяем pattern {i}: {pattern_name}")
+                        # Ищем use элемент, который ссылается на этот pattern
+                        use_pattern = f'<use[^>]*xlink:href="#{re.escape(pattern_name)}"[^>]*>'
+                        if re.search(use_pattern, processed_svg):
+                            print(f"      ✅ Найден используемый pattern: {pattern_name}")
+                            pattern_id = pattern_name
+                            pattern_match = re.search(f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>', processed_svg, re.DOTALL)
+                            break
                 
                 if pattern_match:
                     pattern_content = pattern_match.group(1)
@@ -454,6 +620,32 @@ def process_svg_font_perfect(svg_content, replacements):
                         if new_pattern != old_pattern:
                             processed_svg = processed_svg.replace(old_pattern, new_pattern)
                             print(f"      ✅ Удалены фиксированные transform - headshot будет центрироваться автоматически")
+                    else:
+                        # Для других изображений применяем масштабирование если нужно
+                        if element_shape == 'circular':
+                            print(f"      🔍 Применяем масштабирование для круглого изображения")
+                            
+                            # Находим pattern и добавляем transform с масштабированием
+                            old_pattern = pattern_full
+                            
+                            if 'transform=' in old_pattern:
+                                # Если transform уже есть, добавляем scale к нему
+                                new_pattern = re.sub(
+                                    r'transform="([^"]*)"', 
+                                    r'transform="\1 scale(0.9)"', 
+                                    old_pattern
+                                )
+                            else:
+                                # Если transform нет, добавляем новый атрибут
+                                new_pattern = old_pattern.replace(
+                                    f'id="{pattern_id}"', 
+                                    f'id="{pattern_id}" patternTransform="scale(0.9)"'
+                                )
+                            
+                            # Заменяем старый pattern на новый с масштабированием
+                            if new_pattern != old_pattern:
+                                processed_svg = processed_svg.replace(old_pattern, new_pattern)
+                                print(f"      ✅ Добавлено масштабирование (scale 0.9) для круглого изображения")
                     
                     # Ищем use элемент внутри pattern
                     use_pattern = r'<use[^>]*xlink:href="#([^"]*)"[^>]*/?>'
@@ -475,14 +667,18 @@ def process_svg_font_perfect(svg_content, replacements):
                             new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
                             new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
                             
-                            # КРИТИЧНО: Устанавливаем правильный preserveAspectRatio
-                            if 'preserveAspectRatio=' in new_image:
-                                new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                            # Для хедшотов - НЕ МЕНЯЕМ preserveAspectRatio, только URL
+                            if image_type == 'headshot':
+                                print(f"      🎯 Хедшот: только URL, preserveAspectRatio не трогаем")
                             else:
-                                if new_image.endswith('/>'):
-                                    new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
-                                elif new_image.endswith('>'):
-                                    new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
+                                # Для других изображений устанавливаем правильный preserveAspectRatio
+                                if aspect_ratio and 'preserveAspectRatio=' in new_image:
+                                    new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                                elif aspect_ratio:
+                                    if new_image.endswith('/>'):
+                                        new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
+                                    elif new_image.endswith('>'):
+                                        new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
                             
                             processed_svg = processed_svg.replace(old_image, new_image)
                             print(f"      ✅ Изображение {dyno_field} заменено!")
@@ -730,6 +926,57 @@ def ensure_db_exists():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def upload_to_supabase_storage(file_content, filename, folder="generated"):
+    """
+    Загружает файл в Supabase Storage
+    """
+    if not supabase:
+        print("❌ Supabase клиент не инициализирован")
+        return None
+    
+    try:
+        # Создаем путь к файлу
+        file_path = f"{folder}/{filename}"
+        
+        # Загружаем файл в Storage
+        result = supabase.storage.from_("images").upload(
+            path=file_path,
+            file=file_content.encode('utf-8'),
+            file_options={"content-type": "image/svg+xml"}
+        )
+        
+        # Получаем публичный URL
+        public_url = supabase.storage.from_("images").get_public_url(file_path)
+        
+        print(f"✅ Файл загружен в Supabase: {public_url}")
+        return public_url
+        
+    except Exception as e:
+        print(f"❌ Ошибка загрузки в Supabase: {e}")
+        return None
+
+def save_file_locally_or_supabase(content, filename, folder="carousel"):
+    """
+    Сохраняет файл локально (для разработки) или в Supabase (для продакшена)
+    """
+    # Определяем, работаем ли мы на Render
+    is_render = os.environ.get('RENDER', False) or os.environ.get('SUPABASE_URL', False)
+    
+    if is_render and supabase:
+        # На Render - загружаем в Supabase
+        return upload_to_supabase_storage(content, filename, folder)
+    else:
+        # Локально - сохраняем в файл
+        local_path = os.path.join(OUTPUT_DIR, folder, filename)
+        try:
+            with open(local_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"✅ Файл сохранен локально: {local_path}")
+            return f"/output/{folder}/{filename}"
+        except Exception as e:
+            print(f"❌ Ошибка сохранения локально: {e}")
+            return None
+
 def create_app():
     """
     Функция для создания приложения (нужна для Gunicorn)
@@ -975,10 +1222,132 @@ def upload_carousel():
     except Exception as e:
         return jsonify({'error': f'Ошибка загрузки карусели: {str(e)}'}), 500
 
+# API для загрузки карусели с множественными photo слайдами
+@app.route('/api/upload-carousel-multi', methods=['POST'])
+def upload_carousel_multi():
+    try:
+        if 'main_file' not in request.files:
+            return jsonify({'error': 'Необходим main файл'}), 400
+        
+        main_file = request.files['main_file']
+        name = request.form.get('name', '')
+        category = request.form.get('category', '')
+        photo_count = int(request.form.get('photo_count', 1))  # Количество photo слайдов
+        
+        if main_file.filename == '':
+            return jsonify({'error': 'Main файл должен быть выбран'}), 400
+        
+        if not allowed_file(main_file.filename):
+            return jsonify({'error': 'Разрешены только SVG файлы'}), 400
+        
+        # Проверяем что все photo файлы загружены
+        photo_files = []
+        for i in range(1, photo_count + 1):
+            photo_file_key = f'photo_file_{i}'
+            if photo_file_key not in request.files:
+                return jsonify({'error': f'Необходим photo файл {i}'}), 400
+            
+            photo_file = request.files[photo_file_key]
+            if photo_file.filename == '':
+                return jsonify({'error': f'Photo файл {i} должен быть выбран'}), 400
+            
+            if not allowed_file(photo_file.filename):
+                return jsonify({'error': f'Photo файл {i}: разрешены только SVG файлы'}), 400
+            
+            photo_files.append(photo_file)
+        
+        # Читаем содержимое main файла
+        main_svg = main_file.read().decode('utf-8')
+        
+        # Анализируем dyno поля main
+        main_dyno_info = {
+            'has_dyno': has_dyno_fields_simple(main_svg),
+            'fields': extract_dyno_fields_simple(main_svg)
+        }
+        
+        # Генерируем уникальные ID
+        main_template_id = str(uuid.uuid4())
+        carousel_id = str(uuid.uuid4())
+        photo_template_ids = []
+        
+        # Сохраняем шаблоны в базу данных
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Сохраняем main template
+        cursor.execute('''
+            INSERT INTO templates (id, name, category, template_role, svg_content, dyno_fields)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', [main_template_id, f"{name} - Main", category, "main", main_svg, ','.join(main_dyno_info.get('fields', []))])
+        
+        # Создаем множественные photo шаблоны из загруженных файлов
+        for i, photo_file in enumerate(photo_files):
+            photo_template_id = str(uuid.uuid4())
+            photo_template_ids.append(photo_template_id)
+            
+            # Читаем содержимое photo файла
+            photo_svg = photo_file.read().decode('utf-8')
+            
+            # Анализируем dyno поля photo
+            photo_dyno_info = {
+                'has_dyno': has_dyno_fields_simple(photo_svg),
+                'fields': extract_dyno_fields_simple(photo_svg)
+            }
+            
+            # Сохраняем photo template
+            cursor.execute('''
+                INSERT INTO templates (id, name, category, template_role, svg_content, dyno_fields)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', [photo_template_id, f"{name} - Photo {i+1}", category, "photo", photo_svg, ','.join(photo_dyno_info.get('fields', []))])
+        
+        # Сохраняем карусель с множественными photo
+        cursor.execute('''
+            INSERT INTO carousels (id, name, main_template_id, photo_template_id)
+            VALUES (?, ?, ?, ?)
+        ''', [carousel_id, name, main_template_id, ','.join(photo_template_ids)])
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'carousel_id': carousel_id,
+            'main_template_id': main_template_id,
+            'photo_template_ids': photo_template_ids,
+            'photo_count': photo_count,
+            'main_dyno_fields': main_dyno_info.get('fields', []) if main_dyno_info else [],
+            'message': f'Карусель "{name}" с {photo_count} photo слайдами успешно загружена'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка загрузки карусели: {str(e)}'}), 500
+
 # API роуты
 @app.route('/api/health')
 def health():
     return jsonify({"status": "ok", "message": "API работает"})
+
+# API для создания простой карусели (используется фронтендом)
+@app.route('/api/carousel', methods=['POST'])
+def create_carousel():
+    """
+    Простое создание карусели с автоматическим определением количества photo слайдов
+    """
+    try:
+        data = request.get_json()
+        print(f"📥 Простое создание карусели: {data}")
+        
+        main_template_name = data.get('main_template_name')
+        photo_template_name = data.get('photo_template_name')
+        replacements = data.get('replacements', {})
+        
+        # Перенаправляем на основной эндпоинт
+        return create_and_generate_carousel()
+        
+    except Exception as e:
+        print(f"❌ Ошибка простого создания карусели: {str(e)}")
+        return jsonify({'error': f'Ошибка создания карусели: {str(e)}'}), 500
 
 @app.route('/api/templates/all-previews')
 def get_all_templates():
@@ -1329,16 +1698,17 @@ def generate_single():
         
         # Генерируем уникальное имя файла
         output_filename = f"single_{str(uuid.uuid4())}.svg"
-        output_path = os.path.join(OUTPUT_DIR, 'single', output_filename)
         
-        # Сохраняем обработанный SVG
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(processed_svg)
+        # Используем новую логику сохранения
+        output_url = save_file_locally_or_supabase(processed_svg, output_filename, "single")
+        
+        if not output_url:
+            return jsonify({'error': 'Ошибка сохранения файла'}), 500
         
         return jsonify({
             'success': True,
             'template_name': template_name,
-            'output_url': f'/output/single/{output_filename}',
+            'output_url': output_url,
             'replacements_applied': len(replacements)
         })
         
@@ -1350,6 +1720,7 @@ def generate_single():
 def generate_carousel():
     try:
         data = request.get_json()
+        print(f"📥 Входящий запрос: {data}")
         main_template_id = data.get('main_template_id')
         photo_template_id = data.get('photo_template_id')
         # Фронтенд отправляет 'data' вместо 'replacements'
@@ -1393,9 +1764,39 @@ def generate_carousel():
         main_name, main_svg_content = main_result
         photo_name, photo_svg_content = photo_result
         
-        # Обрабатываем SVG с идеальным сохранением шрифтов
-        processed_main_svg = process_svg_font_perfect(main_svg_content, replacements)
-        processed_photo_svg = process_svg_font_perfect(photo_svg_content, replacements)
+        # Получаем реальные поля из SVG
+        svg_fields_main = extract_dyno_fields_simple(main_svg_content)
+        svg_fields_photo = extract_dyno_fields_simple(photo_svg_content)
+        
+        print(f"🔍 Main SVG поля: {svg_fields_main}")
+        print(f"🔍 Photo SVG поля: {svg_fields_photo}")
+        print(f"🔍 Все replacements: {replacements}")
+        
+        # Показываем все поля в photo SVG
+        print("🔍 ВСЕ поля в photo SVG:")
+        for field in svg_fields_photo:
+            print(f"   - {field}")
+        
+        # Фильтруем replacements для main SVG
+        filtered_replacements_main = {k: v for k, v in replacements.items() if k in svg_fields_main or field_mapping.get(k, k) in svg_fields_main}
+        
+        # Фильтруем replacements для photo SVG
+        filtered_replacements_photo = {k: v for k, v in replacements.items() if k in svg_fields_photo or field_mapping.get(k, k) in svg_fields_photo}
+        
+        # Используем только те поля, которые фронт отправил
+        print(f"✅ Используем оригинальные поля из replacements для photo template")
+        
+        print(f"🔍 Replacements для main SVG: {filtered_replacements_main}")
+        print(f"🔍 Replacements для photo SVG: {filtered_replacements_photo}")
+        
+        # Дополнительная отладка для photo template
+        print("🔍 Детальная проверка photo replacements:")
+        for key, value in replacements.items():
+            mapped_key = field_mapping.get(key, key)
+            in_photo = key in svg_fields_photo or mapped_key in svg_fields_photo
+            print(f"   {key} -> {mapped_key} -> в photo: {in_photo}")
+        processed_main_svg = process_svg_font_perfect(main_svg_content, filtered_replacements_main)
+        processed_photo_svg = process_svg_font_perfect(photo_svg_content, filtered_replacements_photo)
         
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
@@ -1419,6 +1820,16 @@ def generate_carousel():
         
         with open(photo_svg_path, 'w', encoding='utf-8') as f:
             f.write(processed_photo_svg)
+        
+        print(f"💾 Сохраняю main SVG: {main_filename}")
+        print(f"💾 Сохраняю photo SVG: {photo_filename}")
+        
+        # Используем новую логику сохранения
+        main_url = save_file_locally_or_supabase(processed_main_svg, main_filename, "carousel")
+        photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_filename, "carousel")
+        
+        if not main_url or not photo_url:
+            return jsonify({'error': 'Ошибка сохранения файлов'}), 500
         
         # Конвертируем в JPG
         main_jpg_path = os.path.join(carousel_output_dir, main_jpg_filename)
@@ -1471,7 +1882,20 @@ def generate_carousel():
             'images_detailed': images,  # Массив объектов с дополнительной информацией
             'slides_count': 2,
             'status': 'completed',
-            'format': 'jpg' if main_jpg_success and photo_jpg_success else 'svg'
+            'format': 'jpg' if main_jpg_success and photo_jpg_success else 'svg',
+            # Дополнительные поля для совместимости
+            'images_detailed_alt': [
+                {
+                    'type': 'main',
+                    'url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
+                    'template_name': main_name
+                },
+                {
+                    'type': 'photo',
+                    'url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
+                    'template_name': photo_name
+                }
+            ]
         }
         
         print(f"🔍 /api/generate/carousel response: {response_data}")
@@ -1490,6 +1914,7 @@ def generate_carousel_by_name():
     """
     try:
         data = request.get_json()
+        print(f"📥 Входящий запрос (by-name): {data}")
         main_template_name = data.get('main_template_name')
         photo_template_name = data.get('photo_template_name')
         replacements = data.get('replacements', {})
@@ -1532,11 +1957,33 @@ def generate_carousel_by_name():
         print(f"   Photo: {photo_name} (ID: {photo_id})")
         
         # Обрабатываем SVG с идеальным сохранением шрифтов
+        print(f"🔍 Replacements получены: {replacements}")
+        print(f"🔍 Main SVG поля: {extract_dyno_fields_simple(main_svg)}")
+        print(f"🔍 Photo SVG поля: {extract_dyno_fields_simple(photo_svg)}")
+        
+        # Фильтруем replacements для каждого шаблона
+        svg_fields_main = extract_dyno_fields_simple(main_svg)
+        svg_fields_photo = extract_dyno_fields_simple(photo_svg)
+        
+        # Показываем все поля в photo SVG
+        print("🔍 ВСЕ поля в photo SVG:")
+        for field in svg_fields_photo:
+            print(f"   - {field}")
+        
+        filtered_replacements_main = {k: v for k, v in replacements.items() if k in svg_fields_main or field_mapping.get(k, k) in svg_fields_main}
+        filtered_replacements_photo = {k: v for k, v in replacements.items() if k in svg_fields_photo or field_mapping.get(k, k) in svg_fields_photo}
+        
+        # Используем только те поля, которые фронт отправил
+        print(f"✅ Используем оригинальные поля из replacements для photo template")
+        
+        print(f"🔍 Filtered replacements для main: {filtered_replacements_main}")
+        print(f"🔍 Filtered replacements для photo: {filtered_replacements_photo}")
+        
         print("🎨 Обрабатываю Main шаблон...")
-        processed_main_svg = process_svg_font_perfect(main_svg, replacements)
+        processed_main_svg = process_svg_font_perfect(main_svg, filtered_replacements_main)
         
         print("🎨 Обрабатываю Photo шаблон...")
-        processed_photo_svg = process_svg_font_perfect(photo_svg, replacements)
+        processed_photo_svg = process_svg_font_perfect(photo_svg, filtered_replacements_photo)
         
         # Генерируем уникальный ID карусели
         carousel_id = str(uuid.uuid4())
@@ -1563,6 +2010,16 @@ def generate_carousel_by_name():
         with open(photo_svg_path, 'w', encoding='utf-8') as f:
             f.write(processed_photo_svg)
         
+        print(f"💾 Сохраняю main SVG: {main_filename}")
+        print(f"💾 Сохраняю photo SVG: {photo_filename}")
+        
+        # Используем новую логику сохранения
+        main_url = save_file_locally_or_supabase(processed_main_svg, main_filename, "carousel")
+        photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_filename, "carousel")
+        
+        if not main_url or not photo_url:
+            return jsonify({'error': 'Ошибка сохранения файлов'}), 500
+        
         # Конвертируем в JPG
         main_jpg_path = os.path.join(OUTPUT_DIR, 'carousel', main_jpg_filename)
         photo_jpg_path = os.path.join(OUTPUT_DIR, 'carousel', photo_jpg_filename)
@@ -1582,7 +2039,20 @@ def generate_carousel_by_name():
             'main_url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
             'photo_url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
             'replacements_applied': len(replacements),
-            'format': 'jpg' if main_jpg_success and photo_jpg_success else 'svg'
+            'format': 'jpg' if main_jpg_success and photo_jpg_success else 'svg',
+            # Дополнительные поля для совместимости
+            'images_detailed': [
+                {
+                    'type': 'main',
+                    'url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
+                    'template_name': main_name
+                },
+                {
+                    'type': 'photo',
+                    'url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
+                    'template_name': photo_name
+                }
+            ]
         })
         
     except Exception as e:
@@ -1595,12 +2065,164 @@ def create_and_generate_carousel():
     """
     Создает полноценную карусель с main слайдом + до 9 фото слайдов
     Поддерживает dyno.propertyimage2, dyno.propertyimage3, ... dyno.propertyimage10
+    
+    Также поддерживает создание карусели с правильным маппингом полей:
+    - Main слайд: dyno.propertyimage, dyno.agentheadshot и т.д.
+    - Photo слайд 1: dyno.propertyimage2
+    - Photo слайд 2: dyno.propertyimage3
+    - И так далее до dyno.propertyimage10
     """
     try:
         data = request.get_json()
+        print(f"📥 Входящий запрос create-and-generate: {data}")
+        
+        # Поддерживаем оба формата
         carousel_name = data.get('name', 'Untitled Carousel')
         slides = data.get('slides', [])
+        main_template_name = data.get('main_template_name')
+        photo_template_name = data.get('photo_template_name')
+        replacements = data.get('replacements', {})
         
+        # Если передан новый формат с template names
+        if main_template_name and photo_template_name:
+            print(f"🔍 Ищу шаблоны по именам:")
+            print(f"   Main: {main_template_name}")
+            print(f"   Photo: {photo_template_name}")
+            
+            # Получаем шаблоны из базы данных по именам
+            ensure_db_exists()
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            
+            # Ищем main шаблон
+            cursor.execute('SELECT id, name, svg_content FROM templates WHERE name = ?', [main_template_name])
+            main_result = cursor.fetchone()
+            
+            if not main_result:
+                conn.close()
+                return jsonify({'error': f'Main шаблон "{main_template_name}" не найден'}), 404
+            
+            # Ищем photo шаблон
+            cursor.execute('SELECT id, name, svg_content FROM templates WHERE name = ?', [photo_template_name])
+            photo_result = cursor.fetchone()
+            
+            if not photo_result:
+                conn.close()
+                return jsonify({'error': f'Photo шаблон "{photo_template_name}" не найден'}), 404
+            
+            conn.close()
+            
+            main_id, main_name, main_svg = main_result
+            photo_id, photo_name, photo_svg = photo_result
+            
+            print(f"✅ Найдены шаблоны:")
+            print(f"   Main: {main_name} (ID: {main_id})")
+            print(f"   Photo: {photo_name} (ID: {photo_id})")
+            
+            # Определяем количество photo слайдов по наличию dyno.propertyimage2-10 в replacements
+            photo_count = 0
+            for i in range(2, 11):  # dyno.propertyimage2 до dyno.propertyimage10
+                if f'dyno.propertyimage{i}' in replacements:
+                    photo_count = max(photo_count, i - 1)  # propertyimage2 = photo слайд 1
+            
+            print(f"🔍 Определено photo слайдов: {photo_count}")
+            print(f"🔍 Все replacements: {list(replacements.keys())}")
+            
+            # Обрабатываем main SVG (используем dyno.propertyimage, dyno.agentheadshot и т.д.)
+            print("🎨 Обрабатываю Main шаблон...")
+            svg_fields_main = extract_dyno_fields_simple(main_svg)
+            print(f"🔍 Main SVG поля: {svg_fields_main}")
+            
+            # Для main используем стандартные поля
+            main_replacements = {}
+            for field, value in replacements.items():
+                if field in svg_fields_main:
+                    main_replacements[field] = value
+                # Также проверяем маппинг полей
+                elif field_mapping.get(field, field) in svg_fields_main:
+                    main_replacements[field_mapping.get(field, field)] = value
+            
+            print(f"🔍 Main replacements: {main_replacements}")
+            processed_main_svg = process_svg_font_perfect(main_svg, main_replacements)
+            
+            # Генерируем уникальный ID карусели
+            carousel_id = str(uuid.uuid4())
+            
+            # Сохраняем main файл
+            main_filename = f"carousel_{carousel_id}_main.svg"
+            main_url = save_file_locally_or_supabase(processed_main_svg, main_filename, "carousel")
+            
+            if not main_url:
+                return jsonify({'error': 'Ошибка сохранения main файла'}), 500
+            
+            # Создаем photo слайды
+            photo_urls = []
+            images = [
+                {
+                    'type': 'main',
+                    'url': main_url,
+                    'template_name': main_name
+                }
+            ]
+            
+            for i in range(1, photo_count + 1):
+                print(f"🎨 Обрабатываю Photo слайд {i}...")
+                
+                # Для каждого photo слайда используем соответствующее поле
+                property_image_field = f'dyno.propertyimage{i + 1}'  # propertyimage2, propertyimage3, и т.д.
+                
+                if property_image_field in replacements:
+                    # Создаем replacements для этого photo слайда
+                    photo_replacements = {}
+                    
+                    # Заменяем dyno.propertyimage на соответствующий propertyimage{i+1}
+                    svg_fields_photo = extract_dyno_fields_simple(photo_svg)
+                    print(f"🔍 Photo SVG поля: {svg_fields_photo}")
+                    
+                    for field in svg_fields_photo:
+                        if field == 'dyno.propertyimage':
+                            # Заменяем основное изображение на соответствующее
+                            photo_replacements[field] = replacements[property_image_field]
+                            print(f"   📸 {field} -> {property_image_field} = {replacements[property_image_field]}")
+                        elif field in replacements:
+                            # Остальные поля (хедшот, текст и т.д.) берем как есть
+                            photo_replacements[field] = replacements[field]
+                            print(f"   📝 {field} = {replacements[field]}")
+                    
+                    print(f"🔍 Photo {i} replacements: {photo_replacements}")
+                    processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
+                    
+                    # Сохраняем photo файл
+                    photo_filename = f"carousel_{carousel_id}_photo_{i}.svg"
+                    photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_filename, "carousel")
+                    
+                    if photo_url:
+                        photo_urls.append(photo_url)
+                        images.append({
+                            'type': f'photo_{i}',
+                            'url': photo_url,
+                            'template_name': f"{photo_name} {i}"
+                        })
+                        print(f"✅ Photo слайд {i} создан: {photo_url}")
+                    else:
+                        print(f"❌ Ошибка сохранения photo слайда {i}")
+            
+            print(f"🎉 Карусель создана: {carousel_id}")
+            print(f"📊 Создано слайдов: 1 main + {len(photo_urls)} photo")
+            
+            return jsonify({
+                'success': True,
+                'carousel_id': carousel_id,
+                'main_template_name': main_name,
+                'photo_template_name': photo_name,
+                'images': images,
+                'main_url': main_url,
+                'photo_urls': photo_urls,
+                'total_slides': 1 + len(photo_urls),
+                'replacements_applied': len(replacements)
+            })
+        
+        # Старый формат с массивом slides
         if not slides:
             return jsonify({'error': 'Массив slides обязателен'}), 400
         
@@ -1620,131 +2242,50 @@ def create_and_generate_carousel():
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        generated_slides = []
-        
-        for slide_index, slide_data in enumerate(slides):
-            template_id = slide_data.get('templateId')
-            replacements = slide_data.get('replacements', {})
-            image_path = slide_data.get('imagePath', '')
-            
-            if not template_id:
-                print(f"⚠️ Пропущен слайд {slide_index + 1}: нет templateId")
-                continue
-            
-            print(f"\n🔄 Обрабатываю слайд {slide_index + 1}: {template_id}")
-            
-            # Получаем шаблон из базы данных
-            cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [template_id])
-            template_result = cursor.fetchone()
-            
-            # Если шаблон не найден, создаем динамический
-            if not template_result:
-                print(f"⚠️ Шаблон {template_id} не найден, создаю динамический")
-                template_role = 'main' if slide_index == 0 else 'photo'
-                create_dynamic_template(template_id, template_role)
-                cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [template_id])
-                template_result = cursor.fetchone()
-            
-            if not template_result:
-                print(f"❌ Не удалось создать шаблон {template_id}")
-                continue
-            
-            template_name, svg_content = template_result
-            
-            # Для фото слайдов добавляем правильное поле изображения
-            if slide_index > 0:  # Не main слайд
-                property_image_field = f'dyno.propertyimage{slide_index + 1}'
-                if image_path and property_image_field not in replacements:
-                    replacements[property_image_field] = image_path
-                    print(f"   📸 Добавлено поле: {property_image_field} = {image_path}")
-            
-            # Обрабатываем SVG с заменами
-            processed_svg = process_svg_font_perfect(svg_content, replacements)
-            
-            # Сохраняем слайд как SVG и конвертируем в JPG
-            slide_svg_filename = f"slide_{slide_index + 1:02d}.svg"
-            slide_jpg_filename = f"slide_{slide_index + 1:02d}.jpg"
-            
-            slide_svg_path = os.path.join(carousel_dir, slide_svg_filename)
-            slide_jpg_path = os.path.join(carousel_dir, slide_jpg_filename)
-            
-            # Сохраняем SVG
-            with open(slide_svg_path, 'w', encoding='utf-8') as f:
-                f.write(processed_svg)
-            
-            # Конвертируем в JPG
-            jpg_success = convert_svg_to_jpg(processed_svg, slide_jpg_path)
-            
-            # Добавляем информацию о слайде
-            slide_info = {
-                'slide_number': slide_index + 1,
-                'template_id': template_id,
-                'template_name': template_name,
-                'svg_filename': slide_svg_filename,
-                'jpg_filename': slide_jpg_filename if jpg_success else None,
-                'svg_url': f'/output/carousel/{carousel_id}/{slide_svg_filename}',
-                'jpg_url': f'/output/carousel/{carousel_id}/{slide_jpg_filename}' if jpg_success else None,
-                'url': f'/output/carousel/{carousel_id}/{slide_jpg_filename}' if jpg_success else f'/output/carousel/{carousel_id}/{slide_svg_filename}',
-                'status': 'completed'
-            }
-            
-            generated_slides.append(slide_info)
-            
-            print(f"   ✅ Слайд {slide_index + 1} создан: {slide_filename}")
-        
-        conn.close()
-        
-        # Сохраняем информацию о карусели в базу данных
-        conn = sqlite3.connect(DATABASE_PATH)
-        cursor = conn.cursor()
-        
-        # Создаем таблицу carousels_full если не существует
+        # Сохраняем main template
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS carousels_full (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                slides_count INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+            INSERT INTO templates (id, name, category, template_role, svg_content, dyno_fields)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', [main_template_id, f"{name} - Main", category, "main", main_svg, ','.join(main_dyno_info.get('fields', []))])
         
+        # Сохраняем photo template
         cursor.execute('''
-            INSERT INTO carousels_full (id, name, slides_count)
-            VALUES (?, ?, ?)
-        ''', [carousel_id, carousel_name, len(generated_slides)])
+            INSERT INTO templates (id, name, category, template_role, svg_content, dyno_fields)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', [photo_template_id, f"{name} - Photo", category, "photo", photo_svg, ','.join(photo_dyno_info.get('fields', []))])
+        
+        # Сохраняем карусель
+        cursor.execute('''
+            INSERT INTO carousels (id, name, main_template_id, photo_template_id)
+            VALUES (?, ?, ?, ?)
+        ''', [carousel_id, name, main_template_id, photo_template_id])
         
         conn.commit()
         conn.close()
         
-        print(f"🎉 Карусель создана: {carousel_id}")
-        print(f"📊 Создано слайдов: {len(generated_slides)}")
+        # Генерируем превью для обоих шаблонов
+        print(f"🎨 Генерирую превью для main шаблона: {name} - Main")
+        main_preview = generate_svg_preview(main_svg, main_template_id)
         
-        # Проверяем что слайды созданы
-        if not generated_slides:
-            print("❌ ОШИБКА: Ни одного слайда не создано!")
-            return jsonify({
-                'error': 'Не удалось создать ни одного слайда. Проверьте templateId и данные.',
-                'debug_info': {
-                    'slides_received': len(slides),
-                    'slides_processed': len(generated_slides)
-                }
-            }), 400
-        
-        # Создаем простой массив URL для совместимости с фронтендом
-        image_urls = [slide['image_url'] for slide in generated_slides if slide.get('image_url')]
+        print(f"🎨 Генерирую превью для photo шаблона: {name} - Photo")
+        photo_preview = generate_svg_preview(photo_svg, photo_template_id)
         
         response_data = {
             'success': True,
             'carousel_id': carousel_id,
-            'name': carousel_name,
-            'slides_count': len(generated_slides),
-            'slides': generated_slides,
-            'images': image_urls,  # Простой массив строк URL для совместимости
-            'images_detailed': generated_slides,  # Массив объектов с детальной информацией
-            'status': 'completed'
+            'main_template_id': main_template_id,
+            'photo_template_id': photo_template_id,
+            'main_dyno_fields': main_dyno_info.get('fields', []) if main_dyno_info else [],
+            'photo_dyno_fields': photo_dyno_info.get('fields', []) if photo_dyno_info else [],
+            'message': f'Карусель "{name}" успешно загружена'
         }
         
-        print(f"✅ Возвращаю ответ: {response_data}")
+        # Добавляем информацию о превью
+        if main_preview['success']:
+            response_data['main_preview_url'] = main_preview['url']
+        if photo_preview['success']:
+            response_data['photo_preview_url'] = photo_preview['url']
+        
         return jsonify(response_data)
         
     except Exception as e:
@@ -2034,6 +2575,62 @@ def convert_svg_to_png(svg_content, output_path, width=1200, height=800):
     except Exception as e:
         print(f"❌ Ошибка конвертации SVG в PNG: {e}")
         return False
+
+# API для генерации карусели с множественными photo слайдами
+@app.route('/api/generate/carousel-multi', methods=['POST'])
+def generate_carousel_multi():
+    """
+    Создает карусель с множественными photo слайдами
+    """
+    try:
+        data = request.get_json()
+        print(f"📥 Входящий запрос (multi): {data}")
+        main_template_id = data.get('main_template_id')
+        photo_template_ids = data.get('photo_template_ids', [])  # Список ID photo шаблонов
+        replacements = data.get('replacements', {})
+        
+        if not main_template_id or not photo_template_ids:
+            return jsonify({'error': 'main_template_id и photo_template_ids обязательны'}), 400
+        
+        # Получаем шаблоны из базы данных
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [main_template_id])
+        main_result = cursor.fetchone()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [photo_template_id])
+        photo_result = cursor.fetchone()
+        
+        conn.close()
+        
+        if not main_result or not photo_result:
+            return jsonify({'error': 'Один или оба шаблона не найдены'}), 404
+        
+        main_name, main_svg = main_result
+        photo_name, photo_svg = photo_result
+        
+        # Генерируем превью для обоих шаблонов
+        main_preview = create_preview_with_data(main_svg, replacements, preview_type)
+        photo_preview = create_preview_with_data(photo_svg, replacements, preview_type)
+        
+        return jsonify({
+            'success': True,
+            'main_preview': {
+                'template_name': main_name,
+                'template_id': main_template_id,
+                **main_preview
+            },
+            'photo_preview': {
+                'template_name': photo_name,
+                'template_id': photo_template_id,
+                **photo_preview
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка генерации превью карусели: {str(e)}'}), 500
 
 if __name__ == '__main__':
     ensure_db_exists()
