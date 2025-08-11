@@ -459,6 +459,21 @@ def process_svg_font_perfect(svg_content, replacements):
             element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*>'
             match = re.search(element_pattern, processed_svg)
             
+            # Если не нашли по точному ID, ищем по альтернативным названиям для headshot
+            if not match and image_type == 'headshot':
+                print(f"   🔍 Headshot не найден по ID {dyno_field}, ищу альтернативные поля...")
+                alternative_headshot_fields = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo', 'dyno.agentPhoto']
+                
+                for alt_field in alternative_headshot_fields:
+                    alt_pattern = f'<[^>]*id="{re.escape(alt_field)}"[^>]*>'
+                    alt_match = re.search(alt_pattern, processed_svg)
+                    if alt_match:
+                        print(f"   ✅ Найден альтернативный headshot элемент: {alt_field}")
+                        element_pattern = alt_pattern
+                        match = alt_match
+                        dyno_field = alt_field  # Обновляем поле для дальнейшей обработки
+                        break
+            
             if match:
                 print(f"   ✅ Найден элемент с id: {dyno_field}")
                 
@@ -2543,9 +2558,9 @@ def find_alternative_field(field, replacements):
     """Ищет альтернативное название поля в replacements"""
     field_lower = field.lower()
     
-    # Маппинг для headshot полей
-    if 'headshot' in field_lower or 'agent' in field_lower:
-        headshot_alternatives = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo']
+    # Маппинг для headshot полей - РАСШИРЕННЫЙ
+    if 'headshot' in field_lower or 'agent' in field_lower or 'photo' in field_lower:
+        headshot_alternatives = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo', 'dyno.agentPhoto', 'dyno.agentName']
         for alt in headshot_alternatives:
             if alt in replacements:
                 return alt
