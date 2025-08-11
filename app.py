@@ -1990,15 +1990,8 @@ def create_and_generate_carousel():
             svg_fields_main = extract_dyno_fields_simple(main_svg)
             print(f"🔍 Main SVG поля: {svg_fields_main}")
             
-            # Для main используем стандартные поля
-            main_replacements = {}
-            for field, value in replacements.items():
-                if field in svg_fields_main:
-                    main_replacements[field] = value
-                # Также проверяем маппинг полей
-                elif field_mapping.get(field, field) in svg_fields_main:
-                    main_replacements[field_mapping.get(field, field)] = value
-            
+            # Для main используем ВСЕ поля из replacements
+            main_replacements = replacements.copy()
             print(f"🔍 Main replacements: {main_replacements}")
             processed_main_svg = process_svg_font_perfect(main_svg, main_replacements)
             
@@ -2030,23 +2023,16 @@ def create_and_generate_carousel():
                 
                 if property_image_field in replacements:
                     # Создаем replacements для этого photo слайда
-                    photo_replacements = {}
+                    photo_replacements = replacements.copy()  # Копируем ВСЕ поля
                     
-                    # Просто копируем все поля из replacements, которые есть в SVG
+                    # Проверяем, есть ли в photo SVG поле dyno.propertyimage
                     svg_fields_photo = extract_dyno_fields_simple(photo_svg)
                     print(f"🔍 Photo SVG поля: {svg_fields_photo}")
                     
-                    for field in svg_fields_photo:
-                        if field in replacements:
-                            # Поле есть в replacements - используем его
-                            photo_replacements[field] = replacements[field]
-                            print(f"   📝 {field} = {replacements[field]}")
-                        else:
-                            # Если поле не найдено в replacements, ищем альтернативные названия
-                            alternative_field = find_alternative_field(field, replacements)
-                            if alternative_field:
-                                photo_replacements[field] = replacements[alternative_field]
-                                print(f"   🔄 {field} -> {alternative_field} = {replacements[alternative_field]}")
+                    # Если в photo SVG есть dyno.propertyimage, заменяем его на соответствующее
+                    if 'dyno.propertyimage' in svg_fields_photo:
+                        photo_replacements['dyno.propertyimage'] = replacements[property_image_field]
+                        print(f"   📸 Заменяю dyno.propertyimage на {property_image_field} = {replacements[property_image_field]}")
                     
                     print(f"🔍 Photo {i} replacements: {photo_replacements}")
                     processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
