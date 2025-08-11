@@ -1461,12 +1461,14 @@ def generate_carousel():
             'main_url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
             'photo_url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
             'replacements_applied': len(replacements),
-            # Все возможные форматы для фронтенда
-            'images': image_urls,  # Вариант 1 (предпочтительный)
-            'slides': image_urls,  # Вариант 2
-            'urls': image_urls,    # Вариант 3
-            'image_url': image_urls[0],  # Вариант 4 (первое изображение)
-            'data': {'images': image_urls},  # Вариант 5 (с вложенными данными)
+            # Простые массивы URL для совместимости с фронтендом
+            'images': image_urls,  # Простой массив строк URL
+            'slides': image_urls,  # Простой массив строк URL
+            'urls': image_urls,    # Простой массив строк URL
+            'image_url': image_urls[0],  # Первое изображение
+            'data': {'images': image_urls},  # С вложенными данными
+            # Детальная информация для расширенного использования
+            'images_detailed': images,  # Массив объектов с дополнительной информацией
             'slides_count': 2,
             'status': 'completed',
             'format': 'jpg' if main_jpg_success and photo_jpg_success else 'svg'
@@ -1728,13 +1730,17 @@ def create_and_generate_carousel():
                 }
             }), 400
         
+        # Создаем простой массив URL для совместимости с фронтендом
+        image_urls = [slide['image_url'] for slide in generated_slides if slide.get('image_url')]
+        
         response_data = {
             'success': True,
             'carousel_id': carousel_id,
             'name': carousel_name,
             'slides_count': len(generated_slides),
             'slides': generated_slides,
-            'images': generated_slides,  # Добавляем для совместимости с фронтендом
+            'images': image_urls,  # Простой массив строк URL для совместимости
+            'images_detailed': generated_slides,  # Массив объектов с детальной информацией
             'status': 'completed'
         }
         

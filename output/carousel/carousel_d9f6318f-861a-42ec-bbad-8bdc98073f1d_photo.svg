@@ -1,0 +1,8 @@
+<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg">
+            <rect width="1080" height="1080" fill="#764ba2"/>
+            <rect x="90" y="90" width="900" height="600" fill="#f0f0f0" stroke="#333" stroke-width="2"/>
+            <text x="540" y="750" text-anchor="middle" fill="white" font-size="32">{{dyno.propertyAddress}}</text>
+            <text x="540" y="800" text-anchor="middle" fill="white" font-size="24">Serhii Tabachnyi</text>
+            <text x="540" y="850" text-anchor="middle" fill="white" font-size="20">4376618985</text>
+            <text x="540" y="400" text-anchor="middle" fill="#666" font-size="24">PHOTO TEMPLATE</text>
+        </svg>
