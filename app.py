@@ -455,84 +455,93 @@ def process_svg_font_perfect(svg_content, replacements):
             
             print(f"   🎯 Тип изображения: {image_type}, aspect ratio: {aspect_ratio}")
             
-            # Ищем элемент с id
-            element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
+            # Ищем элемент с id - УПРОЩЕННЫЙ ПОИСК
+            element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*>'
             match = re.search(element_pattern, processed_svg)
             
             if match:
-                pattern_id = match.group(1)
-                print(f"   🎯 Найден pattern: {pattern_id}")
+                print(f"   ✅ Найден элемент с id: {dyno_field}")
                 
-                # Определяем форму элемента
-                element_shape = determine_element_shape(processed_svg, pattern_id)
-                print(f"   🔍 Форма элемента: {element_shape}")
+                # Ищем pattern в fill атрибуте
+                fill_pattern = f'fill="url\\(#([^)]+)\\)"'
+                fill_match = re.search(fill_pattern, match.group(0))
                 
-                # Обновляем aspect ratio с учетом формы
-                aspect_ratio = get_aspect_ratio_for_image(image_type, element_shape)
-                print(f"   🎯 Финальный aspect ratio: {aspect_ratio}")
-                
-                # Ищем pattern блок
-                pattern_block_pattern = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
-                pattern_match = re.search(pattern_block_pattern, processed_svg, re.DOTALL)
-                
-                if pattern_match:
-                    pattern_content = pattern_match.group(1)
-                    pattern_full = pattern_match.group(0)
+                if fill_match:
+                    pattern_id = fill_match.group(1)
+                    print(f"   🎯 Найден pattern: {pattern_id}")
                     
-                    # Для headshot - убираем фиксированные transform для лучшего центрирования
-                    if image_type == 'headshot' and element_shape == 'circular':
-                        print(f"   🔍 Обрабатываю круглый headshot БЕЗ фиксированных смещений")
-                        
-                        # Убираем любые существующие patternTransform для лучшего центрирования
-                        old_pattern = pattern_full
-                        new_pattern = re.sub(r'\s*patternTransform="[^"]*"', '', old_pattern)
-                        new_pattern = re.sub(r'\s*transform="[^"]*"', '', new_pattern)
-                        
-                        if new_pattern != old_pattern:
-                            processed_svg = processed_svg.replace(old_pattern, new_pattern)
-                            print(f"   ✅ Удалены фиксированные transform - headshot будет центрироваться автоматически")
+                    # Определяем форму элемента
+                    element_shape = determine_element_shape(processed_svg, pattern_id)
+                    print(f"   🔍 Форма элемента: {element_shape}")
                     
-                    # Ищем use элемент внутри pattern
-                    use_pattern = r'<use[^>]*xlink:href="#([^"]*)"[^>]*/?>'
-                    use_match = re.search(use_pattern, pattern_content)
+                    # Обновляем aspect ratio с учетом формы
+                    aspect_ratio = get_aspect_ratio_for_image(image_type, element_shape)
+                    print(f"   🎯 Финальный aspect ratio: {aspect_ratio}")
                     
-                    if use_match:
-                        image_id = use_match.group(1)
-                        print(f"   🔗 Найден use элемент: #{image_id}")
+                    # Ищем pattern блок
+                    pattern_block_pattern = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
+                    pattern_match = re.search(pattern_block_pattern, processed_svg, re.DOTALL)
+                    
+                    if pattern_match:
+                        pattern_content = pattern_match.group(1)
+                        pattern_full = pattern_match.group(0)
                         
-                        # Ищем соответствующий image элемент
-                        image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*/?>'
-                        image_match = re.search(image_pattern, processed_svg)
-                        
-                        if image_match:
-                            old_image = image_match.group(0)
-                            new_image = old_image
+                        # Для headshot - убираем фиксированные transform для лучшего центрирования
+                        if image_type == 'headshot' and element_shape == 'circular':
+                            print(f"   🔍 Обрабатываю круглый headshot БЕЗ фиксированных смещений")
                             
-                            # Заменяем URL
-                            new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
-                            new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
+                            # Убираем любые существующие patternTransform для лучшего центрирования
+                            old_pattern = pattern_full
+                            new_pattern = re.sub(r'\s*patternTransform="[^"]*"', '', old_pattern)
+                            new_pattern = re.sub(r'\s*transform="[^"]*"', '', new_pattern)
                             
-                            # Устанавливаем правильный preserveAspectRatio
-                            if 'preserveAspectRatio=' in new_image:
-                                new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                            if new_pattern != old_pattern:
+                                processed_svg = processed_svg.replace(old_pattern, new_pattern)
+                                print(f"   ✅ Удалены фиксированные transform - headshot будет центрироваться автоматически")
+                        
+                        # Ищем use элемент внутри pattern
+                        use_pattern = r'<use[^>]*xlink:href="#([^"]*)"[^>]*/?>'
+                        use_match = re.search(use_pattern, pattern_content)
+                        
+                        if use_match:
+                            image_id = use_match.group(1)
+                            print(f"   🔗 Найден use элемент: #{image_id}")
+                            
+                            # Ищем соответствующий image элемент
+                            image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*/?>'
+                            image_match = re.search(image_pattern, processed_svg)
+                            
+                            if image_match:
+                                old_image = image_match.group(0)
+                                new_image = old_image
+                                
+                                # Заменяем URL
+                                new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
+                                new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
+                                
+                                # Устанавливаем правильный preserveAspectRatio
+                                if 'preserveAspectRatio=' in new_image:
+                                    new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
+                                else:
+                                    if new_image.endswith('/>'):
+                                        new_image = new_image.replace('/>', f' preserveAspectRatio="{aspect_ratio}"/>')
+                                    else:
+                                        new_image = new_image.replace('>', f' preserveAspectRatio="{aspect_ratio}">')
+                                
+                                # Применяем замену
+                                processed_svg = processed_svg.replace(old_image, new_image)
+                                print(f"   ✅ Изображение {image_id} заменено: {safe_url[:50]}...")
+                                successful_replacements += 1
                             else:
-                                if new_image.endswith('/>'):
-                                    new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
-                                elif new_image.endswith('>'):
-                                    new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
-                            
-                            processed_svg = processed_svg.replace(old_image, new_image)
-                            print(f"   ✅ Изображение {dyno_field} заменено!")
-                            print(f"   🎯 Применен aspect ratio: {aspect_ratio}")
-                            successful_replacements += 1
+                                print(f"   ⚠️ Image элемент {image_id} не найден")
                         else:
-                            print(f"   ❌ Image элемент #{image_id} не найден")
+                            print(f"   ⚠️ Use элемент не найден в pattern")
                     else:
-                        print(f"   ❌ Use элемент в pattern не найден")
+                        print(f"   ⚠️ Pattern блок {pattern_id} не найден")
                 else:
-                    print(f"   ❌ Pattern блок {pattern_id} не найден")
+                    print(f"   ⚠️ Элемент {dyno_field} найден, но не имеет fill с pattern")
             else:
-                print(f"   ❌ Элемент с id {dyno_field} не найден")
+                print(f"   ⚠️ Элемент с id {dyno_field} не найден")
         else:
             # ОБРАБОТКА ТЕКСТОВЫХ ПОЛЕЙ
             safe_replacement = safe_escape_for_svg(str(replacement))
@@ -1978,11 +1987,27 @@ def create_and_generate_carousel():
             
             # Определяем количество photo слайдов по наличию dyno.propertyimage2-10 в replacements
             photo_count = 0
-            for i in range(2, 11):  # dyno.propertyimage2 до dyno.propertyimage10
-                if f'dyno.propertyimage{i}' in replacements:
-                    photo_count = max(photo_count, i - 1)  # propertyimage2 = photo слайд 1
+            property_image_fields = []
             
-            print(f"🔍 Определено photo слайдов: {photo_count}")
+            # Ищем все поля с propertyimage
+            for field in replacements.keys():
+                if 'propertyimage' in field.lower() and field != 'dyno.propertyimage':
+                    # Извлекаем номер из названия поля (например, propertyimage2 -> 2)
+                    try:
+                        number = int(field.split('propertyimage')[-1])
+                        property_image_fields.append((field, number))
+                    except:
+                        continue
+            
+            # Сортируем по номеру и определяем количество
+            if property_image_fields:
+                property_image_fields.sort(key=lambda x: x[1])
+                photo_count = len(property_image_fields)
+                print(f"🔍 Найдены поля propertyimage: {[f[0] for f in property_image_fields]}")
+                print(f"🔍 Определено photo слайдов: {photo_count}")
+            else:
+                print(f"🔍 Поля propertyimage не найдены, photo слайды не создаются")
+            
             print(f"🔍 Все replacements: {list(replacements.keys())}")
             
             # Обрабатываем main SVG (используем dyno.propertyimage, dyno.agentheadshot и т.д.)
@@ -2015,75 +2040,69 @@ def create_and_generate_carousel():
                 }
             ]
             
-            for i in range(1, photo_count + 1):
-                print(f"🎨 Обрабатываю Photo слайд {i}...")
+            for i, (property_image_field, field_number) in enumerate(property_image_fields):
+                print(f"🎨 Обрабатываю Photo слайд {i+1} (поле: {property_image_field})...")
                 
-                # Для каждого photo слайда используем соответствующее поле
-                property_image_field = f'dyno.propertyimage{i + 1}'  # propertyimage2, propertyimage3, и т.д.
+                # Создаем replacements для этого photo слайда
+                photo_replacements = replacements.copy()  # Копируем ВСЕ поля
                 
-                if property_image_field in replacements:
-                    # Создаем replacements для этого photo слайда
-                    photo_replacements = replacements.copy()  # Копируем ВСЕ поля
+                # Убираем headshot поля из photo слайдов
+                headshot_fields = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo']
+                for headshot_field in headshot_fields:
+                    if headshot_field in photo_replacements:
+                        del photo_replacements[headshot_field]
+                        print(f"   🚫 Убираю {headshot_field} с photo слайда {i+1}")
+                
+                # Проверяем, есть ли в photo SVG поле dyno.propertyimage
+                svg_fields_photo = extract_dyno_fields_simple(photo_svg)
+                print(f"🔍 Photo SVG поля: {svg_fields_photo}")
+                
+                # Если в photo SVG есть dyno.propertyimage, заменяем его на соответствующее
+                if 'dyno.propertyimage' in svg_fields_photo:
+                    photo_replacements['dyno.propertyimage'] = replacements[property_image_field]
+                    print(f"   📸 Заменяю dyno.propertyimage на {property_image_field} = {replacements[property_image_field]}")
+                
+                print(f"🔍 Photo {i+1} replacements: {photo_replacements}")
+                processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
+                
+                # Сохраняем photo файл
+                photo_filename = f"carousel_{carousel_id}_photo_{i+1}.svg"
+                photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_filename, "carousel")
+                
+                if photo_url:
+                    photo_urls.append(photo_url)
                     
-                    # Убираем headshot поля из photo слайдов
-                    headshot_fields = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo']
-                    for headshot_field in headshot_fields:
-                        if headshot_field in photo_replacements:
-                            del photo_replacements[headshot_field]
-                            print(f"   🚫 Убираю {headshot_field} с photo слайда {i}")
+                    # Конвертируем в JPG
+                    jpg_filename = f"carousel_{carousel_id}_photo_{i+1}.jpg"
+                    jpg_path = os.path.join(OUTPUT_DIR, "carousel", jpg_filename)
                     
-                    # Проверяем, есть ли в photo SVG поле dyno.propertyimage
-                    svg_fields_photo = extract_dyno_fields_simple(photo_svg)
-                    print(f"🔍 Photo SVG поля: {svg_fields_photo}")
-                    
-                    # Если в photo SVG есть dyno.propertyimage, заменяем его на соответствующее
-                    if 'dyno.propertyimage' in svg_fields_photo:
-                        photo_replacements['dyno.propertyimage'] = replacements[property_image_field]
-                        print(f"   📸 Заменяю dyno.propertyimage на {property_image_field} = {replacements[property_image_field]}")
-                    
-                    print(f"🔍 Photo {i} replacements: {photo_replacements}")
-                    processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
-                    
-                    # Сохраняем photo файл
-                    photo_filename = f"carousel_{carousel_id}_photo_{i}.svg"
-                    photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_filename, "carousel")
-                    
-                    if photo_url:
-                        photo_urls.append(photo_url)
+                    try:
+                        convert_svg_to_jpg(processed_photo_svg, jpg_path)
+                        jpg_url = save_file_locally_or_supabase(open(jpg_path, 'rb').read(), jpg_filename, "carousel")
                         
-                        # Конвертируем в JPG
-                        jpg_filename = f"carousel_{carousel_id}_photo_{i}.jpg"
-                        jpg_path = os.path.join(OUTPUT_DIR, "carousel", jpg_filename)
-                        
-                        try:
-                            convert_svg_to_jpg(processed_photo_svg, jpg_path)
-                            jpg_url = save_file_locally_or_supabase(open(jpg_path, 'rb').read(), jpg_filename, "carousel")
-                            
-                            if jpg_url:
-                                images.append({
-                                    'type': f'photo_{i}',
-                                    'svg_url': photo_url,
-                                    'jpg_url': jpg_url,
-                                    'template_name': photo_name,
-                                    'property_image': replacements[property_image_field]
-                                })
-                                print(f"   ✅ Photo слайд {i} создан: {jpg_url}")
-                            else:
-                                print(f"   ⚠️ Photo слайд {i} SVG сохранен, но JPG не удалось сохранить")
-                        except Exception as e:
-                            print(f"   ❌ Ошибка конвертации Photo слайд {i} в JPG: {e}")
-                            # Добавляем только SVG если JPG не удалось
+                        if jpg_url:
                             images.append({
-                                'type': f'photo_{i}',
+                                'type': f'photo_{i+1}',
                                 'svg_url': photo_url,
-                                'jpg_url': None,
+                                'jpg_url': jpg_url,
                                 'template_name': photo_name,
                                 'property_image': replacements[property_image_field]
                             })
-                    else:
-                        print(f"   ❌ Ошибка сохранения Photo слайд {i}")
+                            print(f"   ✅ Photo слайд {i+1} создан: {jpg_url}")
+                        else:
+                            print(f"   ⚠️ Photo слайд {i+1} SVG сохранен, но JPG не удалось сохранить")
+                    except Exception as e:
+                        print(f"   ❌ Ошибка конвертации Photo слайд {i+1} в JPG: {e}")
+                        # Добавляем только SVG если JPG не удалось
+                        images.append({
+                            'type': f'photo_{i+1}',
+                            'svg_url': photo_url,
+                            'jpg_url': None,
+                            'template_name': photo_name,
+                            'property_image': replacements[property_image_field]
+                        })
                 else:
-                    print(f"   ⚠️ Поле {property_image_field} не найдено в replacements, пропускаем Photo слайд {i}")
+                    print(f"   ❌ Ошибка сохранения Photo слайд {i+1}")
             
             print(f"🎉 Карусель создана: {carousel_id}")
             print(f"📊 Создано слайдов: 1 main + {len(photo_urls)} photo")
