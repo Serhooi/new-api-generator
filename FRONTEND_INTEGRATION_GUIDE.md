@@ -1,598 +1,151 @@
-# 🎯 РУКОВОДСТВО ПО ИНТЕГРАЦИИ ДЛЯ ФРОНТЕНДА
+# 🌐 РУКОВОДСТВО ПО ИНТЕГРАЦИИ ДЛЯ ФРОНТЕНДА
 
-## 📋 Обновление API: SVG → JPG URLs
+## 🎯 Генерация карусели (до 10 слайдов)
 
-**ВАЖНО:** API теперь возвращает JPG URL вместо SVG URL для отображения изображений в `<img>` тегах.
-
-## 🚀 Основные изменения
-
-### ❌ Было (проблема):
-```json
-{
-  "images": [
-    "/output/carousel/carousel_xxx_main.svg",
-    "/output/carousel/carousel_xxx_photo.svg"
-  ]
-}
+### **API Endpoint:**
 ```
-**Проблема:** SVG файлы не отображаются в `<img>` тегах, вызывают ошибку "Failed to load slide"
-
-### ✅ Стало (решение):
-```json
-{
-  "images": [
-    "/output/carousel/carousel_xxx_main.jpg",
-    "/output/carousel/carousel_xxx_photo.jpg"
-  ],
-  "format": "jpg"
-}
-```
-**Решение:** JPG файлы корректно отображаются в `<img>` тегах
-
-## 📡 API Endpoints
-
-### 1. Генерация карусели (основной)
-
-**Endpoint:** `POST /api/generate/carousel`
-
-**Request:**
-```javascript
-const response = await fetch('/api/generate/carousel', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    main_template_id: "template-id",
-    photo_template_id: "template-id", 
-    data: {
-      'dyno.agentName': 'John Smith',
-      'dyno.propertyAddress': '123 Main Street',
-      'dyno.price': '$450,000',
-      'dyno.agentPhone': '(555) 123-4567'
-    }
-  })
-});
+POST /api/carousel/create-and-generate
 ```
 
-**Response:**
+### **Структура запроса:**
 ```json
 {
-  "success": true,
-  "carousel_id": "c6aa98a6-8f15-4ba7-ac99-2b0ef35118dc",
-  "main_template_name": "Test Main Template",
-  "photo_template_name": "Test Photo Template",
-  "main_url": "/output/carousel/carousel_xxx_main.jpg",
-  "photo_url": "/output/carousel/carousel_xxx_photo.jpg",
-  "replacements_applied": 4,
-  "images": [
-    "/output/carousel/carousel_xxx_main.jpg",
-    "/output/carousel/carousel_xxx_photo.jpg"
-  ],
-  "slides": [
-    "/output/carousel/carousel_xxx_main.jpg",
-    "/output/carousel/carousel_xxx_photo.jpg"
-  ],
-  "urls": [
-    "/output/carousel/carousel_xxx_main.jpg",
-    "/output/carousel/carousel_xxx_photo.jpg"
-  ],
-  "image_url": "/output/carousel/carousel_xxx_main.jpg",
-  "data": {
-    "images": [
-      "/output/carousel/carousel_xxx_main.jpg",
-      "/output/carousel/carousel_xxx_photo.jpg"
-    ]
-  },
-  "slides_count": 2,
-  "status": "completed",
-  "format": "jpg"
+  "name": "Название карусели",
+  "main_template_name": "Имя главного шаблона",
+  "photo_template_name": "Имя фото шаблона",
+  "replacements": {
+    // Основные поля для всех слайдов
+    "dyno.agentName": "Имя агента",
+    "dyno.agentPhone": "Телефон агента",
+    "dyno.agentEmail": "Email агента",
+    "dyno.agentheadshot": "URL фото агента",
+    "dyno.logo": "URL логотипа",
+    "dyno.propertyAddress": "Адрес недвижимости",
+    "dyno.price": "Цена",
+    "dyno.bedrooms": "Количество спален",
+    "dyno.bathrooms": "Количество ванных",
+    
+    // Изображения для разных слайдов
+    "dyno.propertyimage": "URL главного изображения (для main слайда)",
+    "dyno.propertyimage2": "URL изображения для photo слайда 1",
+    "dyno.propertyimage3": "URL изображения для photo слайда 2",
+    "dyno.propertyimage4": "URL изображения для photo слайда 3",
+    "dyno.propertyimage5": "URL изображения для photo слайда 4",
+    "dyno.propertyimage6": "URL изображения для photo слайда 5",
+    "dyno.propertyimage7": "URL изображения для photo слайда 6",
+    "dyno.propertyimage8": "URL изображения для photo слайда 7",
+    "dyno.propertyimage9": "URL изображения для photo слайда 8",
+    "dyno.propertyimage10": "URL изображения для photo слайда 9"
+  }
 }
 ```
 
-### 2. Генерация карусели по именам шаблонов
+### **Как это работает:**
 
-**Endpoint:** `POST /api/generate/carousel-by-name`
+1. **Main слайд** использует:
+   - `dyno.propertyimage` - главное изображение недвижимости
+   - `dyno.agentheadshot` - фото агента
+   - `dyno.logo` - логотип
+   - Все текстовые поля
 
-**Request:**
-```javascript
-const response = await fetch('/api/generate/carousel-by-name', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    main_template_name: "template-name",
-    photo_template_name: "template-name",
-    replacements: {
-      'dyno.agentName': 'John Smith',
-      'dyno.propertyAddress': '123 Main Street'
-    }
-  })
-});
-```
+2. **Photo слайды** используют:
+   - **Photo слайд 1**: `dyno.propertyimage2` + все остальные поля
+   - **Photo слайд 2**: `dyno.propertyimage3` + все остальные поля
+   - **Photo слайд 3**: `dyno.propertyimage4` + все остальные поля
+   - И так далее...
 
-### 3. Создание полноценной карусели (до 10 слайдов)
-
-**Endpoint:** `POST /api/carousel/create-and-generate`
-
-**Request:**
-```javascript
-const response = await fetch('/api/carousel/create-and-generate', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    name: "Property Carousel",
-    slides: [
-      {
-        templateId: "main-template-id",
-        replacements: {
-          'dyno.agentName': 'John Smith',
-          'dyno.propertyAddress': '123 Main Street'
-        },
-        imagePath: "https://example.com/photo1.jpg"
-      },
-      {
-        templateId: "photo-template-id", 
-        replacements: {
-          'dyno.propertyimage2': 'https://example.com/photo2.jpg'
-        },
-        imagePath: "https://example.com/photo2.jpg"
-      }
-    ]
-  })
-});
-```
-
-**Response:**
+### **Пример для 5 слайдов:**
 ```json
 {
-  "success": true,
-  "carousel_id": "xxx-xxx-xxx",
-  "slides_count": 2,
-  "status": "completed"
+  "name": "Luxury House Carousel",
+  "main_template_name": "Main Template",
+  "photo_template_name": "Photo Template",
+  "replacements": {
+    "dyno.agentName": "John Smith",
+    "dyno.agentheadshot": "https://example.com/agent.jpg",
+    "dyno.logo": "https://example.com/logo.png",
+    "dyno.propertyimage": "https://example.com/main.jpg",
+    "dyno.propertyimage2": "https://example.com/photo1.jpg",
+    "dyno.propertyimage3": "https://example.com/photo2.jpg",
+    "dyno.propertyimage4": "https://example.com/photo3.jpg",
+    "dyno.propertyimage5": "https://example.com/photo4.jpg"
+  }
 }
 ```
 
-### 4. Получение информации о слайдах карусели
+**Результат:**
+- 1 main слайд + 4 photo слайда = 5 слайдов всего
+- Каждый photo слайд показывает свое изображение
+- Все остальные данные (агент, лого, текст) одинаковые на всех слайдах
 
-**Endpoint:** `GET /api/carousel/{carousel_id}/slides`
+## 🔧 Получение списка шаблонов
 
-**Request:**
-```javascript
-const response = await fetch(`/api/carousel/${carouselId}/slides`);
+### **API Endpoint:**
+```
+GET /api/templates/all-previews
 ```
 
-**Response:**
+### **Ответ:**
 ```json
 {
-  "carousel_id": "xxx-xxx-xxx",
-  "name": "Property Carousel",
-  "status": "completed",
-  "slides_count": 2,
-  "created_at": "2025-07-26T00:00:00",
-  "slides": [
+  "templates": [
     {
-      "slide_number": 1,
-      "filename": "slide_01.jpg",
-      "image_url": "/output/carousel/xxx/slide_01.jpg",
-      "status": "completed",
-      "format": "jpg"
+      "id": "uuid-123",
+      "name": "Main Template",
+      "category": "open-house",
+      "template_role": "main",
+      "preview_url": "/output/previews/uuid-123_preview.png",
+      "created_at": "2025-08-11T14:30:00"
+    }
+  ],
+  "total": 1
+}
+```
+
+## 📱 JavaScript пример:
+
+```javascript
+// Генерация карусели
+async function generateCarousel(templateNames, data) {
+  const response = await fetch('/api/carousel/create-and-generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
     },
-    {
-      "slide_number": 2,
-      "filename": "slide_02.jpg", 
-      "image_url": "/output/carousel/xxx/slide_02.jpg",
-      "status": "completed",
-      "format": "jpg"
-    }
-  ]
-}
-```
-
-## 🎨 Интеграция в React
-
-### React Hook для генерации карусели:
-
-```typescript
-import { useState, useCallback } from 'react';
-
-interface CarouselData {
-  carousel_id: string;
-  images: string[];
-  format: 'jpg' | 'svg';
-  status: string;
-}
-
-interface CarouselRequest {
-  main_template_id: string;
-  photo_template_id: string;
-  data: Record<string, string>;
-}
-
-export const useCarouselGeneration = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [carouselData, setCarouselData] = useState<CarouselData | null>(null);
-
-  const generateCarousel = useCallback(async (request: CarouselRequest) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/generate/carousel', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request)
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setCarouselData(data);
-      } else {
-        setError(data.error || 'Unknown error');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  return {
-    isLoading,
-    error,
-    carouselData,
-    generateCarousel
-  };
-};
-```
-
-### React компонент для отображения карусели:
-
-```typescript
-import React from 'react';
-import { useCarouselGeneration } from './useCarouselGeneration';
-
-interface CarouselProps {
-  mainTemplateId: string;
-  photoTemplateId: string;
-  replacements: Record<string, string>;
-}
-
-export const CarouselGenerator: React.FC<CarouselProps> = ({
-  mainTemplateId,
-  photoTemplateId,
-  replacements
-}) => {
-  const { isLoading, error, carouselData, generateCarousel } = useCarouselGeneration();
-
-  const handleGenerate = async () => {
-    await generateCarousel({
-      main_template_id: mainTemplateId,
-      photo_template_id: photoTemplateId,
-      data: replacements
-    });
-  };
-
-  return (
-    <div className="carousel-generator">
-      <button 
-        onClick={handleGenerate}
-        disabled={isLoading}
-        className="generate-btn"
-      >
-        {isLoading ? 'Генерируем...' : 'Сгенерировать карусель'}
-      </button>
-
-      {error && (
-        <div className="error">
-          Ошибка: {error}
-        </div>
-      )}
-
-      {carouselData && (
-        <div className="carousel-images">
-          <h3>Сгенерированные изображения:</h3>
-          <div className="images-grid">
-            {carouselData.images.map((imageUrl, index) => (
-              <div key={index} className="image-container">
-                <img 
-                  src={imageUrl}
-                  alt={`Slide ${index + 1}`}
-                  className="carousel-image"
-                  onError={(e) => {
-                    console.error('Failed to load image:', imageUrl);
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-                <div className="image-info">
-                  Формат: {carouselData.format}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-```
-
-## 🎨 Интеграция в Vue.js
-
-### Vue Composition API:
-
-```typescript
-import { ref, reactive } from 'vue';
-
-interface CarouselData {
-  carousel_id: string;
-  images: string[];
-  format: 'jpg' | 'svg';
-  status: string;
-}
-
-export const useCarouselGeneration = () => {
-  const isLoading = ref(false);
-  const error = ref<string | null>(null);
-  const carouselData = ref<CarouselData | null>(null);
-
-  const generateCarousel = async (request: {
-    main_template_id: string;
-    photo_template_id: string;
-    data: Record<string, string>;
-  }) => {
-    isLoading.value = true;
-    error.value = null;
-    
-    try {
-      const response = await fetch('/api/generate/carousel', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request)
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        carouselData.value = data;
-      } else {
-        error.value = data.error || 'Unknown error';
-      }
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Network error';
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
-  return {
-    isLoading,
-    error,
-    carouselData,
-    generateCarousel
-  };
-};
-```
-
-### Vue компонент:
-
-```vue
-<template>
-  <div class="carousel-generator">
-    <button 
-      @click="handleGenerate"
-      :disabled="isLoading"
-      class="generate-btn"
-    >
-      {{ isLoading ? 'Генерируем...' : 'Сгенерировать карусель' }}
-    </button>
-
-    <div v-if="error" class="error">
-      Ошибка: {{ error }}
-    </div>
-
-    <div v-if="carouselData" class="carousel-images">
-      <h3>Сгенерированные изображения:</h3>
-      <div class="images-grid">
-        <div 
-          v-for="(imageUrl, index) in carouselData.images" 
-          :key="index"
-          class="image-container"
-        >
-          <img 
-            :src="imageUrl"
-            :alt="`Slide ${index + 1}`"
-            class="carousel-image"
-            @error="handleImageError"
-          />
-          <div class="image-info">
-            Формат: {{ carouselData.format }}
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-import { useCarouselGeneration } from './useCarouselGeneration';
-
-const props = defineProps<{
-  mainTemplateId: string;
-  photoTemplateId: string;
-  replacements: Record<string, string>;
-}>();
-
-const { isLoading, error, carouselData, generateCarousel } = useCarouselGeneration();
-
-const handleGenerate = async () => {
-  await generateCarousel({
-    main_template_id: props.mainTemplateId,
-    photo_template_id: props.photoTemplateId,
-    data: props.replacements
+    body: JSON.stringify({
+      name: 'My Carousel',
+      main_template_name: templateNames.main,
+      photo_template_name: templateNames.photo,
+      replacements: data
+    })
   });
+  
+  const result = await response.json();
+  
+  if (result.success) {
+    console.log('Карусель создана:', result.carousel_id);
+    console.log('Слайды:', result.images);
+  }
+}
+
+// Использование
+const carouselData = {
+  'dyno.agentName': 'John Smith',
+  'dyno.propertyimage': 'https://example.com/main.jpg',
+  'dyno.propertyimage2': 'https://example.com/photo1.jpg',
+  'dyno.propertyimage3': 'https://example.com/photo2.jpg'
 };
 
-const handleImageError = (event: Event) => {
-  console.error('Failed to load image:', (event.target as HTMLImageElement).src);
-  (event.target as HTMLImageElement).style.display = 'none';
-};
-</script>
+generateCarousel({
+  main: 'Main Template',
+  photo: 'Photo Template'
+}, carouselData);
 ```
 
-## 🎨 Интеграция в Vanilla JavaScript
+## 🎯 Ключевые моменты:
 
-### Простая интеграция:
-
-```javascript
-class CarouselGenerator {
-  constructor(baseUrl = '') {
-    this.baseUrl = baseUrl;
-  }
-
-  async generateCarousel(request) {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/generate/carousel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request)
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        return data;
-      } else {
-        throw new Error(data.error || 'Unknown error');
-      }
-    } catch (error) {
-      console.error('Carousel generation error:', error);
-      throw error;
-    }
-  }
-
-  displayImages(images, containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    container.innerHTML = '';
-    
-    images.forEach((imageUrl, index) => {
-      const imgDiv = document.createElement('div');
-      imgDiv.className = 'image-container';
-      
-      const img = document.createElement('img');
-      img.src = imageUrl;
-      img.alt = `Slide ${index + 1}`;
-      img.className = 'carousel-image';
-      
-      img.onerror = () => {
-        console.error('Failed to load image:', imageUrl);
-        img.style.display = 'none';
-      };
-      
-      imgDiv.appendChild(img);
-      container.appendChild(imgDiv);
-    });
-  }
-}
-
-// Использование:
-const generator = new CarouselGenerator();
-
-const request = {
-  main_template_id: "template-id",
-  photo_template_id: "template-id",
-  data: {
-    'dyno.agentName': 'John Smith',
-    'dyno.propertyAddress': '123 Main Street',
-    'dyno.price': '$450,000'
-  }
-};
-
-try {
-  const result = await generator.generateCarousel(request);
-  generator.displayImages(result.images, 'carousel-container');
-} catch (error) {
-  console.error('Error:', error);
-}
-```
-
-## 🔄 Fallback механизм
-
-Если конвертация в JPG не удалась, API возвращает SVG URL с `"format": "svg"`:
-
-```json
-{
-  "images": [
-    "/output/carousel/carousel_xxx_main.svg",
-    "/output/carousel/carousel_xxx_photo.svg"
-  ],
-  "format": "svg"
-}
-```
-
-В этом случае фронтенд может:
-
-1. **Использовать `<object>` для SVG:**
-```html
-<object data="/output/carousel/carousel_xxx_main.svg" type="image/svg+xml">
-  <img src="fallback-image.jpg" alt="Fallback">
-</object>
-```
-
-2. **Или использовать `<embed>`:**
-```html
-<embed src="/output/carousel/carousel_xxx_main.svg" type="image/svg+xml">
-```
-
-## 🎯 Ключевые моменты
-
-1. **Все URL теперь JPG** - готовы для использования в `<img>` тегах
-2. **Поле `format`** указывает тип файла (`"jpg"` или `"svg"`)
-3. **Fallback механизм** - если JPG не удался, возвращается SVG
-4. **Обратная совместимость** - старый код продолжит работать
-5. **Высокое качество** - JPG генерируются с DPI 300
-
-## ✅ Тестирование
-
-Для тестирования API используйте:
-
-```bash
-curl -X POST http://localhost:5000/api/generate/carousel \
-  -H "Content-Type: application/json" \
-  -d '{
-    "main_template_id": "test-main-template",
-    "photo_template_id": "test-photo-template", 
-    "data": {
-      "dyno.agentName": "John Smith",
-      "dyno.propertyAddress": "123 Main Street",
-      "dyno.price": "$450,000"
-    }
-  }'
-```
-
-**Ожидаемый результат:**
-```json
-{
-  "success": true,
-  "images": [
-    "/output/carousel/carousel_xxx_main.jpg",
-    "/output/carousel/carousel_xxx_photo.jpg"
-  ],
-  "format": "jpg"
-}
-```
-
-Теперь фронтенд может корректно отображать изображения без ошибок "Failed to load slide"! 🎉
+1. **Передавайте все поля** которые нужны на слайдах
+2. **Используйте правильные названия** для изображений: `propertyimage2`, `propertyimage3`, etc.
+3. **Количество слайдов** определяется по наличию `propertyimage2`, `propertyimage3`, etc.
+4. **Все остальные поля** (агент, лого, текст) копируются на все слайды
+5. **Превью генерируются автоматически** при запросе списка шаблонов

@@ -1192,15 +1192,14 @@ def create_carousel():
 
 @app.route('/api/templates/all-previews')
 def get_all_templates():
+    """Получает все шаблоны с превью"""
     try:
-        from manual_preview_system import get_template_preview_url
-        
         ensure_db_exists()
         
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        cursor.execute('SELECT id, name, category, template_role, created_at FROM templates ORDER BY created_at DESC')
+        cursor.execute('SELECT id, name, category, template_role, svg_content, created_at FROM templates ORDER BY created_at DESC')
         templates_data = cursor.fetchall()
         
         conn.close()
@@ -1208,33 +1207,50 @@ def get_all_templates():
         templates = []
         for template in templates_data:
             template_id = template[0]
+            template_name = template[1]
+            category = template[2]
+            template_role = template[3]
+            svg_content = template[4]
+            created_at = template[5]
             
-            # Сначала ищем ручное превью
-            preview_url = get_template_preview_url(template_id)
-            preview_type = 'manual' if preview_url else 'auto'
+            # Проверяем, существует ли PNG превью
+            preview_dir = os.path.join(OUTPUT_FOLDER, 'previews')
+            os.makedirs(preview_dir, exist_ok=True)
+            preview_path = os.path.join(preview_dir, f"{template_id}_preview.png")
             
-            # Если ручного превью нет, используем старую систему
-            if not preview_url:
-                preview_filename = f"{template_id}_preview.png"
-                preview_path = os.path.join(OUTPUT_DIR, 'previews', preview_filename)
-                if os.path.exists(preview_path):
-                    preview_url = f'/output/previews/{preview_filename}'
+            # Если превью не существует, генерируем его
+            if not os.path.exists(preview_path):
+                print(f"🖼️ Генерирую превью для шаблона: {template_id}")
+                try:
+                    # Конвертируем SVG в PNG
+                    png_data = cairosvg.svg2png(
+                        bytestring=svg_content.encode('utf-8'),
+                        output_width=400,
+                        output_height=300,
+                        background_color='white'
+                    )
+                    
+                    # Сохраняем PNG файл
+                    with open(preview_path, 'wb') as f:
+                        f.write(png_data)
+                    
+                    print(f"✅ Превью создано: {preview_path}")
+                except Exception as e:
+                    print(f"❌ Ошибка генерации превью для {template_id}: {e}")
+                    # Если не удалось создать PNG, используем дефолтный URL
+                    preview_url = None
                 else:
-                    # Создаем дефолтное превью если ничего нет
-                    from manual_preview_system import create_default_preview
-                    default_result = create_default_preview(template[1], template_id)
-                    if default_result['success']:
-                        preview_url = default_result['url']
-                        preview_type = 'default'
+                    preview_url = f'/output/previews/{template_id}_preview.png'
+            else:
+                preview_url = f'/output/previews/{template_id}_preview.png'
             
             templates.append({
                 'id': template_id,
-                'name': template[1],
-                'category': template[2],
-                'template_role': template[3],
-                'created_at': template[4],
-                'preview_url': preview_url,
-                'preview_type': preview_type  # manual, auto, default
+                'name': template_name,
+                'category': category,
+                'template_role': template_role,
+                'created_at': created_at,
+                'preview_url': preview_url
             })
         
         return jsonify({
@@ -1243,57 +1259,62 @@ def get_all_templates():
         })
         
     except Exception as e:
+        print(f"❌ Ошибка получения шаблонов: {e}")
         return jsonify({'error': f'Ошибка получения шаблонов: {str(e)}'}), 500
 
 @app.route('/api/templates/<template_id>/preview')
 def get_template_preview(template_id):
-    """
-    Возвращает PNG превью шаблона или генерирует его если не существует
-    """
+    """Получает превью конкретного шаблона"""
     try:
-        # Проверяем существует ли PNG превью
-        preview_filename = f"{template_id}_preview.png"
-        preview_path = os.path.join(OUTPUT_DIR, 'previews', preview_filename)
-        
-        if os.path.exists(preview_path):
-            # Возвращаем существующее превью
-            return send_from_directory(
-                os.path.join(OUTPUT_DIR, 'previews'), 
-                preview_filename,
-                mimetype='image/png'
-            )
-        
-        # Если превью нет, генерируем его
         ensure_db_exists()
+        
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
+        # Получаем SVG содержимое шаблона
         cursor.execute('SELECT svg_content FROM templates WHERE id = ?', [template_id])
         result = cursor.fetchone()
         
-        conn.close()
-        
         if not result:
+            conn.close()
             return jsonify({'error': 'Шаблон не найден'}), 404
         
         svg_content = result[0]
+        conn.close()
         
-        # Генерируем превью
-        preview_result = generate_svg_preview(svg_content, template_id)
+        # Проверяем, существует ли PNG превью
+        preview_dir = os.path.join(OUTPUT_FOLDER, 'previews')
+        os.makedirs(preview_dir, exist_ok=True)
+        preview_path = os.path.join(preview_dir, f"{template_id}_preview.png")
         
-        if preview_result['success']:
-            # Возвращаем сгенерированное превью
-            return send_from_directory(
-                os.path.join(OUTPUT_DIR, 'previews'), 
-                preview_filename,
-                mimetype='image/png'
-            )
-        else:
-            # Если не удалось сгенерировать PNG, возвращаем SVG
-            preview_svg = create_preview_svg(svg_content)
-            return preview_svg, 200, {'Content-Type': 'image/svg+xml'}
+        # Если превью не существует, генерируем его
+        if not os.path.exists(preview_path):
+            print(f"🖼️ Генерирую превью для шаблона: {template_id}")
+            try:
+                # Конвертируем SVG в PNG
+                png_data = cairosvg.svg2png(
+                    bytestring=svg_content.encode('utf-8'),
+                    output_width=400,
+                    output_height=300,
+                    background_color='white'
+                )
+                
+                # Сохраняем PNG файл
+                with open(preview_path, 'wb') as f:
+                    f.write(png_data)
+                
+                print(f"✅ Превью создано: {preview_path}")
+            except Exception as e:
+                print(f"❌ Ошибка генерации превью для {template_id}: {e}")
+                return jsonify({'error': f'Ошибка генерации превью: {str(e)}'}), 500
+        
+        # Возвращаем URL к PNG превью
+        return jsonify({
+            'preview_url': f'/output/previews/{template_id}_preview.png'
+        })
         
     except Exception as e:
+        print(f"❌ Ошибка получения превью: {e}")
         return jsonify({'error': f'Ошибка получения превью: {str(e)}'}), 500
 
 @app.route('/api/templates/<template_id>/delete', methods=['DELETE'])
@@ -2016,17 +2037,13 @@ def create_and_generate_carousel():
                     # Создаем replacements для этого photo слайда
                     photo_replacements = {}
                     
-                    # Заменяем dyno.propertyimage на соответствующий propertyimage{i+1}
+                    # Просто копируем все поля из replacements, которые есть в SVG
                     svg_fields_photo = extract_dyno_fields_simple(photo_svg)
                     print(f"🔍 Photo SVG поля: {svg_fields_photo}")
                     
                     for field in svg_fields_photo:
-                        if field == 'dyno.propertyimage':
-                            # Заменяем основное изображение на соответствующее
-                            photo_replacements[field] = replacements[property_image_field]
-                            print(f"   📸 {field} -> {property_image_field} = {replacements[property_image_field]}")
-                        elif field in replacements:
-                            # Остальные поля (хедшот, текст и т.д.) берем как есть
+                        if field in replacements:
+                            # Поле есть в replacements - используем его
                             photo_replacements[field] = replacements[field]
                             print(f"   📝 {field} = {replacements[field]}")
                         else:
