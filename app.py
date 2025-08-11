@@ -2061,6 +2061,13 @@ def create_and_generate_carousel():
                 if 'dyno.propertyimage' in svg_fields_photo:
                     photo_replacements['dyno.propertyimage'] = replacements[property_image_field]
                     print(f"   📸 Заменяю dyno.propertyimage на {property_image_field} = {replacements[property_image_field]}")
+                else:
+                    # Если dyno.propertyimage нет, но есть другое поле с изображением, заменяем его
+                    for field in svg_fields_photo:
+                        if 'image' in field.lower() and field != 'dyno.propertyimage':
+                            photo_replacements[field] = replacements[property_image_field]
+                            print(f"   📸 Заменяю {field} на {property_image_field} = {replacements[property_image_field]}")
+                            break
                 
                 print(f"🔍 Photo {i+1} replacements: {photo_replacements}")
                 processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
@@ -2078,7 +2085,10 @@ def create_and_generate_carousel():
                     
                     try:
                         convert_svg_to_jpg(processed_photo_svg, jpg_path)
-                        jpg_url = save_file_locally_or_supabase(open(jpg_path, 'rb').read(), jpg_filename, "carousel")
+                        # Читаем JPG файл как bytes и передаем напрямую
+                        with open(jpg_path, 'rb') as jpg_file:
+                            jpg_data = jpg_file.read()
+                        jpg_url = save_file_locally_or_supabase(jpg_data, jpg_filename, "carousel")
                         
                         if jpg_url:
                             images.append({
