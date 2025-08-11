@@ -290,64 +290,52 @@ def process_svg_font_perfect(svg_content, replacements):
         return 'rectangular'
     
     def determine_image_type(dyno_field):
-        """Определение типа изображения по названию поля"""
+        """Определяет тип изображения по названию поля"""
         field_lower = dyno_field.lower()
         
-        headshot_keywords = ['headshot', 'agent', 'profile', 'portrait', 'realtor', 'agentheadshot']
-        property_keywords = ['propertyimage', 'property', 'house', 'home', 'building', 'listing']
-        logo_keywords = ['logo', 'companylogo', 'brand', 'brandlogo']
-        
-        for keyword in headshot_keywords:
-            if keyword in field_lower:
-                return 'headshot'
-        
-        for keyword in property_keywords:
-            if keyword in field_lower:
-                return 'property'
-        
-        for keyword in logo_keywords:
-            if keyword in field_lower:
-                return 'logo'
-        
-        return 'generic_image'
+        if 'headshot' in field_lower or 'agent' in field_lower or 'profile' in field_lower:
+            return 'headshot'
+        elif 'propertyimage' in field_lower or 'property' in field_lower:
+            return 'property'
+        elif 'logo' in field_lower or 'company' in field_lower:
+            return 'logo'
+        else:
+            return 'general'
     
     def get_aspect_ratio_for_image(image_type, element_shape):
-        """Возвращает правильный preserveAspectRatio для типа изображения и формы элемента"""
-        
+        """Возвращает правильный preserveAspectRatio для типа изображения"""
         if image_type == 'headshot':
-            # Для хедшотов НЕ МЕНЯЕМ preserveAspectRatio - оставляем как в оригинале
-            return None
-        
-        elif image_type == 'property':
-            # Недвижимость всегда slice (cover эффект)
-            return 'xMidYMid slice'
-        
-        elif image_type == 'logo':
-            # Логотипы всегда meet (сохранение пропорций)
+            # Для headshot - показываем всё лицо, центрируем
             return 'xMidYMid meet'
-        
+        elif image_type == 'property':
+            # Для property images - заполняем весь блок, обрезаем если нужно
+            return 'xMidYMid slice'
+        elif image_type == 'logo':
+            # Для лого - показываем полностью, центрируем
+            return 'xMidYMid meet'
         else:
-            # По умолчанию meet (безопасно)
+            # По умолчанию - центрируем
             return 'xMidYMid meet'
     
     def is_image_field(dyno_field):
-        """Определяет, является ли поле изображением"""
+        """Проверяет, является ли поле изображением"""
         field_lower = dyno_field.lower()
-        explicit_image_indicators = ['image', 'headshot', 'logo', 'photo', 'pic', 'portrait']
+        return any(keyword in field_lower for keyword in ['image', 'photo', 'headshot', 'logo', 'picture'])
+    
+    def find_headshot_field(replacements):
+        """Ищет поле headshot в replacements (поддерживает разные названия)"""
+        headshot_fields = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo']
         
-        print(f"🔍 Проверяю поле на изображение: {dyno_field} (lower: {field_lower})")
+        for field in headshot_fields:
+            if field in replacements:
+                return field
         
-        for indicator in explicit_image_indicators:
-            if indicator in field_lower:
-                print(f"   ✅ Найден индикатор '{indicator}' - это изображение")
-                return True
+        # Если не нашли точное совпадение, ищем по ключевым словам
+        for field in replacements.keys():
+            if any(keyword in field.lower() for keyword in ['headshot', 'agent', 'photo', 'profile']):
+                return field
         
-        if 'agent' in field_lower and any(img in field_lower for img in ['photo', 'image', 'pic', 'headshot']):
-            print(f"   ✅ Найден 'agent' + изображение - это изображение")
-            return True
-        
-        print(f"   ❌ Не определено как изображение")
-        return False
+        return None
     
     def is_address_field(dyno_field):
         """Определяет, является ли поле адресом"""
@@ -457,195 +445,52 @@ def process_svg_font_perfect(svg_content, replacements):
         
         if is_image_field(dyno_field):
             # ОБРАБОТКА ИЗОБРАЖЕНИЙ
+            print(f"🖼️ Обрабатываю изображение: {dyno_field}")
+            
+            safe_url = str(replacement).replace('&', '&amp;')
+            
+            # Определяем тип изображения и правильный aspect ratio
             image_type = determine_image_type(dyno_field)
+            aspect_ratio = get_aspect_ratio_for_image(image_type, 'unknown')  # Пока не знаем форму
             
-            print(f"   🖼️ Обрабатываю изображение: {dyno_field}")
-            print(f"      📐 Тип изображения: {image_type}")
+            print(f"   🎯 Тип изображения: {image_type}, aspect ratio: {aspect_ratio}")
             
-            # ИСПРАВЛЕНО: Используем полное экранирование для URL
-            safe_url = safe_escape_for_svg(str(replacement))
-            print(f"      🔒 Применено полное экранирование URL")
-            
-            # Ищем элемент с id (любой элемент, не только с fill)
-            element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*>'
+            # Ищем элемент с id
+            element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*fill="url\\(#([^)]+)\\)"[^>]*>'
             match = re.search(element_pattern, processed_svg)
             
-            # Если не нашли, выводим все элементы с id для отладки
-            if not match:
-                all_elements_with_id = re.findall(r'<[^>]*id="([^"]*)"[^>]*>', processed_svg)
-                print(f"      🔍 Все элементы с id в SVG: {all_elements_with_id}")
-                print(f"      🔍 Ищем элемент: {dyno_field}")
-            
-            # Если нашли элемент, выводим его содержимое для отладки
             if match:
-                element_content = match.group(0)
-                print(f"      🔍 Найден элемент: {element_content[:200]}...")
+                pattern_id = match.group(1)
+                print(f"   🎯 Найден pattern: {pattern_id}")
                 
-                # Проверяем, есть ли fill атрибут
-                fill_match = re.search(r'fill="url\(#([^)]+)\)"', element_content)
-                if fill_match:
-                    pattern_id = fill_match.group(1)
-                    print(f"      🎯 Найден pattern из fill: {pattern_id}")
-                else:
-                    print(f"      ⚠️ Fill атрибут не найден, ищем pattern по умолчанию")
-                    pattern_id = dyno_field.replace('dyno.', 'pattern_')
-            
-            # Если не нашли по основному имени, пробуем альтернативное
-            if not match and alternative_field:
-                element_pattern = f'<[^>]*id="{re.escape(alternative_field)}"[^>]*>'
-                match = re.search(element_pattern, processed_svg)
-                if match:
-                    print(f"      ✅ Найдено по альтернативному имени: {alternative_field}")
-                    dyno_field = alternative_field
-            
-            if match:
-                # Ищем pattern_id в fill атрибуте или в связанных элементах
-                element_content = match.group(0)
-                print(f"      🔍 Анализируем элемент: {element_content}")
-                pattern_match = re.search(r'fill="url\(#([^)]+)\)"', element_content)
-                print(f"      🔍 Pattern match результат: {pattern_match}")
-                
-                if pattern_match:
-                    pattern_id = pattern_match.group(1)
-                    print(f"      🎯 Найден pattern из fill: {pattern_id}")
-                else:
-                    # Проверяем, может это прямой image элемент
-                    if '<image' in element_content:
-                        print(f"      🎯 Найден прямой image элемент")
-                        # Обрабатываем прямой image элемент
-                        old_image = element_content
-                        new_image = old_image
-                        
-                        # Заменяем URL
-                        new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
-                        new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
-                        
-                        # Для хедшотов НЕ МЕНЯЕМ preserveAspectRatio - только URL
-                        if image_type == 'headshot':
-                            print(f"      🎯 Хедшот: только замена URL, preserveAspectRatio не трогаем")
-                        else:
-                            # Устанавливаем preserveAspectRatio для других изображений
-                            if aspect_ratio and 'preserveAspectRatio=' in new_image:
-                                new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
-                            elif aspect_ratio:
-                                if new_image.endswith('/>'):
-                                    new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
-                                elif new_image.endswith('>'):
-                                    new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
-                        
-                        processed_svg = processed_svg.replace(old_image, new_image)
-                        print(f"      ✅ Прямое изображение {dyno_field} заменено!")
-                        print(f"      🎯 Применен aspect ratio: {aspect_ratio}")
-                        successful_replacements += 1
-                        continue
-                    else:
-                        # Если нет fill, ищем pattern по id элемента
-                        pattern_id = dyno_field.replace('dyno.', 'pattern_')
-                        print(f"      🎯 Используем pattern по умолчанию: {pattern_id}")
-                        
-                        # Попробуем найти реальный pattern в SVG
-                        all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
-                        if all_patterns:
-                            print(f"      🔍 Доступные patterns: {all_patterns}")
-                            # Используем первый доступный pattern
-                            pattern_id = all_patterns[0]
-                            print(f"      🎯 Используем найденный pattern: {pattern_id}")
-                
-                # ОПРЕДЕЛЯЕМ ФОРМУ ЭЛЕМЕНТА
+                # Определяем форму элемента
                 element_shape = determine_element_shape(processed_svg, pattern_id)
-                print(f"      🔍 Форма элемента: {element_shape}")
+                print(f"   🔍 Форма элемента: {element_shape}")
                 
-                # ВЫБИРАЕМ ПРАВИЛЬНЫЙ ASPECT RATIO
+                # Обновляем aspect ratio с учетом формы
                 aspect_ratio = get_aspect_ratio_for_image(image_type, element_shape)
-                print(f"      ⚙️ Aspect ratio: {aspect_ratio}")
+                print(f"   🎯 Финальный aspect ratio: {aspect_ratio}")
                 
                 # Ищем pattern блок
                 pattern_block_pattern = f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
                 pattern_match = re.search(pattern_block_pattern, processed_svg, re.DOTALL)
                 
                 if pattern_match:
-                    print(f"      ✅ Найден pattern блок: {pattern_id}")
-                else:
-                    print(f"      ❌ Pattern блок {pattern_id} не найден")
-                    # Попробуем найти pattern по номеру
-                    all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
-                    print(f"      🔍 Все pattern блоки в SVG: {all_patterns}")
-                    
-                    # Попробуем найти pattern по номеру
-                    for i, pattern_name in enumerate(all_patterns):
-                        print(f"      🔍 Проверяем pattern {i}: {pattern_name}")
-                        # Ищем use элемент, который ссылается на этот pattern
-                        use_pattern = f'<use[^>]*xlink:href="#{re.escape(pattern_name)}"[^>]*>'
-                        if re.search(use_pattern, processed_svg):
-                            print(f"      ✅ Найден используемый pattern: {pattern_name}")
-                            pattern_id = pattern_name
-                            pattern_match = re.search(f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>', processed_svg, re.DOTALL)
-                            break
-                
-                # Если не нашли, ищем все pattern блоки для отладки
-                if not pattern_match:
-                    all_patterns = re.findall(r'<pattern[^>]*id="([^"]*)"[^>]*>', processed_svg)
-                    print(f"      🔍 Все pattern блоки в SVG: {all_patterns}")
-                    print(f"      🔍 Ищем pattern: {pattern_id}")
-                    
-                    # Попробуем найти pattern по номеру
-                    for i, pattern_name in enumerate(all_patterns):
-                        print(f"      🔍 Проверяем pattern {i}: {pattern_name}")
-                        # Ищем use элемент, который ссылается на этот pattern
-                        use_pattern = f'<use[^>]*xlink:href="#{re.escape(pattern_name)}"[^>]*>'
-                        if re.search(use_pattern, processed_svg):
-                            print(f"      ✅ Найден используемый pattern: {pattern_name}")
-                            pattern_id = pattern_name
-                            pattern_match = re.search(f'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>', processed_svg, re.DOTALL)
-                            break
-                
-                if pattern_match:
                     pattern_content = pattern_match.group(1)
                     pattern_full = pattern_match.group(0)
                     
-                    # Для круглых хедшотов УБИРАЕМ фиксированные transform - полагаемся на preserveAspectRatio
-                    if element_shape == 'circular' and image_type == 'headshot':
-                        print(f"      🔍 Обрабатываю круглый headshot БЕЗ фиксированных смещений")
+                    # Для headshot - убираем фиксированные transform для лучшего центрирования
+                    if image_type == 'headshot' and element_shape == 'circular':
+                        print(f"   🔍 Обрабатываю круглый headshot БЕЗ фиксированных смещений")
                         
-                        # УБИРАЕМ любые существующие patternTransform для лучшего центрирования
+                        # Убираем любые существующие patternTransform для лучшего центрирования
                         old_pattern = pattern_full
-                        
-                        # Удаляем patternTransform если есть
                         new_pattern = re.sub(r'\s*patternTransform="[^"]*"', '', old_pattern)
-                        
-                        # Удаляем transform если есть  
                         new_pattern = re.sub(r'\s*transform="[^"]*"', '', new_pattern)
                         
-                        # Заменяем старый pattern на новый БЕЗ фиксированных смещений
                         if new_pattern != old_pattern:
                             processed_svg = processed_svg.replace(old_pattern, new_pattern)
-                            print(f"      ✅ Удалены фиксированные transform - headshot будет центрироваться автоматически")
-                    else:
-                        # Для других изображений применяем масштабирование если нужно
-                        if element_shape == 'circular':
-                            print(f"      🔍 Применяем масштабирование для круглого изображения")
-                            
-                            # Находим pattern и добавляем transform с масштабированием
-                            old_pattern = pattern_full
-                            
-                            if 'transform=' in old_pattern:
-                                # Если transform уже есть, добавляем scale к нему
-                                new_pattern = re.sub(
-                                    r'transform="([^"]*)"', 
-                                    r'transform="\1 scale(0.9)"', 
-                                    old_pattern
-                                )
-                            else:
-                                # Если transform нет, добавляем новый атрибут
-                                new_pattern = old_pattern.replace(
-                                    f'id="{pattern_id}"', 
-                                    f'id="{pattern_id}" patternTransform="scale(0.9)"'
-                                )
-                            
-                            # Заменяем старый pattern на новый с масштабированием
-                            if new_pattern != old_pattern:
-                                processed_svg = processed_svg.replace(old_pattern, new_pattern)
-                                print(f"      ✅ Добавлено масштабирование (scale 0.9) для круглого изображения")
+                            print(f"   ✅ Удалены фиксированные transform - headshot будет центрироваться автоматически")
                     
                     # Ищем use элемент внутри pattern
                     use_pattern = r'<use[^>]*xlink:href="#([^"]*)"[^>]*/?>'
@@ -653,7 +498,7 @@ def process_svg_font_perfect(svg_content, replacements):
                     
                     if use_match:
                         image_id = use_match.group(1)
-                        print(f"      🔗 Найден use элемент: #{image_id}")
+                        print(f"   🔗 Найден use элемент: #{image_id}")
                         
                         # Ищем соответствующий image элемент
                         image_pattern = f'<image[^>]*id="{re.escape(image_id)}"[^>]*/?>'
@@ -663,35 +508,31 @@ def process_svg_font_perfect(svg_content, replacements):
                             old_image = image_match.group(0)
                             new_image = old_image
                             
-                            # Заменяем URL с полным экранированием
+                            # Заменяем URL
                             new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
                             new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
                             
-                            # Для хедшотов - НЕ МЕНЯЕМ preserveAspectRatio, только URL
-                            if image_type == 'headshot':
-                                print(f"      🎯 Хедшот: только URL, preserveAspectRatio не трогаем")
+                            # Устанавливаем правильный preserveAspectRatio
+                            if 'preserveAspectRatio=' in new_image:
+                                new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
                             else:
-                                # Для других изображений устанавливаем правильный preserveAspectRatio
-                                if aspect_ratio and 'preserveAspectRatio=' in new_image:
-                                    new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
-                                elif aspect_ratio:
-                                    if new_image.endswith('/>'):
-                                        new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
-                                    elif new_image.endswith('>'):
-                                        new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
+                                if new_image.endswith('/>'):
+                                    new_image = new_image[:-2] + f' preserveAspectRatio="{aspect_ratio}"/>'
+                                elif new_image.endswith('>'):
+                                    new_image = new_image[:-1] + f' preserveAspectRatio="{aspect_ratio}">'
                             
                             processed_svg = processed_svg.replace(old_image, new_image)
-                            print(f"      ✅ Изображение {dyno_field} заменено!")
-                            print(f"      🎯 Применен aspect ratio: {aspect_ratio}")
+                            print(f"   ✅ Изображение {dyno_field} заменено!")
+                            print(f"   🎯 Применен aspect ratio: {aspect_ratio}")
                             successful_replacements += 1
                         else:
-                            print(f"      ❌ Image элемент #{image_id} не найден")
+                            print(f"   ❌ Image элемент #{image_id} не найден")
                     else:
-                        print(f"      ❌ Use элемент в pattern не найден")
+                        print(f"   ❌ Use элемент в pattern не найден")
                 else:
-                    print(f"      ❌ Pattern блок {pattern_id} не найден")
+                    print(f"   ❌ Pattern блок {pattern_id} не найден")
             else:
-                print(f"      ❌ Элемент с id {dyno_field} не найден")
+                print(f"   ❌ Элемент с id {dyno_field} не найден")
         else:
             # ОБРАБОТКА ТЕКСТОВЫХ ПОЛЕЙ
             safe_replacement = safe_escape_for_svg(str(replacement))
@@ -2188,6 +2029,12 @@ def create_and_generate_carousel():
                             # Остальные поля (хедшот, текст и т.д.) берем как есть
                             photo_replacements[field] = replacements[field]
                             print(f"   📝 {field} = {replacements[field]}")
+                        else:
+                            # Если поле не найдено в replacements, ищем альтернативные названия
+                            alternative_field = find_alternative_field(field, replacements)
+                            if alternative_field:
+                                photo_replacements[field] = replacements[alternative_field]
+                                print(f"   🔄 {field} -> {alternative_field} = {replacements[alternative_field]}")
                     
                     print(f"🔍 Photo {i} replacements: {photo_replacements}")
                     processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
@@ -2198,14 +2045,40 @@ def create_and_generate_carousel():
                     
                     if photo_url:
                         photo_urls.append(photo_url)
-                        images.append({
-                            'type': f'photo_{i}',
-                            'url': photo_url,
-                            'template_name': f"{photo_name} {i}"
-                        })
-                        print(f"✅ Photo слайд {i} создан: {photo_url}")
+                        
+                        # Конвертируем в JPG
+                        jpg_filename = f"carousel_{carousel_id}_photo_{i}.jpg"
+                        jpg_path = os.path.join(OUTPUT_FOLDER, "carousel", jpg_filename)
+                        
+                        try:
+                            convert_svg_to_jpg(processed_photo_svg, jpg_path)
+                            jpg_url = save_file_locally_or_supabase(open(jpg_path, 'rb').read(), jpg_filename, "carousel")
+                            
+                            if jpg_url:
+                                images.append({
+                                    'type': f'photo_{i}',
+                                    'svg_url': photo_url,
+                                    'jpg_url': jpg_url,
+                                    'template_name': photo_name,
+                                    'property_image': replacements[property_image_field]
+                                })
+                                print(f"   ✅ Photo слайд {i} создан: {jpg_url}")
+                            else:
+                                print(f"   ⚠️ Photo слайд {i} SVG сохранен, но JPG не удалось сохранить")
+                        except Exception as e:
+                            print(f"   ❌ Ошибка конвертации Photo слайд {i} в JPG: {e}")
+                            # Добавляем только SVG если JPG не удалось
+                            images.append({
+                                'type': f'photo_{i}',
+                                'svg_url': photo_url,
+                                'jpg_url': None,
+                                'template_name': photo_name,
+                                'property_image': replacements[property_image_field]
+                            })
                     else:
-                        print(f"❌ Ошибка сохранения photo слайда {i}")
+                        print(f"   ❌ Ошибка сохранения Photo слайд {i}")
+                else:
+                    print(f"   ⚠️ Поле {property_image_field} не найдено в replacements, пропускаем Photo слайд {i}")
             
             print(f"🎉 Карусель создана: {carousel_id}")
             print(f"📊 Создано слайдов: 1 main + {len(photo_urls)} photo")
@@ -2631,6 +2504,40 @@ def generate_carousel_multi():
         
     except Exception as e:
         return jsonify({'error': f'Ошибка генерации превью карусели: {str(e)}'}), 500
+
+def find_alternative_field(field, replacements):
+    """Ищет альтернативное название поля в replacements"""
+    field_lower = field.lower()
+    
+    # Маппинг для headshot полей
+    if 'headshot' in field_lower or 'agent' in field_lower:
+        headshot_alternatives = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo']
+        for alt in headshot_alternatives:
+            if alt in replacements:
+                return alt
+    
+    # Маппинг для property image полей
+    elif 'propertyimage' in field_lower:
+        # Ищем любое propertyimage поле
+        for key in replacements.keys():
+            if 'propertyimage' in key.lower():
+                return key
+    
+    # Маппинг для logo полей
+    elif 'logo' in field_lower:
+        logo_alternatives = ['dyno.logo', 'dyno.companylogo', 'dyno.brandlogo']
+        for alt in logo_alternatives:
+            if alt in replacements:
+                return alt
+    
+    # Маппинг для текстовых полей
+    elif any(keyword in field_lower for keyword in ['name', 'title', 'address', 'price']):
+        # Ищем похожие поля по ключевым словам
+        for key in replacements.keys():
+            if any(keyword in key.lower() for keyword in ['name', 'title', 'address', 'price']):
+                return key
+    
+    return None
 
 if __name__ == '__main__':
     ensure_db_exists()
