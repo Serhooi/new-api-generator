@@ -2025,6 +2025,13 @@ def create_and_generate_carousel():
                     # Создаем replacements для этого photo слайда
                     photo_replacements = replacements.copy()  # Копируем ВСЕ поля
                     
+                    # Убираем headshot поля из photo слайдов
+                    headshot_fields = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo']
+                    for headshot_field in headshot_fields:
+                        if headshot_field in photo_replacements:
+                            del photo_replacements[headshot_field]
+                            print(f"   🚫 Убираю {headshot_field} с photo слайда {i}")
+                    
                     # Проверяем, есть ли в photo SVG поле dyno.propertyimage
                     svg_fields_photo = extract_dyno_fields_simple(photo_svg)
                     print(f"🔍 Photo SVG поля: {svg_fields_photo}")
