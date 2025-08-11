@@ -1214,7 +1214,7 @@ def get_all_templates():
             created_at = template[5]
             
             # Проверяем, существует ли PNG превью
-            preview_dir = os.path.join(OUTPUT_FOLDER, 'previews')
+            preview_dir = os.path.join(OUTPUT_DIR, 'previews')
             os.makedirs(preview_dir, exist_ok=True)
             preview_path = os.path.join(preview_dir, f"{template_id}_preview.png")
             
@@ -1283,7 +1283,7 @@ def get_template_preview(template_id):
         conn.close()
         
         # Проверяем, существует ли PNG превью
-        preview_dir = os.path.join(OUTPUT_FOLDER, 'previews')
+        preview_dir = os.path.join(OUTPUT_DIR, 'previews')
         os.makedirs(preview_dir, exist_ok=True)
         preview_path = os.path.join(preview_dir, f"{template_id}_preview.png")
         
@@ -2065,7 +2065,7 @@ def create_and_generate_carousel():
                         
                         # Конвертируем в JPG
                         jpg_filename = f"carousel_{carousel_id}_photo_{i}.jpg"
-                        jpg_path = os.path.join(OUTPUT_FOLDER, "carousel", jpg_filename)
+                        jpg_path = os.path.join(OUTPUT_DIR, "carousel", jpg_filename)
                         
                         try:
                             convert_svg_to_jpg(processed_photo_svg, jpg_path)
