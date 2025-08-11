@@ -1192,14 +1192,14 @@ def create_carousel():
 
 @app.route('/api/templates/all-previews')
 def get_all_templates():
-    """Получает все шаблоны с превью"""
+    """Получает все шаблоны с превью согласно требованиям фронта"""
     try:
         ensure_db_exists()
         
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
-        cursor.execute('SELECT id, name, category, template_role, svg_content, created_at FROM templates ORDER BY created_at DESC')
+        cursor.execute('SELECT id, name, category, template_role, svg_content FROM templates ORDER BY created_at DESC')
         templates_data = cursor.fetchall()
         
         conn.close()
@@ -1211,7 +1211,6 @@ def get_all_templates():
             category = template[2]
             template_role = template[3]
             svg_content = template[4]
-            created_at = template[5]
             
             # Проверяем, существует ли PNG превью
             preview_dir = os.path.join(OUTPUT_DIR, 'previews')
@@ -1222,11 +1221,11 @@ def get_all_templates():
             if not os.path.exists(preview_path):
                 print(f"🖼️ Генерирую превью для шаблона: {template_id}")
                 try:
-                    # Конвертируем SVG в PNG
+                    # Конвертируем SVG в PNG с размером 400x600px как требует фронт
                     png_data = cairosvg.svg2png(
                         bytestring=svg_content.encode('utf-8'),
                         output_width=400,
-                        output_height=300,
+                        output_height=600,
                         background_color='white'
                     )
                     
@@ -1237,25 +1236,21 @@ def get_all_templates():
                     print(f"✅ Превью создано: {preview_path}")
                 except Exception as e:
                     print(f"❌ Ошибка генерации превью для {template_id}: {e}")
-                    # Если не удалось создать PNG, используем дефолтный URL
-                    preview_url = None
-                else:
-                    preview_url = f'/output/previews/{template_id}_preview.png'
+                    return jsonify({'error': f'Ошибка генерации превью: {str(e)}'}), 500
             else:
                 preview_url = f'/output/previews/{template_id}_preview.png'
             
+            # Структура согласно требованиям фронта
             templates.append({
                 'id': template_id,
                 'name': template_name,
                 'category': category,
                 'template_role': template_role,
-                'created_at': created_at,
                 'preview_url': preview_url
             })
         
         return jsonify({
-            'templates': templates,
-            'total': len(templates)
+            'templates': templates
         })
         
     except Exception as e:
@@ -1291,11 +1286,11 @@ def get_template_preview(template_id):
         if not os.path.exists(preview_path):
             print(f"🖼️ Генерирую превью для шаблона: {template_id}")
             try:
-                # Конвертируем SVG в PNG
+                # Конвертируем SVG в PNG с размером 400x600px как требует фронт
                 png_data = cairosvg.svg2png(
                     bytestring=svg_content.encode('utf-8'),
                     output_width=400,
-                    output_height=300,
+                    output_height=600,
                     background_color='white'
                 )
                 
