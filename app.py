@@ -2155,12 +2155,13 @@ def create_and_generate_carousel():
                 
                 if target_image_field in replacements:
                     print(f"   ✅ Поле {target_image_field} найдено в replacements: {replacements[target_image_field][:50]}...")
-                    # Если в photo SVG есть dyno.propertyimage, заменяем его на target_image_field
-                    if 'dyno.propertyimage' in svg_fields_photo:
-                        photo_replacements['dyno.propertyimage'] = replacements[target_image_field]
-                        print(f"   📸 Заменяю dyno.propertyimage на {target_image_field} = {replacements[target_image_field][:50]}...")
+                    
+                    # Ищем именно target_image_field в photo SVG (например, dyno.propertyimage2)
+                    if target_image_field in svg_fields_photo:
+                        photo_replacements[target_image_field] = replacements[target_image_field]
+                        print(f"   📸 Заменяю {target_image_field} на {replacements[target_image_field][:50]}...")
                     else:
-                        print(f"   ⚠️ В photo SVG нет поля dyno.propertyimage")
+                        print(f"   ⚠️ В photo SVG нет поля {target_image_field}")
                         print(f"   🔍 Доступные поля в photo SVG: {svg_fields_photo}")
                         
                         # Fallback: ищем любое поле с изображением для замены
