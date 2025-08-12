@@ -230,7 +230,7 @@ def replace_headshot_url(svg: str, safe_url: str) -> str:
     """
     # Находим ТОЛЬКО тег <image> или <use> с нужным id (порядок атрибутов любой)
     tag_pattern = re.compile(
-        r'<(?:image|use)\b(?:(?!>).)*\bid\s*=\s*(["|\')dyno\.agentheadshot\1(?:(?!>).)*>',
+        r'<(?:image|use)\b(?:(?!>).)*\bid\s*=\s*(["\'])dyno\.agentheadshot\1(?:(?!>).)*>',
         flags=re.DOTALL | re.IGNORECASE
     )
 
