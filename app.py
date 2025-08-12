@@ -224,6 +224,40 @@ def create_preview_svg(svg_content):
     
     return preview_svg
 
+def replace_headshot_url(svg: str, safe_url: str) -> str:
+    """
+    Безопасная замена URL в headshot - меняет ТОЛЬКО href/xlink:href, ничего больше не трогает
+    """
+    # Находим ТОЛЬКО тег <image> или <use> с нужным id (порядок атрибутов любой)
+    tag_pattern = re.compile(
+        r'<(?:image|use)\b(?:(?!>).)*\bid\s*=\s*(["|\')dyno\.agentheadshot\1(?:(?!>).)*>',
+        flags=re.DOTALL | re.IGNORECASE
+    )
+
+    # Внутри найденного тега меняем href/xlink:href, ничего больше
+    def _href_only_rewrite(m: re.Match) -> str:
+        tag = m.group(0)
+
+        # Меняем значение href=... (если есть)
+        tag = re.sub(
+            r'(?<!:)\bhref\s*=\s*(["\'])(.*?)\1',
+            lambda mm: f'href={mm.group(1)}{safe_url}{mm.group(1)}',
+            tag,
+            flags=re.IGNORECASE
+        )
+
+        # Меняем значение xlink:href=... (если есть)
+        tag = re.sub(
+            r'\bxlink:href\s*=\s*(["\'])(.*?)\1',
+            lambda mm: f'xlink:href={mm.group(1)}{safe_url}{mm.group(1)}',
+            tag,
+            flags=re.IGNORECASE
+        )
+
+        return tag
+
+    return tag_pattern.sub(_href_only_rewrite, svg)
+
 def process_svg_font_perfect(svg_content, replacements):
     """
     ФИНАЛЬНАЯ функция с исправлением круглых хедшотов
@@ -534,60 +568,14 @@ def process_svg_font_perfect(svg_content, replacements):
                                 new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
                                 new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
                                 
-                                # Для headshot - поднимаем изображение вверх
+                                # Для headshot - ТОЛЬКО замена URL, ничего больше не трогаем
                                 if image_type == 'headshot':
-                                    print(f"   🎯 Обрабатываю headshot - масштабирую и центрирую в кружочке")
-                                    
-                                    # Ищем width и height для правильного масштабирования
-                                    width_match = re.search(r'width="([^"]*)"', new_image)
-                                    height_match = re.search(r'height="([^"]*)"', new_image)
-                                    
-                                    if width_match and height_match:
-                                        try:
-                                            # Уменьшаем размер headshot на 20% для лучшего центрирования
-                                            original_width = float(width_match.group(1))
-                                            original_height = float(height_match.group(1))
-                                            
-                                            new_width = original_width * 0.8  # Уменьшаем на 20%
-                                            new_height = original_height * 0.8
-                                            
-                                            new_image = re.sub(r'width="[^"]*"', f'width="{new_width}"', new_image)
-                                            new_image = re.sub(r'height="[^"]*"', f'height="{new_height}"', new_image)
-                                            
-                                            print(f"   📏 Уменьшил headshot: {original_width}x{original_height} → {new_width}x{new_height}")
-                                        except ValueError:
-                                            print(f"   ⚠️ Не удалось изменить размеры headshot")
-                                    
-                                    # Ищем y координату и поднимаем на 40px вверх
-                                    y_match = re.search(r'y="([^"]*)"', new_image)
-                                    if y_match:
-                                        try:
-                                            y_value = float(y_match.group(1))
-                                            new_y = y_value - 40  # Поднимаем на 40px вверх (было 20px)
-                                            new_image = re.sub(r'y="[^"]*"', f'y="{new_y}"', new_image)
-                                            print(f"   📍 Поднял headshot с y={y_value} на y={new_y}")
-                                        except ValueError:
-                                            print(f"   ⚠️ Не удалось изменить y координату: {y_match.group(1)}")
-                                    
-                                    # Ищем x координату и смещаем вправо на 20px
-                                    x_match = re.search(r'x="([^"]*)"', new_image)
-                                    if x_match:
-                                        try:
-                                            x_value = float(x_match.group(1))
-                                            new_x = x_value + 20  # Смещаем вправо на 20px
-                                            new_image = re.sub(r'x="[^"]*"', f'x="{new_x}"', new_image)
-                                            print(f"   📍 Сместил headshot вправо с x={x_value} на x={new_x}")
-                                        except ValueError:
-                                            print(f"   ⚠️ Не удалось изменить x координату: {x_match.group(1)}")
-                                
-                                # Устанавливаем правильный preserveAspectRatio для headshot
-                                if 'preserveAspectRatio=' in new_image:
-                                    new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
-                                else:
-                                    if new_image.endswith('/>'):
-                                        new_image = new_image.replace('/>', f' preserveAspectRatio="{aspect_ratio}"/>')
-                                    else:
-                                        new_image = new_image.replace('>', f' preserveAspectRatio="{aspect_ratio}">')
+                                    print(f"   🎯 Обрабатываю headshot - ТОЛЬКО заменяю URL")
+                                    # Используем безопасную функцию замены headshot
+                                    processed_svg = replace_headshot_url(processed_svg, safe_url)
+                                    print(f"   ✅ Headshot URL заменен: {safe_url[:50]}...")
+                                    successful_replacements += 1
+                                    continue  # Переходим к следующему полю
                                 
                                 # Применяем замену
                                 processed_svg = processed_svg.replace(old_image, new_image)
