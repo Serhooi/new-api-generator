@@ -558,22 +558,29 @@ def process_svg_font_perfect(svg_content, replacements):
                                         except ValueError:
                                             print(f"   ⚠️ Не удалось изменить размеры headshot")
                                     
-                                    # Ищем y координату и поднимаем на 20px вверх
+                                    # Ищем y координату и поднимаем на 40px вверх
                                     y_match = re.search(r'y="([^"]*)"', new_image)
                                     if y_match:
                                         try:
                                             y_value = float(y_match.group(1))
-                                            new_y = y_value - 20  # Поднимаем на 20px вверх
+                                            new_y = y_value - 40  # Поднимаем на 40px вверх (было 20px)
                                             new_image = re.sub(r'y="[^"]*"', f'y="{new_y}"', new_image)
                                             print(f"   📍 Поднял headshot с y={y_value} на y={new_y}")
                                         except ValueError:
                                             print(f"   ⚠️ Не удалось изменить y координату: {y_match.group(1)}")
                                     
-                                    # Устанавливаем правильный preserveAspectRatio для headshot
-                                    aspect_ratio = 'xMidYMid meet'  # Показать всё лицо, центрировать
-                                    print(f"   🎯 Устанавливаю preserveAspectRatio для headshot: {aspect_ratio}")
+                                    # Ищем x координату и смещаем вправо на 20px
+                                    x_match = re.search(r'x="([^"]*)"', new_image)
+                                    if x_match:
+                                        try:
+                                            x_value = float(x_match.group(1))
+                                            new_x = x_value + 20  # Смещаем вправо на 20px
+                                            new_image = re.sub(r'x="[^"]*"', f'x="{new_x}"', new_image)
+                                            print(f"   📍 Сместил headshot вправо с x={x_value} на x={new_x}")
+                                        except ValueError:
+                                            print(f"   ⚠️ Не удалось изменить x координату: {x_match.group(1)}")
                                 
-                                # Устанавливаем правильный preserveAspectRatio
+                                # Устанавливаем правильный preserveAspectRatio для headshot
                                 if 'preserveAspectRatio=' in new_image:
                                     new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
                                 else:
@@ -2152,6 +2159,7 @@ def create_and_generate_carousel():
                 
                 print(f"   🔍 Photo слайд {i+1}: ищу поле {target_image_field}")
                 print(f"   🔍 Доступные поля в replacements: {list(replacements.keys())}")
+                print(f"   🔍 Все replacements: {replacements}")
                 
                 if target_image_field in replacements:
                     print(f"   ✅ Поле {target_image_field} найдено в replacements: {replacements[target_image_field][:50]}...")
@@ -2173,6 +2181,7 @@ def create_and_generate_carousel():
                 else:
                     print(f"   ❌ Поле {target_image_field} не найдено в replacements")
                     print(f"   🔍 Похожие поля: {[k for k in replacements.keys() if 'propertyimage' in k]}")
+                    print(f"   🔍 Все replacements keys: {list(replacements.keys())}")
                 
                 print(f"🔍 Photo {i+1} replacements: {photo_replacements}")
                 processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
