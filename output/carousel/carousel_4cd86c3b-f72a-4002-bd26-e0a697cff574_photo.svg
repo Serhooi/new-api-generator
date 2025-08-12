@@ -1,0 +1,27 @@
+<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <pattern id="propertyImage2Pattern" patternUnits="objectBoundingBox" width="1" height="1">
+                <image id="propertyImage2Element" href="https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1080&amp;h=800&amp;fit=crop" width="1080" height="800" preserveAspectRatio="xMidYMid slice"/>
+            </pattern>
+            <pattern id="agentHeadshotPattern2" patternUnits="objectBoundingBox" width="1" height="1">
+                <image id="agentHeadshotElement2" href="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&amp;h=200&amp;fit=crop&amp;crop=face" width="200" height="200" preserveAspectRatio="xMidYMid slice"/>
+            </pattern>
+        </defs>
+        
+        <!-- Property Image 2 -->
+        <rect id="dyno.propertyimage2" x="0" y="0" width="1080" height="800" fill="url(#propertyImage2Pattern)"/>
+        
+        <!-- Agent Headshot -->
+        <circle id="dyno.agentheadshot" cx="900" cy="900" r="80" fill="url(#agentHeadshotPattern2)"/>
+        
+        <!-- Text Fields -->
+        <text id="dyno.propertyaddress" x="50" y="950" font-size="32" fill="white">
+            <tspan x="50" y="950">123 Main Street, Beverly Hills, CA 90210</tspan>
+        </text>
+        <text id="dyno.name" x="50" y="1000" font-size="24" fill="white">
+            <tspan x="50" y="1000">John Smith</tspan>
+        </text>
+        <text id="dyno.phone" x="50" y="1050" font-size="20" fill="white">
+            <tspan x="50" y="1050">(555) 123-4567</tspan>
+        </text>
+    </svg>

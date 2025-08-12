@@ -1,0 +1,30 @@
+<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <pattern id="propertyImagePattern" patternUnits="objectBoundingBox" width="1" height="1">
+                <image id="propertyImageElement" href="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1080&amp;h=600&amp;fit=crop" width="1080" height="600" preserveAspectRatio="xMidYMid slice"/>
+            </pattern>
+            <pattern id="agentHeadshotPattern" patternUnits="objectBoundingBox" width="1" height="1">
+                <image id="agentHeadshotElement" href="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&amp;h=200&amp;fit=crop&amp;crop=face" width="200" height="200" preserveAspectRatio="xMidYMid slice"/>
+            </pattern>
+        </defs>
+        
+        <!-- Property Image -->
+        <rect id="dyno.propertyimage" x="0" y="0" width="1080" height="600" fill="url(#propertyImagePattern)"/>
+        
+        <!-- Agent Headshot -->
+        <circle id="dyno.agentheadshot" cx="900" cy="500" r="80" fill="url(#agentHeadshotPattern)"/>
+        
+        <!-- Text Fields -->
+        <text id="dyno.propertyaddress" x="50" y="700" font-size="32" fill="white">
+            <tspan x="50" y="700">123 Main Street, Beverly Hills, CA 90210</tspan>
+        </text>
+        <text id="dyno.price" x="50" y="750" font-size="28" fill="white">
+            <tspan x="50" y="750">$450,000</tspan>
+        </text>
+        <text id="dyno.name" x="50" y="800" font-size="24" fill="white">
+            <tspan x="50" y="800">John Smith</tspan>
+        </text>
+        <text id="dyno.phone" x="50" y="850" font-size="20" fill="white">
+            <tspan x="50" y="850">(555) 123-4567</tspan>
+        </text>
+    </svg>

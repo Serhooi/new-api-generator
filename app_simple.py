@@ -15,6 +15,17 @@ import base64
 import io
 from PIL import Image, ImageDraw, ImageFont
 
+# Supabase конфигурация
+try:
+    from supabase import create_client, Client
+    SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://vahgmyuowsilbxqdjjii.supabase.co')
+    SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhaGdteXVvd3NpbGJ4cWRqamlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQwMTU5NzQsImV4cCI6MjA0OTU5MTk3NH0.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8')
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Supabase клиент инициализирован")
+except Exception as e:
+    print(f"❌ Ошибка инициализации Supabase: {e}")
+    supabase = None
+
 app = Flask(__name__)
 CORS(app, origins="*")
 
@@ -234,6 +245,75 @@ def allowed_file(filename):
     """Проверяет разрешенное расширение файла"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def save_file_locally_or_supabase(content, filename, folder="carousel"):
+    """
+    Сохраняет файл локально (для разработки) или в Supabase (для продакшена)
+    """
+    # Определяем, работаем ли мы на Render
+    is_render = os.environ.get('RENDER', False) or (os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_URL') != 'https://vahgmyuowsilbxqdjjii.supabase.co')
+    
+    if is_render and supabase:
+        # На Render - загружаем в Supabase
+        return upload_to_supabase_storage(content, filename, folder)
+    else:
+        # Локально - сохраняем в файл
+        local_path = os.path.join(OUTPUT_DIR, folder, filename)
+        try:
+            # Определяем режим записи в зависимости от типа контента
+            mode = 'wb' if isinstance(content, bytes) else 'w'
+            encoding = None if isinstance(content, bytes) else 'utf-8'
+            
+            with open(local_path, mode, encoding=encoding) as f:
+                f.write(content)
+            print(f"✅ Файл сохранен локально: {local_path}")
+            return f"/output/{folder}/{filename}"
+        except Exception as e:
+            print(f"❌ Ошибка сохранения локально: {e}")
+            return None
+
+def upload_to_supabase_storage(file_content, filename, folder="generated"):
+    """
+    Загружает файл в Supabase Storage
+    """
+    if not supabase:
+        print("❌ Supabase клиент не инициализирован")
+        return None
+    
+    try:
+        # Создаем путь к файлу
+        file_path = f"{folder}/{filename}"
+        
+        # Определяем content-type и обработку файла
+        if filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg'):
+            # JPG файл - передаем bytes как есть
+            file_data = file_content
+            content_type = "image/jpeg"
+        elif filename.lower().endswith('.png'):
+            # PNG файл - передаем bytes как есть
+            file_data = file_content
+            content_type = "image/png"
+        else:
+            # SVG или текстовый файл - кодируем в UTF-8
+            file_data = file_content.encode('utf-8') if isinstance(file_content, str) else file_content
+            content_type = "image/svg+xml"
+        
+        # Загружаем файл в Storage
+        result = supabase.storage.from_("images").upload(
+            path=file_path,
+            file=file_data,
+            file_options={"content-type": content_type}
+        )
+        
+        # Получаем публичный URL
+        public_url = supabase.storage.from_("images").get_public_url(file_path)
+        
+        print(f"✅ Файл загружен в Supabase: {public_url}")
+        return public_url
+        
+    except Exception as e:
+        print(f"❌ Ошибка загрузки в Supabase: {e}")
+        return None
+
 # Создаем тестовые шаблоны
 def create_test_templates():
     """Создает тестовые шаблоны в базе данных"""
@@ -426,15 +506,12 @@ def generate_carousel():
         carousel_output_dir = os.path.join(OUTPUT_DIR, 'carousel')
         os.makedirs(carousel_output_dir, exist_ok=True)
         
-        # Сохраняем SVG файлы
-        main_svg_path = os.path.join(carousel_output_dir, main_svg_filename)
-        photo_svg_path = os.path.join(carousel_output_dir, photo_svg_filename)
+        # Используем новую логику сохранения
+        main_url = save_file_locally_or_supabase(processed_main_svg, main_svg_filename, "carousel")
+        photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_svg_filename, "carousel")
         
-        with open(main_svg_path, 'w', encoding='utf-8') as f:
-            f.write(processed_main_svg)
-        
-        with open(photo_svg_path, 'w', encoding='utf-8') as f:
-            f.write(processed_photo_svg)
+        if not main_url or not photo_url:
+            return jsonify({'error': 'Ошибка сохранения файлов'}), 500
         
         # Конвертируем в JPG
         main_jpg_path = os.path.join(carousel_output_dir, main_jpg_filename)
@@ -443,19 +520,40 @@ def generate_carousel():
         main_jpg_success = convert_svg_to_jpg_simple(processed_main_svg, main_jpg_path)
         photo_jpg_success = convert_svg_to_jpg_simple(processed_photo_svg, photo_jpg_path)
         
-        # Создаем простые массивы URL для фронтенда (предпочитаем JPG)
-        image_urls = [
-            f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
-            f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}'
-        ]
+        # Определяем, работаем ли мы на Render (для правильных URL)
+        is_render = os.environ.get('RENDER', False) or (os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_URL') != 'https://vahgmyuowsilbxqdjjii.supabase.co')
+        
+        # Создаем URL для изображений (используем Supabase URL если на Render, иначе локальные)
+        if is_render and supabase:
+            # На Render - используем Supabase URL
+            if main_jpg_success:
+                # Загружаем JPG в Supabase
+                main_jpg_url = save_file_locally_or_supabase(open(main_jpg_path, 'rb').read(), main_jpg_filename, "carousel")
+                main_image_url = main_jpg_url if main_jpg_url else main_url
+            else:
+                main_image_url = main_url
+            
+            if photo_jpg_success:
+                # Загружаем JPG в Supabase
+                photo_jpg_url = save_file_locally_or_supabase(open(photo_jpg_path, 'rb').read(), photo_jpg_filename, "carousel")
+                photo_image_url = photo_jpg_url if photo_jpg_url else photo_url
+            else:
+                photo_image_url = photo_url
+        else:
+            # Локально - используем локальные URL
+            main_image_url = f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}'
+            photo_image_url = f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}'
+        
+        # Создаем простые массивы URL для фронтенда (используем правильные URL)
+        image_urls = [main_image_url, photo_image_url]
         
         response_data = {
             'success': True,
             'carousel_id': carousel_id,
             'main_template_name': main_name,
             'photo_template_name': photo_name,
-            'main_url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
-            'photo_url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
+            'main_url': main_image_url,
+            'photo_url': photo_image_url,
             'replacements_applied': len(replacements),
             'images': image_urls,
             'slides': image_urls,

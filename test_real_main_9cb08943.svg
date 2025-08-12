@@ -1,0 +1,69 @@
+<svg width="1080" height="1350" viewBox="0 0 1080 1350" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="post">
+<rect width="1080" height="1350" fill="white"/>
+<rect id="dyno.propertyimage" width="741" height="990" fill="url(#pattern0_294_4)"/>
+<text id="headline" fill="black" xml:space="preserve" style="white-space: pre" font-family="Montserrat" font-size="142.26" font-weight="800" letter-spacing="-0.04em"><tspan x="761" y="302">OP&#10;</tspan><tspan x="761" y="428">EN&#10;</tspan><tspan x="761" y="554">H&#10;</tspan><tspan x="761" y="680">OU&#10;</tspan><tspan x="761" y="806">SE</tspan></text>
+<text id="dyno.date" fill="black" xml:space="preserve" style="white-space: pre" font-family="Inter" font-size="28" font-weight="bold" letter-spacing="0em"><tspan x="766" y="880.182">MAY 17 2025</tspan></text>
+<text id="dyno.time" fill="black" xml:space="preserve" style="white-space: pre" font-family="Inter" font-size="28" font-weight="bold" letter-spacing="0em"><tspan x="766" y="932.182">1PM - 4PM</tspan></text>
+<text id="dyno.price" fill="black" xml:space="preserve" style="white-space: pre" font-family="Montserrat" font-size="48" font-weight="bold" letter-spacing="0em"><tspan x="766" y="1299.21">$450,000</tspan></text>
+<g id="frame">
+<rect id="dyno.logo" x="898" y="40" width="142" height="56" fill="url(#pattern1_294_4)"/>
+</g>
+<g id="Frame 15">
+<text id="dyno.propertyaddress" fill="black" xml:space="preserve" style="white-space: pre" font-family="Montserrat" font-size="28" letter-spacing="0em"><tspan x="766" y="1000.04">123 Main Street, Beverly Hills, CA 90210</tspan></text>
+</g>
+<g id="frame_2">
+<text id="dyno.bedrooms" fill="black" xml:space="preserve" style="white-space: pre" font-family="Montserrat" font-size="40" font-weight="bold" letter-spacing="0em"><tspan x="72" y="1076.84">3 </tspan></text>
+<text id="bedrooms" fill="black" xml:space="preserve" style="white-space: pre" font-family="Montserrat" font-size="40" letter-spacing="0em"><tspan x="102" y="1076.84">bedroom</tspan></text>
+</g>
+<g id="frame_3">
+<text id="dyno.bathrooms" fill="black" xml:space="preserve" style="white-space: pre" font-family="Montserrat" font-size="40" font-weight="bold" letter-spacing="0em"><tspan x="323" y="1076.84">2</tspan></text>
+<text id="bathrooms" fill="black" xml:space="preserve" style="white-space: pre" font-family="Montserrat" font-size="40" letter-spacing="0em"><tspan x="353" y="1076.84">bathroom</tspan></text>
+</g>
+<g id="frame_4" filter="url(#filter0_d_294_4)">
+<g clip-path="url(#clip0_294_4)">
+<rect x="72" y="1168" width="120" height="120" rx="60" fill="white"/>
+<rect id="dyno.agentheadshot" x="72" y="1168" width="120" height="120" fill="url(#pattern2_294_4)"/>
+</g>
+</g>
+<g id="frame_5">
+<g id="frame_6">
+<text id="dyno.name" fill="black" xml:space="preserve" style="white-space: pre" font-family="Inter" font-size="21" font-weight="bold" letter-spacing="0em"><tspan x="211" y="1201.14">John Smith</tspan></text>
+</g>
+<g id="frame_7">
+<text id="dyno.phone" fill="black" xml:space="preserve" style="white-space: pre" font-family="Inter" font-size="18" letter-spacing="0em"><tspan x="211" y="1232.55">(555) 123-4567</tspan></text>
+</g>
+<g id="frame_8">
+<text id="dyno.email" fill="black" xml:space="preserve" style="white-space: pre" font-family="Inter" font-size="18" letter-spacing="0em"><tspan x="211" y="1263.55">john@example.com</tspan></text>
+</g>
+</g>
+<text id="dyno.propertyfeatures" fill="black" xml:space="preserve" style="white-space: pre" font-family="Montserrat" font-size="18" letter-spacing="0em"><tspan x="72" y="1121.45">swimming pool, 2-cars garage, backyard 32&#x201d;, 3 floors</tspan></text>
+</g>
+<defs>
+<pattern id="pattern0_294_4" patternContentUnits="objectBoundingBox" width="1" height="1">
+<use xlink:href="#image0_294_4" transform="matrix(0.000534801 0 0 0.0004 -0.00068776 0)"/>
+</pattern>
+<pattern id="pattern1_294_4" patternContentUnits="objectBoundingBox" width="1" height="1">
+<use xlink:href="#image1_294_4" transform="scale(0.00531915 0.0135135)"/>
+</pattern>
+<filter id="filter0_d_294_4" x="68" y="1168" width="128" height="128" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="2"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_294_4"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_294_4" result="shape"/>
+</filter>
+<pattern id="pattern2_294_4" patternContentUnits="objectBoundingBox" width="1" height="1">
+<use xlink:href="#image2_294_4" transform="translate(-0.291338 -0.181099) scale(0.000984252)"/>
+</pattern>
+<clipPath id="clip0_294_4">
+<rect x="72" y="1168" width="120" height="120" rx="60" fill="white"/>
+</clipPath>
+<image id="image0_294_4" width="1875" height="2500" preserveAspectRatio="none" xlink:href="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1080&amp;h=600&amp;fit=crop"/>
+<image id="image1_294_4" data-name="Vector.png" width="188" height="74" preserveAspectRatio="none" xlink:href="data:image/png;base64,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"/>
+<image id="image2_294_4" width="1600" height="2400" preserveAspectRatio="none" xlink:href="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&amp;h=200&amp;fit=crop&amp;crop=face"/>
+</defs>
+</svg>

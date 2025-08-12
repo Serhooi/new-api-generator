@@ -1665,12 +1665,12 @@ def generate_carousel():
         with open(photo_svg_path, 'w', encoding='utf-8') as f:
             f.write(processed_photo_svg)
         
-        print(f"💾 Сохраняю main SVG: {main_filename}")
-        print(f"💾 Сохраняю photo SVG: {photo_filename}")
+        print(f"💾 Сохраняю main SVG: {main_svg_filename}")
+        print(f"💾 Сохраняю photo SVG: {photo_svg_filename}")
         
         # Используем новую логику сохранения
-        main_url = save_file_locally_or_supabase(processed_main_svg, main_filename, "carousel")
-        photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_filename, "carousel")
+        main_url = save_file_locally_or_supabase(processed_main_svg, main_svg_filename, "carousel")
+        photo_url = save_file_locally_or_supabase(processed_photo_svg, photo_svg_filename, "carousel")
         
         if not main_url or not photo_url:
             return jsonify({'error': 'Ошибка сохранения файлов'}), 500
@@ -1682,6 +1682,19 @@ def generate_carousel():
         main_jpg_success = convert_svg_to_jpg(processed_main_svg, main_jpg_path)
         photo_jpg_success = convert_svg_to_jpg(processed_photo_svg, photo_jpg_path)
         
+        # Определяем, работаем ли мы на Render (для правильных URL)
+        is_render = os.environ.get('RENDER', False) or (os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_URL') != 'https://vahgmyuowsilbxqdjjii.supabase.co')
+        
+        # Создаем URL для изображений (используем Supabase URL если на Render, иначе локальные)
+        if is_render and supabase:
+            # На Render - используем Supabase URL
+            main_image_url = main_url if main_jpg_success else main_url.replace('.jpg', '.svg')
+            photo_image_url = photo_url if photo_jpg_success else photo_url.replace('.jpg', '.svg')
+        else:
+            # Локально - используем локальные URL
+            main_image_url = f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}'
+            photo_image_url = f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}'
+        
         # Создаем массив изображений для совместимости с фронтендом
         images = [
             {
@@ -1689,7 +1702,7 @@ def generate_carousel():
                 'template_id': main_template_id,
                 'template_name': main_name,
                 'filename': main_jpg_filename if main_jpg_success else main_svg_filename,
-                'url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
+                'url': main_image_url,
                 'status': 'completed'
             },
             {
@@ -1697,24 +1710,21 @@ def generate_carousel():
                 'template_id': photo_template_id,
                 'template_name': photo_name,
                 'filename': photo_jpg_filename if photo_jpg_success else photo_svg_filename,
-                'url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
+                'url': photo_image_url,
                 'status': 'completed'
             }
         ]
         
-        # Создаем простые массивы URL для фронтенда (предпочитаем JPG)
-        image_urls = [
-            f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
-            f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}'
-        ]
+        # Создаем простые массивы URL для фронтенда (используем правильные URL)
+        image_urls = [main_image_url, photo_image_url]
         
         response_data = {
             'success': True,
             'carousel_id': carousel_id,
             'main_template_name': main_name,
             'photo_template_name': photo_name,
-            'main_url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
-            'photo_url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
+            'main_url': main_image_url,
+            'photo_url': photo_image_url,
             'replacements_applied': len(replacements),
             # Простые массивы URL для совместимости с фронтендом
             'images': image_urls,  # Простой массив строк URL
@@ -1731,12 +1741,12 @@ def generate_carousel():
             'images_detailed_alt': [
                 {
                     'type': 'main',
-                    'url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
+                    'url': main_image_url,
                     'template_name': main_name
                 },
                 {
                     'type': 'photo',
-                    'url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
+                    'url': photo_image_url,
                     'template_name': photo_name
                 }
             ]
@@ -1871,6 +1881,19 @@ def generate_carousel_by_name():
         main_jpg_success = convert_svg_to_jpg(processed_main_svg, main_jpg_path)
         photo_jpg_success = convert_svg_to_jpg(processed_photo_svg, photo_jpg_path)
         
+        # Определяем, работаем ли мы на Render (для правильных URL)
+        is_render = os.environ.get('RENDER', False) or (os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_URL') != 'https://vahgmyuowsilbxqdjjii.supabase.co')
+        
+        # Создаем URL для изображений (используем Supabase URL если на Render, иначе локальные)
+        if is_render and supabase:
+            # На Render - используем Supabase URL
+            main_image_url = main_url if main_jpg_success else main_url.replace('.jpg', '.svg')
+            photo_image_url = photo_url if photo_jpg_success else photo_url.replace('.jpg', '.svg')
+        else:
+            # Локально - используем локальные URL
+            main_image_url = f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}'
+            photo_image_url = f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}'
+        
         print(f"🎉 Карусель создана: {carousel_id}")
         
         return jsonify({
@@ -1880,20 +1903,20 @@ def generate_carousel_by_name():
             'photo_template_id': photo_id,
             'main_template_name': main_name,
             'photo_template_name': photo_name,
-            'main_url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
-            'photo_url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
+            'main_url': main_image_url,
+            'photo_url': photo_image_url,
             'replacements_applied': len(replacements),
             'format': 'jpg' if main_jpg_success and photo_jpg_success else 'svg',
             # Дополнительные поля для совместимости
             'images_detailed': [
                 {
                     'type': 'main',
-                    'url': f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}',
+                    'url': main_image_url,
                     'template_name': main_name
                 },
                 {
                     'type': 'photo',
-                    'url': f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}',
+                    'url': photo_image_url,
                     'template_name': photo_name
                 }
             ]
@@ -2212,20 +2235,39 @@ def get_carousel_slides(carousel_id):
             slide_svg_path = os.path.join(carousel_dir, slide_svg_filename)
             slide_jpg_path = os.path.join(carousel_dir, slide_jpg_filename)
             
+            # Определяем, работаем ли мы на Render (для правильных URL)
+            is_render = os.environ.get('RENDER', False) or (os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_URL') != 'https://vahgmyuowsilbxqdjjii.supabase.co')
+            
             # Проверяем наличие JPG файла (предпочтительно)
             if os.path.exists(slide_jpg_path):
+                # Создаем правильный URL в зависимости от окружения
+                if is_render and supabase:
+                    # На Render - используем Supabase URL
+                    image_url = f"https://vahgmyuowsilbxqdjjii.supabase.co/storage/v1/object/public/images/carousel/{carousel_id}/{slide_jpg_filename}"
+                else:
+                    # Локально - используем локальный URL
+                    image_url = f'/output/carousel/{carousel_id}/{slide_jpg_filename}'
+                
                 slides.append({
                     'slide_number': i,
                     'filename': slide_jpg_filename,
-                    'image_url': f'/output/carousel/{carousel_id}/{slide_jpg_filename}',
+                    'image_url': image_url,
                     'status': 'completed',
                     'format': 'jpg'
                 })
             elif os.path.exists(slide_svg_path):
+                # Создаем правильный URL в зависимости от окружения
+                if is_render and supabase:
+                    # На Render - используем Supabase URL
+                    image_url = f"https://vahgmyuowsilbxqdjjii.supabase.co/storage/v1/object/public/images/carousel/{carousel_id}/{slide_svg_filename}"
+                else:
+                    # Локально - используем локальный URL
+                    image_url = f'/output/carousel/{carousel_id}/{slide_svg_filename}'
+                
                 slides.append({
                     'slide_number': i,
                     'filename': slide_svg_filename,
-                    'image_url': f'/output/carousel/{carousel_id}/{slide_svg_filename}',
+                    'image_url': image_url,
                     'status': 'completed',
                     'format': 'svg'
                 })

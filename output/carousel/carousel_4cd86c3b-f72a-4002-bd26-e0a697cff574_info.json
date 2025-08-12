@@ -1,0 +1,15 @@
+{
+  "carousel_id": "4cd86c3b-f72a-4002-bd26-e0a697cff574",
+  "slides": [
+    {
+      "filename": "carousel_4cd86c3b-f72a-4002-bd26-e0a697cff574_main.svg",
+      "path": "output/carousel/carousel_4cd86c3b-f72a-4002-bd26-e0a697cff574_main.svg",
+      "type": "main"
+    },
+    {
+      "filename": "carousel_4cd86c3b-f72a-4002-bd26-e0a697cff574_photo.svg",
+      "path": "output/carousel/carousel_4cd86c3b-f72a-4002-bd26-e0a697cff574_photo.svg",
+      "type": "photo"
+    }
+  ]
+}
