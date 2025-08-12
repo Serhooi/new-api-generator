@@ -2118,7 +2118,7 @@ def create_and_generate_carousel():
                 photo_replacements = replacements.copy()  # Копируем ВСЕ поля
                 
                 # Убираем headshot поля из photo слайдов
-                headshot_fields = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo']
+                headshot_fields = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo', 'dyno.agentPhoto']
                 for headshot_field in headshot_fields:
                     if headshot_field in photo_replacements:
                         del photo_replacements[headshot_field]
@@ -2128,17 +2128,25 @@ def create_and_generate_carousel():
                 svg_fields_photo = extract_dyno_fields_simple(photo_svg)
                 print(f"🔍 Photo SVG поля: {svg_fields_photo}")
                 
-                # Если в photo SVG есть dyno.propertyimage, заменяем его на соответствующее
-                if 'dyno.propertyimage' in svg_fields_photo:
-                    photo_replacements['dyno.propertyimage'] = replacements[property_image_field]
-                    print(f"   📸 Заменяю dyno.propertyimage на {property_image_field} = {replacements[property_image_field]}")
+                # Для photo слайда используем соответствующее изображение
+                # Если это photo слайд 1, берем dyno.propertyimage2
+                # Если это photo слайд 2, берем dyno.propertyimage3 и т.д.
+                target_image_field = f'dyno.propertyimage{i+2}'  # i+2 потому что i начинается с 0
+                
+                if target_image_field in replacements:
+                    # Если в photo SVG есть dyno.propertyimage, заменяем его на target_image_field
+                    if 'dyno.propertyimage' in svg_fields_photo:
+                        photo_replacements['dyno.propertyimage'] = replacements[target_image_field]
+                        print(f"   📸 Заменяю dyno.propertyimage на {target_image_field} = {replacements[target_image_field]}")
+                    else:
+                        # Если dyno.propertyimage нет, но есть другое поле с изображением, заменяем его
+                        for field in svg_fields_photo:
+                            if 'image' in field.lower() and field != 'dyno.propertyimage':
+                                photo_replacements[field] = replacements[target_image_field]
+                                print(f"   📸 Заменяю {field} на {target_image_field} = {replacements[target_image_field]}")
+                                break
                 else:
-                    # Если dyno.propertyimage нет, но есть другое поле с изображением, заменяем его
-                    for field in svg_fields_photo:
-                        if 'image' in field.lower() and field != 'dyno.propertyimage':
-                            photo_replacements[field] = replacements[property_image_field]
-                            print(f"   📸 Заменяю {field} на {property_image_field} = {replacements[property_image_field]}")
-                            break
+                    print(f"   ⚠️ Поле {target_image_field} не найдено в replacements")
                 
                 print(f"🔍 Photo {i+1} replacements: {photo_replacements}")
                 processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
@@ -2490,7 +2498,7 @@ def cleanup_previews():
     except Exception as e:
         return jsonify({'error': f'Ошибка очистки превью: {str(e)}'}), 500
 
-def convert_svg_to_jpg(svg_content, output_path, width=1200, height=800, quality=95):
+def convert_svg_to_jpg(svg_content, output_path, width=2400, height=1600, quality=95):
     """
     Конвертирует SVG в JPG с высоким качеством
     """
@@ -2502,7 +2510,7 @@ def convert_svg_to_jpg(svg_content, output_path, width=1200, height=800, quality
             bytestring=svg_content.encode('utf-8'),
             output_width=width,
             output_height=height,
-            dpi=300  # Высокое качество
+            dpi=600  # Очень высокое качество для соцсетей
         )
         
         # Конвертируем PNG в JPG через PIL
@@ -2516,10 +2524,10 @@ def convert_svg_to_jpg(svg_content, output_path, width=1200, height=800, quality
             background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
             img = background
         
-        # Сохраняем как JPG
+        # Сохраняем как JPG с максимальным качеством
         img.save(output_path, 'JPEG', quality=quality, optimize=True)
         
-        print(f"✅ JPG файл создан: {output_path}")
+        print(f"✅ JPG файл создан: {output_path} ({width}x{height}, DPI: 600)")
         return True
         
     except Exception as e:
