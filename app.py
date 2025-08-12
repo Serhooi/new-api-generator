@@ -536,7 +536,28 @@ def process_svg_font_perfect(svg_content, replacements):
                                 
                                 # Для headshot - поднимаем изображение вверх
                                 if image_type == 'headshot':
-                                    print(f"   🎯 Обрабатываю headshot - поднимаю изображение вверх")
+                                    print(f"   🎯 Обрабатываю headshot - масштабирую и центрирую в кружочке")
+                                    
+                                    # Ищем width и height для правильного масштабирования
+                                    width_match = re.search(r'width="([^"]*)"', new_image)
+                                    height_match = re.search(r'height="([^"]*)"', new_image)
+                                    
+                                    if width_match and height_match:
+                                        try:
+                                            # Уменьшаем размер headshot на 20% для лучшего центрирования
+                                            original_width = float(width_match.group(1))
+                                            original_height = float(height_match.group(1))
+                                            
+                                            new_width = original_width * 0.8  # Уменьшаем на 20%
+                                            new_height = original_height * 0.8
+                                            
+                                            new_image = re.sub(r'width="[^"]*"', f'width="{new_width}"', new_image)
+                                            new_image = re.sub(r'height="[^"]*"', f'height="{new_height}"', new_image)
+                                            
+                                            print(f"   📏 Уменьшил headshot: {original_width}x{original_height} → {new_width}x{new_height}")
+                                        except ValueError:
+                                            print(f"   ⚠️ Не удалось изменить размеры headshot")
+                                    
                                     # Ищем y координату и поднимаем на 20px вверх
                                     y_match = re.search(r'y="([^"]*)"', new_image)
                                     if y_match:
@@ -547,6 +568,10 @@ def process_svg_font_perfect(svg_content, replacements):
                                             print(f"   📍 Поднял headshot с y={y_value} на y={new_y}")
                                         except ValueError:
                                             print(f"   ⚠️ Не удалось изменить y координату: {y_match.group(1)}")
+                                    
+                                    # Устанавливаем правильный preserveAspectRatio для headshot
+                                    aspect_ratio = 'xMidYMid meet'  # Показать всё лицо, центрировать
+                                    print(f"   🎯 Устанавливаю preserveAspectRatio для headshot: {aspect_ratio}")
                                 
                                 # Устанавливаем правильный preserveAspectRatio
                                 if 'preserveAspectRatio=' in new_image:
@@ -2137,6 +2162,13 @@ def create_and_generate_carousel():
                     else:
                         print(f"   ⚠️ В photo SVG нет поля dyno.propertyimage")
                         print(f"   🔍 Доступные поля в photo SVG: {svg_fields_photo}")
+                        
+                        # Fallback: ищем любое поле с изображением для замены
+                        for field in svg_fields_photo:
+                            if 'image' in field.lower() and field != 'dyno.propertyimage':
+                                photo_replacements[field] = replacements[target_image_field]
+                                print(f"   🔄 Fallback: заменяю {field} на {target_image_field} = {replacements[target_image_field][:50]}...")
+                                break
                 else:
                     print(f"   ❌ Поле {target_image_field} не найдено в replacements")
                     print(f"   🔍 Похожие поля: {[k for k in replacements.keys() if 'propertyimage' in k]}")
