@@ -443,6 +443,8 @@ def process_svg_font_perfect(svg_content, replacements):
                     print(f"   🔄 Найдено регистронезависимое совпадение: {dyno_field} → {alternative_field}")
                     break
         
+        print(f"   🔍 Поле: {dyno_field}, Альтернатива: {alternative_field}, Замена: {replacement}")
+        
         if is_image_field(dyno_field):
             # ОБРАБОТКА ИЗОБРАЖЕНИЙ
             print(f"🖼️ Обрабатываю изображение: {dyno_field}")
@@ -2185,7 +2187,7 @@ def create_and_generate_carousel():
                                 'type': f'photo_{i+1}',
                                 'image_url': jpg_url,  # Только JPG URL для постинга
                                 'template_name': photo_name,
-                                'property_image': replacements[property_image_field]
+                                'property_image': replacements[target_image_field]  # Используем target_image_field
                             })
                             print(f"   ✅ Photo слайд {i+1} создан: {jpg_url}")
                         else:
@@ -2197,7 +2199,7 @@ def create_and_generate_carousel():
                             'type': f'photo_{i+1}',
                             'image_url': photo_url,  # SVG как fallback
                             'template_name': photo_name,
-                            'property_image': replacements[property_image_field]
+                            'property_image': replacements[target_image_field]  # Используем target_image_field
                         })
                 else:
                     print(f"   ❌ Ошибка сохранения Photo слайд {i+1}")
