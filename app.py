@@ -2361,7 +2361,16 @@ def preview_carousel():
         
         # Генерируем превью для обоих шаблонов
         main_preview = create_preview_with_data(main_svg, replacements, preview_type)
-        photo_preview = create_preview_with_data(photo_svg, replacements, preview_type)
+        
+        # Для photo превью создаем отдельные replacements только с нужными полями
+        photo_replacements = {}
+        for key, value in replacements.items():
+            # Исключаем dyno.propertyimage (это для main слайда)
+            if key != 'dyno.propertyimage':
+                photo_replacements[key] = value
+        
+        print(f"🔍 Photo превью replacements: {list(photo_replacements.keys())}")
+        photo_preview = create_preview_with_data(photo_svg, photo_replacements, preview_type)
         
         return jsonify({
             'success': True,
@@ -2494,7 +2503,16 @@ def generate_carousel_multi():
         
         # Генерируем превью для обоих шаблонов
         main_preview = create_preview_with_data(main_svg, replacements, preview_type)
-        photo_preview = create_preview_with_data(photo_svg, replacements, preview_type)
+        
+        # Для photo превью создаем отдельные replacements только с нужными полями
+        photo_replacements = {}
+        for key, value in replacements.items():
+            # Исключаем dyno.propertyimage (это для main слайда)
+            if key != 'dyno.propertyimage':
+                photo_replacements[key] = value
+        
+        print(f"🔍 Photo превью replacements: {list(photo_replacements.keys())}")
+        photo_preview = create_preview_with_data(photo_svg, photo_replacements, preview_type)
         
         return jsonify({
             'success': True,
