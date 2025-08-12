@@ -803,11 +803,25 @@ def upload_to_supabase_storage(file_content, filename, folder="generated"):
         # Создаем путь к файлу
         file_path = f"{folder}/{filename}"
         
+        # Определяем content-type и обработку файла
+        if filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg'):
+            # JPG файл - передаем bytes как есть
+            file_data = file_content
+            content_type = "image/jpeg"
+        elif filename.lower().endswith('.png'):
+            # PNG файл - передаем bytes как есть
+            file_data = file_content
+            content_type = "image/png"
+        else:
+            # SVG или текстовый файл - кодируем в UTF-8
+            file_data = file_content.encode('utf-8') if isinstance(file_content, str) else file_content
+            content_type = "image/svg+xml"
+        
         # Загружаем файл в Storage
         result = supabase.storage.from_("images").upload(
             path=file_path,
-            file=file_content.encode('utf-8'),
-            file_options={"content-type": "image/svg+xml"}
+            file=file_data,
+            file_options={"content-type": content_type}
         )
         
         # Получаем публичный URL
