@@ -459,7 +459,18 @@ def process_svg_font_perfect(svg_content, replacements):
             element_pattern = f'<[^>]*id="{re.escape(dyno_field)}"[^>]*>'
             match = re.search(element_pattern, processed_svg)
             
-            # Если не нашли по точному ID, ищем по альтернативным названиям для headshot
+            # Если не нашли по точному ID, пробуем маппинг
+            if not match and alternative_field:
+                print(f"   🔍 Поле {dyno_field} не найдено, пробую маппинг: {alternative_field}")
+                alt_element_pattern = f'<[^>]*id="{re.escape(alternative_field)}"[^>]*>'
+                alt_match = re.search(alt_element_pattern, processed_svg)
+                if alt_match:
+                    print(f"   ✅ Найдено по маппингу: {alternative_field}")
+                    element_pattern = alt_element_pattern
+                    match = alt_match
+                    dyno_field = alternative_field  # Обновляем поле для дальнейшей обработки
+            
+            # Если все еще не нашли, ищем по альтернативным названиям для headshot
             if not match and image_type == 'headshot':
                 print(f"   🔍 Headshot не найден по ID {dyno_field}, ищу альтернативные поля...")
                 alternative_headshot_fields = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo', 'dyno.agentPhoto']
