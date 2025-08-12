@@ -1965,12 +1965,14 @@ def create_and_generate_carousel():
         main_template_name = data.get('main_template_name')
         photo_template_name = data.get('photo_template_name')
         replacements = data.get('replacements', {})
+        slides_count = data.get('slides_count', 0)  # Новое поле для количества слайдов
         
         # Если передан новый формат с template names
         if main_template_name and photo_template_name:
             print(f"🔍 Ищу шаблоны по именам:")
             print(f"   Main: {main_template_name}")
             print(f"   Photo: {photo_template_name}")
+            print(f"   Количество слайдов: {slides_count}")
             
             # Получаем шаблоны из базы данных по именам
             ensure_db_exists()
@@ -2002,29 +2004,24 @@ def create_and_generate_carousel():
             print(f"   Main: {main_name} (ID: {main_id})")
             print(f"   Photo: {photo_name} (ID: {photo_id})")
             
-            # Определяем количество photo слайдов по наличию dyno.propertyimage2-10 в replacements
-            photo_count = 0
+            # Используем slides_count из payload вместо автоматического подсчета
+            photo_count = slides_count
+            print(f"🔍 Используем количество слайдов из payload: {photo_count}")
+            
+            # Проверяем, что есть достаточно изображений для указанного количества слайдов
             property_image_fields = []
+            for i in range(2, photo_count + 2):  # propertyimage2, propertyimage3, etc.
+                field_name = f'dyno.propertyimage{i}'
+                if field_name in replacements:
+                    property_image_fields.append((field_name, i))
+                else:
+                    print(f"⚠️ Поле {field_name} не найдено в replacements")
             
-            # Ищем все поля с propertyimage
-            for field in replacements.keys():
-                if 'propertyimage' in field.lower() and field != 'dyno.propertyimage':
-                    # Извлекаем номер из названия поля (например, propertyimage2 -> 2)
-                    try:
-                        number = int(field.split('propertyimage')[-1])
-                        property_image_fields.append((field, number))
-                    except:
-                        continue
-            
-            # Сортируем по номеру и определяем количество
-            if property_image_fields:
-                property_image_fields.sort(key=lambda x: x[1])
+            if len(property_image_fields) < photo_count:
+                print(f"⚠️ Предупреждение: запрошено {photo_count} слайдов, но найдено только {len(property_image_fields)} изображений")
                 photo_count = len(property_image_fields)
-                print(f"🔍 Найдены поля propertyimage: {[f[0] for f in property_image_fields]}")
-                print(f"🔍 Определено photo слайдов: {photo_count}")
-            else:
-                print(f"🔍 Поля propertyimage не найдены, photo слайды не создаются")
             
+            print(f"🔍 Создаем {photo_count} photo слайдов")
             print(f"🔍 Все replacements: {list(replacements.keys())}")
             
             # Обрабатываем main SVG (используем dyno.propertyimage, dyno.agentheadshot и т.д.)
@@ -2034,6 +2031,15 @@ def create_and_generate_carousel():
             
             # Для main используем ВСЕ поля из replacements
             main_replacements = replacements.copy()
+            
+            # Убираем служебные поля, которые не нужны для SVG
+            if 'dyno.slides_count' in main_replacements:
+                del main_replacements['dyno.slides_count']
+                print(f"   🚫 Убираю служебное поле dyno.slides_count")
+            if 'dyno.generate_multiple' in main_replacements:
+                del main_replacements['dyno.generate_multiple']
+                print(f"   🚫 Убираю служебное поле dyno.generate_multiple")
+            
             print(f"🔍 Main replacements: {main_replacements}")
             processed_main_svg = process_svg_font_perfect(main_svg, main_replacements)
             
