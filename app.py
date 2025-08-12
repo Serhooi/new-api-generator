@@ -2053,12 +2053,32 @@ def create_and_generate_carousel():
             if not main_url:
                 return jsonify({'error': 'Ошибка сохранения main файла'}), 500
             
+            # Конвертируем main слайд в JPG
+            main_jpg_filename = f"carousel_{carousel_id}_main.jpg"
+            main_jpg_path = os.path.join(OUTPUT_DIR, "carousel", main_jpg_filename)
+            
+            try:
+                convert_svg_to_jpg(processed_main_svg, main_jpg_path)
+                # Читаем JPG файл как bytes и передаем напрямую
+                with open(main_jpg_path, 'rb') as jpg_file:
+                    jpg_data = jpg_file.read()
+                main_jpg_url = save_file_locally_or_supabase(jpg_data, main_jpg_filename, "carousel")
+                
+                if not main_jpg_url:
+                    print(f"⚠️ Main слайд SVG сохранен, но JPG не удалось сохранить")
+                    main_jpg_url = None
+                else:
+                    print(f"✅ Main слайд JPG создан: {main_jpg_url}")
+            except Exception as e:
+                print(f"❌ Ошибка конвертации Main слайда в JPG: {e}")
+                main_jpg_url = None
+            
             # Создаем photo слайды
             photo_urls = []
             images = [
                 {
                     'type': 'main',
-                    'url': main_url,
+                    'image_url': main_jpg_url if main_jpg_url else main_url,  # JPG предпочтительно, SVG как fallback
                     'template_name': main_name
                 }
             ]
@@ -2116,8 +2136,7 @@ def create_and_generate_carousel():
                         if jpg_url:
                             images.append({
                                 'type': f'photo_{i+1}',
-                                'svg_url': photo_url,
-                                'jpg_url': jpg_url,
+                                'image_url': jpg_url,  # Только JPG URL для постинга
                                 'template_name': photo_name,
                                 'property_image': replacements[property_image_field]
                             })
@@ -2129,8 +2148,7 @@ def create_and_generate_carousel():
                         # Добавляем только SVG если JPG не удалось
                         images.append({
                             'type': f'photo_{i+1}',
-                            'svg_url': photo_url,
-                            'jpg_url': None,
+                            'image_url': photo_url,  # SVG как fallback
                             'template_name': photo_name,
                             'property_image': replacements[property_image_field]
                         })
