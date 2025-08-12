@@ -36,8 +36,8 @@ OUTPUT_DIR = 'output'
 ALLOWED_EXTENSIONS = {'svg'}
 
 # Supabase конфигурация
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://your-project.supabase.co')
-SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY', 'your-anon-key')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://vahgmyuowsilbxqdjjii.supabase.co')
+SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhaGdteXVvd3NpbGJ4cWRqamlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQwMTU5NzQsImV4cCI6MjA0OTU5MTk3NH0.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8')
 
 # Инициализация Supabase клиента
 try:
@@ -782,7 +782,7 @@ def save_file_locally_or_supabase(content, filename, folder="carousel"):
     Сохраняет файл локально (для разработки) или в Supabase (для продакшена)
     """
     # Определяем, работаем ли мы на Render
-    is_render = os.environ.get('RENDER', False) or os.environ.get('SUPABASE_URL', False)
+    is_render = os.environ.get('RENDER', False) or (os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_URL') != 'https://vahgmyuowsilbxqdjjii.supabase.co')
     
     if is_render and supabase:
         # На Render - загружаем в Supabase
