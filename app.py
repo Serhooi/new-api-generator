@@ -293,7 +293,7 @@ def process_svg_font_perfect(svg_content, replacements):
         """Определяет тип изображения по названию поля"""
         field_lower = dyno_field.lower()
         
-        if 'headshot' in field_lower or 'agent' in field_lower or 'profile' in field_lower:
+        if 'headshot' in field_lower or 'agent' in field_lower or 'profile' in field_lower or 'agentphoto' in field_lower:
             return 'headshot'
         elif 'propertyimage' in field_lower or 'property' in field_lower:
             return 'property'
@@ -513,19 +513,6 @@ def process_svg_font_perfect(svg_content, replacements):
                     if pattern_match:
                         pattern_content = pattern_match.group(1)
                         pattern_full = pattern_match.group(0)
-                        
-                        # Для headshot - убираем фиксированные transform для лучшего центрирования
-                        if image_type == 'headshot' and element_shape == 'circular':
-                            print(f"   🔍 Обрабатываю круглый headshot БЕЗ фиксированных смещений")
-                            
-                            # Убираем любые существующие patternTransform для лучшего центрирования
-                            old_pattern = pattern_full
-                            new_pattern = re.sub(r'\s*patternTransform="[^"]*"', '', old_pattern)
-                            new_pattern = re.sub(r'\s*transform="[^"]*"', '', new_pattern)
-                            
-                            if new_pattern != old_pattern:
-                                processed_svg = processed_svg.replace(old_pattern, new_pattern)
-                                print(f"   ✅ Удалены фиксированные transform - headshot будет центрироваться автоматически")
                         
                         # Ищем use элемент внутри pattern
                         use_pattern = r'<use[^>]*xlink:href="#([^"]*)"[^>]*/?>'
@@ -2152,12 +2139,7 @@ def create_and_generate_carousel():
                         photo_replacements['dyno.propertyimage'] = replacements[target_image_field]
                         print(f"   📸 Заменяю dyno.propertyimage на {target_image_field} = {replacements[target_image_field]}")
                     else:
-                        # Если dyno.propertyimage нет, но есть другое поле с изображением, заменяем его
-                        for field in svg_fields_photo:
-                            if 'image' in field.lower() and field != 'dyno.propertyimage':
-                                photo_replacements[field] = replacements[target_image_field]
-                                print(f"   📸 Заменяю {field} на {target_image_field} = {replacements[target_image_field]}")
-                                break
+                        print(f"   ⚠️ В photo SVG нет поля dyno.propertyimage")
                 else:
                     print(f"   ⚠️ Поле {target_image_field} не найдено в replacements")
                 
