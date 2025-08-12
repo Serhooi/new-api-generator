@@ -534,6 +534,20 @@ def process_svg_font_perfect(svg_content, replacements):
                                 new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
                                 new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
                                 
+                                # Для headshot - поднимаем изображение вверх
+                                if image_type == 'headshot':
+                                    print(f"   🎯 Обрабатываю headshot - поднимаю изображение вверх")
+                                    # Ищем y координату и поднимаем на 20px вверх
+                                    y_match = re.search(r'y="([^"]*)"', new_image)
+                                    if y_match:
+                                        try:
+                                            y_value = float(y_match.group(1))
+                                            new_y = y_value - 20  # Поднимаем на 20px вверх
+                                            new_image = re.sub(r'y="[^"]*"', f'y="{new_y}"', new_image)
+                                            print(f"   📍 Поднял headshot с y={y_value} на y={new_y}")
+                                        except ValueError:
+                                            print(f"   ⚠️ Не удалось изменить y координату: {y_match.group(1)}")
+                                
                                 # Устанавливаем правильный preserveAspectRatio
                                 if 'preserveAspectRatio=' in new_image:
                                     new_image = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_image)
@@ -2111,15 +2125,21 @@ def create_and_generate_carousel():
                 # Если это photo слайд 2, берем dyno.propertyimage3 и т.д.
                 target_image_field = f'dyno.propertyimage{i+2}'  # i+2 потому что i начинается с 0
                 
+                print(f"   🔍 Photo слайд {i+1}: ищу поле {target_image_field}")
+                print(f"   🔍 Доступные поля в replacements: {list(replacements.keys())}")
+                
                 if target_image_field in replacements:
+                    print(f"   ✅ Поле {target_image_field} найдено в replacements: {replacements[target_image_field][:50]}...")
                     # Если в photo SVG есть dyno.propertyimage, заменяем его на target_image_field
                     if 'dyno.propertyimage' in svg_fields_photo:
                         photo_replacements['dyno.propertyimage'] = replacements[target_image_field]
-                        print(f"   📸 Заменяю dyno.propertyimage на {target_image_field} = {replacements[target_image_field]}")
+                        print(f"   📸 Заменяю dyno.propertyimage на {target_image_field} = {replacements[target_image_field][:50]}...")
                     else:
                         print(f"   ⚠️ В photo SVG нет поля dyno.propertyimage")
+                        print(f"   🔍 Доступные поля в photo SVG: {svg_fields_photo}")
                 else:
-                    print(f"   ⚠️ Поле {target_image_field} не найдено в replacements")
+                    print(f"   ❌ Поле {target_image_field} не найдено в replacements")
+                    print(f"   🔍 Похожие поля: {[k for k in replacements.keys() if 'propertyimage' in k]}")
                 
                 print(f"🔍 Photo {i+1} replacements: {photo_replacements}")
                 processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
