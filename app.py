@@ -568,11 +568,11 @@ def process_svg_font_perfect(svg_content, replacements):
                                 new_image = re.sub(r'href="[^"]*"', f'href="{safe_url}"', new_image)
                                 new_image = re.sub(r'xlink:href="[^"]*"', f'xlink:href="{safe_url}"', new_image)
                                 
-                                # Для headshot - ТОЛЬКО замена URL, ничего больше не трогаем
+                                # Для headshot - заменяем как обычное изображение
                                 if image_type == 'headshot':
-                                    print(f"   🎯 Обрабатываю headshot - ТОЛЬКО заменяю URL")
-                                    # Используем безопасную функцию замены headshot
-                                    processed_svg = replace_headshot_url(processed_svg, safe_url)
+                                    print(f"   🎯 Обрабатываю headshot - заменяю URL")
+                                    # Применяем замену как для обычного изображения
+                                    processed_svg = processed_svg.replace(old_image, new_image)
                                     print(f"   ✅ Headshot URL заменен: {safe_url[:50]}...")
                                     successful_replacements += 1
                                     continue  # Переходим к следующему полю
@@ -2127,14 +2127,8 @@ def create_and_generate_carousel():
                 print(f"🎨 Обрабатываю Photo слайд {i+1} (поле: {property_image_field})...")
                 
                 # Создаем replacements для этого photo слайда
-                photo_replacements = replacements.copy()  # Копируем ВСЕ поля
-                
-                # Убираем headshot поля из photo слайдов
-                headshot_fields = ['dyno.agentheadshot', 'dyno.agentphoto', 'dyno.headshot', 'dyno.agent', 'dyno.photo', 'dyno.agentPhoto']
-                for headshot_field in headshot_fields:
-                    if headshot_field in photo_replacements:
-                        del photo_replacements[headshot_field]
-                        print(f"   🚫 Убираю {headshot_field} с photo слайда {i+1}")
+                # Для photo слайда создаем ТОЛЬКО нужные поля
+                photo_replacements = {}
                 
                 # Проверяем, есть ли в photo SVG поле dyno.propertyimage
                 svg_fields_photo = extract_dyno_fields_simple(photo_svg)
@@ -2147,7 +2141,6 @@ def create_and_generate_carousel():
                 
                 print(f"   🔍 Photo слайд {i+1}: ищу поле {target_image_field}")
                 print(f"   🔍 Доступные поля в replacements: {list(replacements.keys())}")
-                print(f"   🔍 Все replacements: {replacements}")
                 
                 if target_image_field in replacements:
                     print(f"   ✅ Поле {target_image_field} найдено в replacements: {replacements[target_image_field][:50]}...")
@@ -2159,17 +2152,11 @@ def create_and_generate_carousel():
                     else:
                         print(f"   ⚠️ В photo SVG нет поля {target_image_field}")
                         print(f"   🔍 Доступные поля в photo SVG: {svg_fields_photo}")
-                        
-                        # Fallback: ищем любое поле с изображением для замены
-                        for field in svg_fields_photo:
-                            if 'image' in field.lower():
-                                photo_replacements[field] = replacements[target_image_field]
-                                print(f"   🔄 Fallback: заменяю {field} на {target_image_field} = {replacements[target_image_field][:50]}...")
-                                break
                 else:
                     print(f"   ❌ Поле {target_image_field} не найдено в replacements")
                     print(f"   🔍 Похожие поля: {[k for k in replacements.keys() if 'propertyimage' in k]}")
-                    print(f"   🔍 Все replacements keys: {list(replacements.keys())}")
+                
+                print(f"🔍 Photo {i+1} replacements: {photo_replacements}")
                 
                 print(f"🔍 Photo {i+1} replacements: {photo_replacements}")
                 processed_photo_svg = process_svg_font_perfect(photo_svg, photo_replacements)
