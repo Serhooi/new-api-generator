@@ -1167,10 +1167,12 @@ def upload_carousel_multi():
             ''', [photo_template_id, f"{name} - Photo {i+1}", category, "photo", photo_svg, ','.join(photo_dyno_info.get('fields', []))])
         
         # Сохраняем карусель с множественными photo
-        cursor.execute('''
-            INSERT INTO carousels (id, name, main_template_id, photo_template_id)
-            VALUES (?, ?, ?, ?)
-        ''', [carousel_id, name, main_template_id, ','.join(photo_template_ids)])
+        # Создаем отдельную запись для каждого photo слайда
+        for i, photo_template_id in enumerate(photo_template_ids):
+            cursor.execute('''
+                INSERT INTO carousels (id, name, main_template_id, photo_template_id)
+                VALUES (?, ?, ?, ?)
+            ''', [str(uuid.uuid4()), f"{name} - Photo {i+1}", main_template_id, photo_template_id])
         
         conn.commit()
         conn.close()
