@@ -416,6 +416,7 @@ def replace_image_in_svg(svg_content, field_name, new_image_url):
     """
     Заменяет изображение в SVG файле.
     Поддерживает как прямую замену URL, так и замену через pattern -> image связи.
+    ИСПРАВЛЕНО: добавлена поддержка групп и правильный aspect ratio для headshot.
     
     Args:
         svg_content: Содержимое SVG
@@ -427,38 +428,96 @@ def replace_image_in_svg(svg_content, field_name, new_image_url):
     """
     print(f"🖼️ Обрабатываю изображение: {field_name}")
     
-    # Сначала ищем элемент с id равным field_name (прямое соответствие)
-    direct_element_regex = rf'(<[^>]*id="{re.escape(field_name)}"[^>]*(?:xlink:href|href)=")[^"]*("[^>]*>)'
-    direct_match = re.search(direct_element_regex, svg_content)
+    # Определяем тип изображения для правильного aspect ratio
+    if 'headshot' in field_name.lower():
+        image_type = 'headshot'
+        aspect_ratio = 'xMidYMid slice'  # ИСПРАВЛЕНО: slice вместо meet для headshot
+    elif 'property' in field_name.lower():
+        image_type = 'property'
+        aspect_ratio = 'xMidYMid slice'
+    else:
+        image_type = 'other'
+        aspect_ratio = 'xMidYMid meet'
+    
+    print(f"🎯 Тип изображения: {image_type}, aspect ratio: {aspect_ratio}")
+    
+    # Конвертируем URL в base64 если нужно
+    if new_image_url.startswith('http'):
+        replacement_data = download_and_convert_image(new_image_url)
+        if not replacement_data:
+            print(f"⚠️ Не удалось скачать, использую исходный URL")
+            replacement_data = new_image_url
+    else:
+        replacement_data = new_image_url
+    
+    # Метод 1: Прямой поиск элемента с id и href
+    direct_pattern = rf'(<[^>]*id="{re.escape(field_name)}"[^>]*(?:xlink:href|href)=")[^"]*("[^>]*>)'
+    direct_match = re.search(direct_pattern, svg_content)
     
     if direct_match:
         print(f"✅ Найден прямой элемент с id: {field_name}")
-        # Прямая замена URL
-        new_svg_content = re.sub(direct_element_regex, 
-                                lambda m: m.group(1) + new_image_url + m.group(2), 
-                                svg_content)
+        new_svg = re.sub(direct_pattern, 
+                        lambda m: m.group(1) + replacement_data + m.group(2), 
+                        svg_content)
         
-        if new_svg_content != svg_content:
+        # ИСПРАВЛЕНО: Исправляем aspect ratio если нужно
+        if image_type == 'headshot':
+            aspect_pattern = rf'(<[^>]*id="{re.escape(field_name)}"[^>]*preserveAspectRatio=")[^"]*("[^>]*>)'
+            new_svg = re.sub(aspect_pattern,
+                            lambda m: m.group(1) + aspect_ratio + m.group(2),
+                            new_svg)
+            print(f"🔧 Aspect ratio исправлен на: {aspect_ratio}")
+        
+        if new_svg != svg_content:
             print(f"✅ Изображение {field_name} заменено!")
-            return new_svg_content
+            return new_svg
     
-    # Если прямого элемента нет, ищем через pattern
-    print(f"🔍 Ищу через pattern для поля: {field_name}")
+    # Метод 2: НОВОЕ - Поиск через группу (для photo.svg)
+    group_pattern = rf'<g[^>]*id="[^"]*{re.escape(field_name)}[^"]*"[^>]*>'
+    group_match = re.search(group_pattern, svg_content, re.IGNORECASE)
     
-    # Ищем элемент с id содержащим field_name и fill="url(#pattern_id)"
-    element_regex = rf'<[^>]*id="[^"]*{re.escape(field_name)}[^"]*"[^>]*fill="url\(#([^)]+)\)"[^>]*>'
-    element_match = re.search(element_regex, svg_content, re.IGNORECASE)
+    if group_match:
+        print(f"✅ Найдена группа с id: {field_name}")
+        
+        # Находим содержимое группы
+        group_start = group_match.end()
+        group_end_match = re.search(r'</g>', svg_content[group_start:])
+        
+        if group_end_match:
+            group_content = svg_content[group_start:group_start + group_end_match.start()]
+            
+            # Ищем fill="url(#pattern_id)" внутри группы
+            fill_match = re.search(r'fill="url\(#([^)]+)\)"', group_content)
+            
+            if fill_match:
+                pattern_id = fill_match.group(1)
+                print(f"✅ Найден pattern: {pattern_id}")
+                
+                return replace_via_pattern(svg_content, pattern_id, replacement_data, image_type, aspect_ratio)
+            else:
+                print("❌ Fill с pattern не найден в группе")
+        else:
+            print("❌ Закрывающий тег </g> не найден")
     
-    if not element_match:
-        print(f"❌ Элемент с id содержащим {field_name} не найден")
-        return svg_content
+    # Метод 3: Поиск элемента с fill="url(#pattern_id)"
+    element_pattern = rf'<[^>]*id="[^"]*{re.escape(field_name)}[^"]*"[^>]*fill="url\(#([^)]+)\)"[^>]*>'
+    element_match = re.search(element_pattern, svg_content, re.IGNORECASE)
     
-    pattern_id = element_match.group(1)
-    print(f"✅ Найден pattern: {pattern_id}")
+    if element_match:
+        pattern_id = element_match.group(1)
+        print(f"✅ Найден pattern: {pattern_id}")
+        
+        return replace_via_pattern(svg_content, pattern_id, replacement_data, image_type, aspect_ratio)
     
-    # Ищем pattern с этим ID
-    pattern_regex = rf'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
-    pattern_match = re.search(pattern_regex, svg_content, re.DOTALL)
+    print(f"❌ Элемент {field_name} не найден")
+    return svg_content
+
+def replace_via_pattern(svg_content, pattern_id, replacement_data, image_type, aspect_ratio):
+    """Заменяет изображение через pattern -> image связь"""
+    
+    # Ищем pattern с данным ID
+    pattern_pattern = rf'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
+    pattern_match = re.search(pattern_pattern, svg_content, re.DOTALL)
     
     if not pattern_match:
         print(f"❌ Pattern с ID {pattern_id} не найден")
@@ -475,30 +534,27 @@ def replace_image_in_svg(svg_content, field_name, new_image_url):
     image_id = use_match.group(1)
     print(f"✅ Найден image ID: {image_id}")
     
-    # Определяем что делать с изображением
-    if new_image_url.startswith('http'):
-        # Пытаемся скачать и конвертировать
-        replacement_url = download_and_convert_image(new_image_url)
-        if not replacement_url:
-            print(f"⚠️ Не удалось обработать изображение, использую исходный URL")
-            replacement_url = new_image_url
-    else:
-        # Если это уже base64 или локальный файл
-        replacement_url = new_image_url
-    
-    # Ищем и заменяем image элемент с этим ID
-    image_regex = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*(?:xlink:href|href)=")[^"]*("[^>]*>)'
+    # Заменяем image элемент
+    image_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*(?:xlink:href|href)=")[^"]*("[^>]*>)'
     
     def replace_image_href(match):
-        return match.group(1) + replacement_url + match.group(2)
+        return match.group(1) + replacement_data + match.group(2)
     
-    new_svg_content = re.sub(image_regex, replace_image_href, svg_content)
+    new_svg = re.sub(image_pattern, replace_image_href, svg_content)
     
-    if new_svg_content != svg_content:
-        print(f"✅ Изображение {field_name} успешно заменено!")
-        return new_svg_content
+    # ИСПРАВЛЕНО: Исправляем aspect ratio если это headshot
+    if image_type == 'headshot':
+        aspect_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*preserveAspectRatio=")[^"]*("[^>]*>)'
+        new_svg = re.sub(aspect_pattern,
+                        lambda m: m.group(1) + aspect_ratio + m.group(2),
+                        new_svg)
+        print(f"🔧 Aspect ratio исправлен на: {aspect_ratio}")
+    
+    if new_svg != svg_content:
+        print(f"✅ Изображение успешно заменено через pattern!")
+        return new_svg
     else:
-        print(f"❌ Изображение {field_name} не было заменено")
+        print(f"❌ Замена через pattern не удалась")
         return svg_content
 
 def process_image_replacements(svg_content, image_data):
