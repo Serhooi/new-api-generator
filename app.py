@@ -2077,39 +2077,17 @@ def create_and_generate_carousel():
             if not main_url:
                 return jsonify({'error': 'Ошибка сохранения main файла'}), 500
             
-            # Конвертируем main слайд в JPG
-            main_jpg_filename = f"carousel_{carousel_id}_main.jpg"
-            main_jpg_path = os.path.join(OUTPUT_DIR, "carousel", main_jpg_filename)
-            
-            try:
-                convert_svg_to_jpg(processed_main_svg, main_jpg_path)
-                # Читаем JPG файл как bytes и передаем напрямую
-                with open(main_jpg_path, 'rb') as jpg_file:
-                    jpg_data = jpg_file.read()
-                main_jpg_url = save_file_locally_or_supabase(jpg_data, main_jpg_filename, "carousel")
-                
-                if not main_jpg_url:
-                    print(f"⚠️ Main слайд SVG сохранен, но JPG не удалось сохранить")
-                    main_jpg_url = None
-                else:
-                    print(f"✅ Main слайд JPG создан: {main_jpg_url}")
-            except Exception as e:
-                print(f"❌ Ошибка конвертации Main слайда в JPG: {e}")
-                main_jpg_url = None
+            print(f"✅ Main слайд SVG создан: {main_url}")
             
             # Создаем photo слайды
             photo_urls = []
             images = [
                 {
                     'type': 'main',
-                    'image_url': main_jpg_url,  # Только JPG URL, никаких SVG fallback
+                    'svg_url': main_url,  # Возвращаем SVG URL как в первой версии
                     'template_name': main_name
                 }
             ]
-            
-            # Проверяем, что main JPG создался
-            if not main_jpg_url:
-                return jsonify({'error': 'Не удалось создать JPG для main слайда'}), 500
             
             for i, (property_image_field, field_number) in enumerate(property_image_fields):
                 print(f"🎨 Обрабатываю Photo слайд {i+1} (поле: {property_image_field})...")
@@ -2153,36 +2131,14 @@ def create_and_generate_carousel():
                 if photo_url:
                     photo_urls.append(photo_url)
                     
-                    # Конвертируем в JPG
-                    jpg_filename = f"carousel_{carousel_id}_photo_{i+1}.jpg"
-                    jpg_path = os.path.join(OUTPUT_DIR, "carousel", jpg_filename)
-                    
-                    try:
-                        convert_svg_to_jpg(processed_photo_svg, jpg_path)
-                        # Читаем JPG файл как bytes и передаем напрямую
-                        with open(jpg_path, 'rb') as jpg_file:
-                            jpg_data = jpg_file.read()
-                        jpg_url = save_file_locally_or_supabase(jpg_data, jpg_filename, "carousel")
-                        
-                        if jpg_url:
-                            images.append({
-                                'type': f'photo_{i+1}',
-                                'image_url': jpg_url,  # Только JPG URL для постинга
-                                'template_name': photo_name,
-                                'property_image': replacements[target_image_field]  # Используем target_image_field
-                            })
-                            print(f"   ✅ Photo слайд {i+1} создан: {jpg_url}")
-                        else:
-                            print(f"   ⚠️ Photo слайд {i+1} SVG сохранен, но JPG не удалось сохранить")
-                    except Exception as e:
-                        print(f"   ❌ Ошибка конвертации Photo слайд {i+1} в JPG: {e}")
-                        # Добавляем только SVG если JPG не удалось
-                        images.append({
-                            'type': f'photo_{i+1}',
-                            'image_url': photo_url,  # SVG как fallback
-                            'template_name': photo_name,
-                            'property_image': replacements[target_image_field]  # Используем target_image_field
-                        })
+                    # Добавляем photo слайд в images (без JPG конвертации)
+                    images.append({
+                        'type': f'photo_{i+1}',
+                        'svg_url': photo_url,  # Возвращаем SVG URL как в первой версии
+                        'template_name': photo_name,
+                        'property_image': replacements[target_image_field]
+                    })
+                    print(f"   ✅ Photo слайд {i+1} создан: {photo_url}")
                 else:
                     print(f"   ❌ Ошибка сохранения Photo слайд {i+1}")
             
