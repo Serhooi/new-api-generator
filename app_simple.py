@@ -523,24 +523,13 @@ def generate_carousel():
         # Определяем, работаем ли мы на Render (для правильных URL)
         is_render = os.environ.get('RENDER', False) or (os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_URL') != 'https://vahgmyuowsilbxqdjjii.supabase.co')
         
-        # Создаем URL для изображений (используем Supabase URL если на Render, иначе локальные)
+        # Создаем URL для изображений
         if is_render and supabase:
-            # На Render - используем Supabase URL
-            if main_jpg_success:
-                # Загружаем JPG в Supabase
-                main_jpg_url = save_file_locally_or_supabase(open(main_jpg_path, 'rb').read(), main_jpg_filename, "carousel")
-                main_image_url = main_jpg_url if main_jpg_url else main_url
-            else:
-                main_image_url = main_url
-            
-            if photo_jpg_success:
-                # Загружаем JPG в Supabase
-                photo_jpg_url = save_file_locally_or_supabase(open(photo_jpg_path, 'rb').read(), photo_jpg_filename, "carousel")
-                photo_image_url = photo_jpg_url if photo_jpg_url else photo_url
-            else:
-                photo_image_url = photo_url
+            # На Render - всегда используем SVG URL (JPG недоступен)
+            main_image_url = main_url
+            photo_image_url = photo_url
         else:
-            # Локально - используем локальные URL
+            # Локально - используем JPG если доступен, иначе SVG
             main_image_url = f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}'
             photo_image_url = f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}'
         
@@ -562,7 +551,7 @@ def generate_carousel():
             'data': {'images': image_urls},
             'slides_count': 2,
             'status': 'completed',
-            'format': 'jpg' if main_jpg_success and photo_jpg_success else 'svg'
+            'format': 'svg' if is_render and supabase else ('jpg' if main_jpg_success and photo_jpg_success else 'svg')
         }
         
         print(f"🔍 /api/generate/carousel response: {response_data}")
