@@ -523,15 +523,15 @@ def generate_carousel():
         # Определяем, работаем ли мы на Render (для правильных URL)
         is_render = os.environ.get('RENDER', False) or (os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_URL') != 'https://vahgmyuowsilbxqdjjii.supabase.co')
         
-        # Создаем URL для изображений
+        # Создаем URL для изображений - используем только SVG
         if is_render and supabase:
-            # На Render - всегда используем SVG URL (JPG недоступен)
+            # На Render - используем SVG URL из Supabase
             main_image_url = main_url
             photo_image_url = photo_url
         else:
-            # Локально - используем JPG если доступен, иначе SVG
-            main_image_url = f'/output/carousel/{main_jpg_filename}' if main_jpg_success else f'/output/carousel/{main_svg_filename}'
-            photo_image_url = f'/output/carousel/{photo_jpg_filename}' if photo_jpg_success else f'/output/carousel/{photo_svg_filename}'
+            # Локально - используем SVG URL
+            main_image_url = f'/output/carousel/{main_svg_filename}'
+            photo_image_url = f'/output/carousel/{photo_svg_filename}'
         
         # Создаем простые массивы URL для фронтенда (используем правильные URL)
         image_urls = [main_image_url, photo_image_url]
@@ -551,7 +551,7 @@ def generate_carousel():
             'data': {'images': image_urls},
             'slides_count': 2,
             'status': 'completed',
-            'format': 'svg' if is_render and supabase else ('jpg' if main_jpg_success and photo_jpg_success else 'svg')
+            'format': 'svg'
         }
         
         print(f"🔍 /api/generate/carousel response: {response_data}")

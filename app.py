@@ -1736,7 +1736,7 @@ def generate_carousel():
             'images_detailed': images,  # Массив объектов с дополнительной информацией
             'slides_count': 2,
             'status': 'completed',
-            'format': 'svg' if is_render and supabase else ('jpg' if main_jpg_success and photo_jpg_success else 'svg'),
+            'format': 'svg',
             # Дополнительные поля для совместимости
             'images_detailed_alt': [
                 {
@@ -1906,7 +1906,7 @@ def generate_carousel_by_name():
             'main_url': main_image_url,
             'photo_url': photo_image_url,
             'replacements_applied': len(replacements),
-            'format': 'svg' if is_render and supabase else ('jpg' if main_jpg_success and photo_jpg_success else 'svg'),
+            'format': 'svg',
             # Дополнительные поля для совместимости
             'images_detailed': [
                 {
