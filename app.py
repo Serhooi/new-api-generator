@@ -1749,7 +1749,22 @@ def generate_carousel():
                     'url': photo_image_url,
                     'template_name': photo_name
                 }
-            ]
+            ],
+            # Добавляем недостающие поля для совместимости с фронтендом
+            'main_template_id': main_template_id,
+            'photo_template_id': photo_template_id,
+            'main_filename': main_svg_filename,
+            'photo_filename': photo_svg_filename,
+            'main_svg_filename': main_svg_filename,
+            'photo_svg_filename': photo_svg_filename,
+            'main_jpg_filename': main_jpg_filename,
+            'photo_jpg_filename': photo_jpg_filename,
+            'main_jpg_success': False,  # JPG недоступен
+            'photo_jpg_success': False,  # JPG недоступен
+            'main_svg_path': main_svg_path,
+            'photo_svg_path': photo_svg_path,
+            'main_jpg_path': main_jpg_path,
+            'photo_jpg_path': photo_jpg_path
         }
         
         print(f"🔍 /api/generate/carousel response: {response_data}")
