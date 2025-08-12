@@ -834,7 +834,11 @@ def save_file_locally_or_supabase(content, filename, folder="carousel"):
         # Локально - сохраняем в файл
         local_path = os.path.join(OUTPUT_DIR, folder, filename)
         try:
-            with open(local_path, 'w', encoding='utf-8') as f:
+            # Определяем режим записи в зависимости от типа контента
+            mode = 'wb' if isinstance(content, bytes) else 'w'
+            encoding = None if isinstance(content, bytes) else 'utf-8'
+            
+            with open(local_path, mode, encoding=encoding) as f:
                 f.write(content)
             print(f"✅ Файл сохранен локально: {local_path}")
             return f"/output/{folder}/{filename}"
@@ -2008,6 +2012,11 @@ def create_and_generate_carousel():
             photo_count = slides_count
             print(f"🔍 Используем количество слайдов из payload: {photo_count}")
             
+            # Если slides_count не передан, считаем автоматически
+            if photo_count == 0:
+                photo_count = len([k for k in replacements.keys() if k.startswith('dyno.propertyimage') and k != 'dyno.propertyimage'])
+                print(f"🔍 slides_count не передан, считаю автоматически: {photo_count} photo слайдов")
+            
             # Проверяем, что есть достаточно изображений для указанного количества слайдов
             property_image_fields = []
             for i in range(2, photo_count + 2):  # propertyimage2, propertyimage3, etc.
@@ -2022,6 +2031,7 @@ def create_and_generate_carousel():
                 photo_count = len(property_image_fields)
             
             print(f"🔍 Создаем {photo_count} photo слайдов")
+            print(f"🔍 Найденные property_image поля: {property_image_fields}")
             print(f"🔍 Все replacements: {list(replacements.keys())}")
             
             # Обрабатываем main SVG (используем dyno.propertyimage, dyno.agentheadshot и т.д.)
@@ -2078,10 +2088,14 @@ def create_and_generate_carousel():
             images = [
                 {
                     'type': 'main',
-                    'image_url': main_jpg_url if main_jpg_url else main_url,  # JPG предпочтительно, SVG как fallback
+                    'image_url': main_jpg_url,  # Только JPG URL, никаких SVG fallback
                     'template_name': main_name
                 }
             ]
+            
+            # Проверяем, что main JPG создался
+            if not main_jpg_url:
+                return jsonify({'error': 'Не удалось создать JPG для main слайда'}), 500
             
             for i, (property_image_field, field_number) in enumerate(property_image_fields):
                 print(f"🎨 Обрабатываю Photo слайд {i+1} (поле: {property_image_field})...")
