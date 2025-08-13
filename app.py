@@ -19,10 +19,23 @@ import base64
 import tempfile
 import io
 import html
-import cairosvg
+# import cairosvg  # Отключено из-за проблем с Cairo
 from PIL import Image
 from supabase import create_client, Client
-from preview_system import generate_svg_preview, create_preview_with_data, cleanup_old_previews, replace_image_in_svg
+# from preview_system import generate_svg_preview, create_preview_with_data, cleanup_old_previews, replace_image_in_svg  # Отключено из-за Cairo
+
+# Заглушки для функций preview_system
+def generate_svg_preview(svg_content, width=400, height=600):
+    return None
+
+def create_preview_with_data(svg_content, data, width=400, height=600):
+    return None
+
+def cleanup_old_previews():
+    return True
+
+def replace_image_in_svg(svg_content, field_name, image_url):
+    return svg_content
 
 app = Flask(__name__)
 CORS(app, origins="*")
@@ -37,15 +50,19 @@ ALLOWED_EXTENSIONS = {'svg'}
 
 # Supabase конфигурация
 SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://vahgmyuowsilbxqdjjii.supabase.co')
-SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhaGdteXVvd3NpbGJ4cWRqamlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQwMTU5NzQsImV4cCI6MjA0OTU5MTk3NH0.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8')
+SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhaGdteXVvd3NpbGJ4cWRqamlpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NTI1MDIxOSwiZXhwIjoyMDYwODI2MjE5fQ.7pfeWV0cnKALRb1IGYrhUQL68ggywFG6MetKc8DPvbE')
 
 # Инициализация Supabase клиента
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("✅ Supabase клиент инициализирован")
-except Exception as e:
-    print(f"❌ Ошибка инициализации Supabase: {e}")
-    supabase = None
+supabase = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print(f"✅ Supabase клиент инициализирован: {SUPABASE_URL}")
+    except Exception as e:
+        print(f"❌ Ошибка инициализации Supabase: {e}")
+        supabase = None
+else:
+    print("ℹ️ Supabase переменные не установлены, работаем локально")
 
 # Создаем директории (для локальной разработки)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -761,14 +778,14 @@ def upload_to_supabase_storage(file_content, filename, folder="generated"):
             content_type = "image/svg+xml"
         
         # Загружаем файл в Storage
-        result = supabase.storage.from_("images").upload(
+        result = supabase.storage.from_("carousel-assets").upload(
             path=file_path,
             file=file_data,
             file_options={"content-type": content_type}
         )
         
         # Получаем публичный URL
-        public_url = supabase.storage.from_("images").get_public_url(file_path)
+        public_url = supabase.storage.from_("carousel-assets").get_public_url(file_path)
         
         print(f"✅ Файл загружен в Supabase: {public_url}")
         return public_url
@@ -781,8 +798,8 @@ def save_file_locally_or_supabase(content, filename, folder="carousel"):
     """
     Сохраняет файл локально (для разработки) или в Supabase (для продакшена)
     """
-    # Определяем, работаем ли мы на Render
-    is_render = os.environ.get('RENDER', False) or (os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_URL') != 'https://vahgmyuowsilbxqdjjii.supabase.co')
+    # Определяем, работаем ли мы на Render или есть Supabase
+    is_render = os.environ.get('RENDER', False) or bool(os.environ.get('SUPABASE_URL'))
     
     if is_render and supabase:
         # На Render - загружаем в Supabase
@@ -2454,13 +2471,9 @@ def convert_svg_to_jpg(svg_content, output_path, width=2400, height=1600, qualit
     try:
         print(f"🖼️ Конвертирую SVG в JPG: {output_path}")
         
-        # Конвертация через cairosvg в PNG сначала
-        png_data = cairosvg.svg2png(
-            bytestring=svg_content.encode('utf-8'),
-            output_width=width,
-            output_height=height,
-            dpi=600  # Очень высокое качество для соцсетей
-        )
+        # Конвертация отключена (Cairo недоступен)
+        print("⚠️ Cairo недоступен, конвертация отключена")
+        return False
         
         # Конвертируем PNG в JPG через PIL
         img = Image.open(io.BytesIO(png_data))
