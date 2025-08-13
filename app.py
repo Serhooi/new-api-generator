@@ -24,18 +24,46 @@ from PIL import Image
 from supabase import create_client, Client
 # from preview_system import generate_svg_preview, create_preview_with_data, cleanup_old_previews, replace_image_in_svg  # Отключено из-за Cairo
 
-# Заглушки для функций preview_system
+# Рабочие функции preview_system без Cairo
 def generate_svg_preview(svg_content, width=400, height=600):
-    return None
+    """Генерирует SVG превью"""
+    try:
+        import re
+        # Изменяем размеры SVG
+        svg_with_size = re.sub(
+            r'<svg([^>]*?)width="[^"]*"([^>]*?)height="[^"]*"([^>]*?)>',
+            f'<svg\\1width="{width}"\\2height="{height}"\\3>',
+            svg_content
+        )
+        
+        # Если не нашли размеры, добавляем viewBox
+        if 'width=' not in svg_with_size:
+            svg_with_size = re.sub(
+                r'<svg([^>]*?)>',
+                f'<svg\\1 width="{width}" height="{height}" viewBox="0 0 1080 1350">',
+                svg_with_size
+            )
+        
+        return svg_with_size
+    except Exception as e:
+        print(f"❌ Ошибка генерации SVG превью: {e}")
+        return svg_content
 
 def create_preview_with_data(svg_content, data, width=400, height=600):
-    return None
+    """Создает превью с данными"""
+    return generate_svg_preview(svg_content, width, height)
 
 def cleanup_old_previews():
+    """Очистка старых превью"""
     return True
 
 def replace_image_in_svg(svg_content, field_name, image_url):
-    return svg_content
+    """Заменяет изображение в SVG"""
+    try:
+        from preview_system import replace_image_in_svg as original_replace
+        return original_replace(svg_content, field_name, image_url)
+    except ImportError:
+        return svg_content
 
 app = Flask(__name__)
 CORS(app, origins="*")
@@ -169,17 +197,13 @@ def generate_svg_preview(svg_content, template_id, width=400, height=300):
         # Создаем превью SVG с заменой dyno полей на примеры
         preview_svg = create_preview_svg(svg_content)
         
-        # Конвертируем SVG в PNG
-        png_data = cairosvg.svg2png(
-            bytestring=preview_svg.encode('utf-8'),
-            output_width=width,
-            output_height=height,
-            background_color='white'
-        )
+        # Используем SVG напрямую (без Cairo)
+        svg_data = preview_svg.encode('utf-8')
         
-        # Сохраняем PNG файл
-        with open(png_path, 'wb') as f:
-            f.write(png_data)
+        # Сохраняем SVG файл
+        svg_path = png_path.replace('.png', '.svg')
+        with open(svg_path, 'wb') as f:
+            f.write(svg_data)
         
         print(f"✅ Превью создано: {png_filename}")
         
@@ -1225,24 +1249,21 @@ def get_all_templates():
             if not os.path.exists(preview_path):
                 print(f"🖼️ Генерирую превью для шаблона: {template_id}")
                 try:
-                    # Конвертируем SVG в PNG с размером 400x600px как требует фронт
-                    png_data = cairosvg.svg2png(
-                        bytestring=svg_content.encode('utf-8'),
-                        output_width=400,
-                        output_height=600,
-                        background_color='white'
-                    )
+                    # Используем SVG напрямую (без Cairo)
+                    svg_data = generate_svg_preview(svg_content, 400, 600)
                     
-                    # Сохраняем PNG файл
-                    with open(preview_path, 'wb') as f:
-                        f.write(png_data)
+                    # Сохраняем SVG файл
+                    svg_path = preview_path.replace('.png', '.svg')
+                    with open(svg_path, 'w', encoding='utf-8') as f:
+                        f.write(svg_data)
                     
-                    print(f"✅ Превью создано: {preview_path}")
+                    print(f"✅ SVG превью создано: {svg_path}")
+                    preview_url = f'/output/previews/{template_id}_preview.svg'
                 except Exception as e:
                     print(f"❌ Ошибка генерации превью для {template_id}: {e}")
                     return jsonify({'error': f'Ошибка генерации превью: {str(e)}'}), 500
             else:
-                preview_url = f'/output/previews/{template_id}_preview.png'
+                preview_url = f'/output/previews/{template_id}_preview.svg'
             
             # Структура согласно требованиям фронта
             templates.append({
