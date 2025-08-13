@@ -197,13 +197,20 @@ def generate_svg_preview(svg_content, template_id, width=400, height=300):
         # Создаем превью SVG с заменой dyno полей на примеры
         preview_svg = create_preview_svg(svg_content)
         
-        # Используем SVG напрямую (без Cairo)
-        svg_data = preview_svg.encode('utf-8')
-        
-        # Сохраняем SVG файл
-        svg_path = png_path.replace('.png', '.svg')
-        with open(svg_path, 'wb') as f:
-            f.write(svg_data)
+        # Используем Playwright для PNG превью
+        try:
+            from png_preview_with_playwright import svg_to_png_with_playwright
+            success = svg_to_png_with_playwright(preview_svg, png_path, width, height)
+            if not success:
+                raise Exception("Playwright failed")
+        except Exception as e:
+            print(f"❌ Ошибка Playwright: {e}, создаю заглушку")
+            # Создаем заглушку
+            from PIL import Image, ImageDraw
+            img = Image.new('RGB', (width, height), color='white')
+            draw = ImageDraw.Draw(img)
+            draw.text((width//2, height//2), 'Preview', fill='black', anchor='mm')
+            img.save(png_path)
         
         print(f"✅ Превью создано: {png_filename}")
         
@@ -1249,21 +1256,34 @@ def get_all_templates():
             if not os.path.exists(preview_path):
                 print(f"🖼️ Генерирую превью для шаблона: {template_id}")
                 try:
-                    # Используем SVG напрямую (без Cairo)
-                    svg_data = generate_svg_preview(svg_content, 400, 600)
+                    # Используем Playwright для PNG превью
+                    from png_preview_with_playwright import svg_to_png_with_playwright
+                    success = svg_to_png_with_playwright(svg_content, preview_path, 400, 600)
                     
-                    # Сохраняем SVG файл
-                    svg_path = preview_path.replace('.png', '.svg')
-                    with open(svg_path, 'w', encoding='utf-8') as f:
-                        f.write(svg_data)
-                    
-                    print(f"✅ SVG превью создано: {svg_path}")
-                    preview_url = f'/output/previews/{template_id}_preview.svg'
+                    if success:
+                        print(f"✅ PNG превью создано: {preview_path}")
+                    else:
+                        # Fallback - создаем простое изображение-заглушку
+                        from PIL import Image, ImageDraw, ImageFont
+                        img = Image.new('RGB', (400, 600), color='white')
+                        draw = ImageDraw.Draw(img)
+                        draw.text((200, 300), template_name, fill='black', anchor='mm')
+                        img.save(preview_path)
+                        print(f"✅ Fallback превью создано: {preview_path}")
+                        
                 except Exception as e:
                     print(f"❌ Ошибка генерации превью для {template_id}: {e}")
-                    return jsonify({'error': f'Ошибка генерации превью: {str(e)}'}), 500
+                    # Создаем заглушку
+                    try:
+                        from PIL import Image, ImageDraw
+                        img = Image.new('RGB', (400, 600), color='lightgray')
+                        draw = ImageDraw.Draw(img)
+                        draw.text((200, 300), 'Preview\nUnavailable', fill='black', anchor='mm')
+                        img.save(preview_path)
+                    except:
+                        pass
             else:
-                preview_url = f'/output/previews/{template_id}_preview.svg'
+                preview_url = f'/output/previews/{template_id}_preview.png'
             
             # Структура согласно требованиям фронта
             templates.append({
