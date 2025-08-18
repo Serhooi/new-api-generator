@@ -895,6 +895,40 @@ def templates_page():
         print(f"Ошибка в templates_page: {str(e)}")
         return render_template('templates.html', templates=[])
 
+@app.route('/delete/<template_id>', methods=['POST'])
+def delete_template_form(template_id):
+    """Удаление шаблона через форму (для веб-интерфейса)"""
+    try:
+        ensure_db_exists()
+        
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Проверяем существование шаблона
+        cursor.execute('SELECT name FROM templates WHERE id = ?', [template_id])
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return f"<script>alert('Шаблон не найден'); window.location.href='/templates';</script>"
+        
+        template_name = result[0]
+        
+        # Удаляем шаблон
+        cursor.execute('DELETE FROM templates WHERE id = ?', [template_id])
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ Шаблон удален через веб-форму: {template_name} (ID: {template_id})")
+        
+        # Перенаправляем обратно на страницу шаблонов с сообщением
+        return f"<script>alert('Шаблон \"{template_name}\" успешно удален'); window.location.href='/templates';</script>"
+        
+    except Exception as e:
+        print(f"❌ Ошибка удаления через форму: {e}")
+        return f"<script>alert('Ошибка удаления: {str(e)}'); window.location.href='/templates';</script>"
+
 @app.route('/upload')
 def upload_page():
     return render_template('upload.html')
