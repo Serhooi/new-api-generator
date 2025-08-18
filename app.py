@@ -1293,35 +1293,37 @@ def get_all_templates():
             # Если превью не существует, генерируем его
             if not os.path.exists(preview_path):
                 print(f"🖼️ Генерирую превью для шаблона: {template_id}")
+                success = False
+                
                 try:
-                    # Используем Playwright для PNG превью
+                    # Пробуем использовать Playwright для PNG превью
                     from png_preview_with_playwright import svg_to_png_with_playwright
                     success = svg_to_png_with_playwright(svg_content, preview_path, 400, 600)
-                    
                     if success:
                         print(f"✅ PNG превью создано: {preview_path}")
-                    else:
-                        # Fallback - создаем простое изображение-заглушку
-                        from PIL import Image, ImageDraw, ImageFont
-                        img = Image.new('RGB', (400, 600), color='white')
-                        draw = ImageDraw.Draw(img)
-                        draw.text((200, 300), template_name, fill='black', anchor='mm')
-                        img.save(preview_path)
-                        print(f"✅ Fallback превью создано: {preview_path}")
-                        
+                except ImportError:
+                    print("⚠️ Playwright не установлен")
                 except Exception as e:
-                    print(f"❌ Ошибка генерации превью для {template_id}: {e}")
-                    # Создаем заглушку
+                    print(f"⚠️ Ошибка Playwright: {e}")
+                
+                # Если Playwright не сработал, создаем fallback превью
+                if not success:
                     try:
                         from PIL import Image, ImageDraw
-                        img = Image.new('RGB', (400, 600), color='lightgray')
+                        img = Image.new('RGB', (400, 600), color='white')
                         draw = ImageDraw.Draw(img)
-                        draw.text((200, 300), 'Preview\nUnavailable', fill='black', anchor='mm')
+                        
+                        # Рисуем простое превью с названием
+                        draw.rectangle([10, 10, 390, 590], outline='gray', width=2)
+                        draw.text((200, 300), template_name, fill='black', anchor='mm')
+                        
                         img.save(preview_path)
-                    except:
-                        pass
-            else:
-                preview_url = f'/output/previews/{template_id}_preview.png'
+                        print(f"✅ Fallback превью создано: {preview_path}")
+                    except Exception as e:
+                        print(f"❌ Ошибка создания fallback превью: {e}")
+            
+            # URL для превью
+            preview_url = f'/output/previews/{template_id}_preview.png'
             
             # Структура согласно требованиям фронта
             templates.append({
