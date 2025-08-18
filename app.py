@@ -818,6 +818,10 @@ def upload_to_supabase_storage(file_content, filename, folder="generated"):
         # Получаем публичный URL
         public_url = supabase.storage.from_("carousel-assets").get_public_url(file_path)
         
+        # Исправляем URL - убираем лишний знак вопроса в конце
+        if public_url and public_url.endswith('?'):
+            public_url = public_url.rstrip('?')
+        
         print(f"✅ Файл загружен в Supabase: {public_url}")
         return public_url
         
@@ -1361,19 +1365,25 @@ def get_template_preview(template_id):
         os.makedirs(preview_dir, exist_ok=True)
         preview_path = os.path.join(preview_dir, f"{template_id}_preview.png")
         
-        # Если превью не существует, генерируем его
+        # Если превью не существует, возвращаем SVG напрямую (Cairo отключен)
         if not os.path.exists(preview_path):
-            print(f"🖼️ Генерирую превью для шаблона: {template_id}")
-            try:
-                # Конвертируем SVG в PNG с размером 400x600px как требует фронт
-                png_data = cairosvg.svg2png(
-                    bytestring=svg_content.encode('utf-8'),
-                    output_width=400,
-                    output_height=600,
-                    background_color='white'
-                )
-                
-                # Сохраняем PNG файл
+            print(f"🖼️ Возвращаю SVG превью для шаблона: {template_id} (Cairo отключен)")
+            
+            # Генерируем SVG превью с правильными размерами
+            preview_svg = generate_svg_preview(svg_content, 400, 600)
+            
+            # Возвращаем SVG как превью
+            from flask import Response
+            return Response(preview_svg, mimetype='image/svg+xml')
+        
+        # Если PNG превью существует, отправляем его
+        try:
+            return send_from_directory(preview_dir, f"{template_id}_preview.png")
+        except:
+            # Если ошибка с PNG, возвращаем SVG
+            preview_svg = generate_svg_preview(svg_content, 400, 600)
+            from flask import Response
+            return Response(preview_svg, mimetype='image/svg+xml')
                 with open(preview_path, 'wb') as f:
                     f.write(png_data)
                 
@@ -2578,13 +2588,9 @@ def convert_svg_to_png(svg_content, output_path, width=1200, height=800):
     try:
         print(f"🖼️ Конвертирую SVG в PNG: {output_path}")
         
-        # Конвертация через cairosvg
-        png_data = cairosvg.svg2png(
-            bytestring=svg_content.encode('utf-8'),
-            output_width=width,
-            output_height=height,
-            dpi=300  # Высокое качество
-        )
+        # Конвертация отключена (Cairo недоступен)
+        print("⚠️ Cairo недоступен, PNG конвертация отключена")
+        return False
         
         # Сохраняем PNG файл
         with open(output_path, 'wb') as f:
