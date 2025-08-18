@@ -1713,6 +1713,11 @@ def generate_carousel():
         for field in svg_fields_photo:
             print(f"   - {field}")
         
+        # Показываем что пришло от фронтенда
+        print("🔍 Поля от фронтенда:")
+        for key, value in replacements.items():
+            print(f"   - {key} = {str(value)[:50]}...")
+        
         # Фильтруем replacements для main SVG
         filtered_replacements_main = {k: v for k, v in replacements.items() if k in svg_fields_main or field_mapping.get(k, k) in svg_fields_main}
         
@@ -2523,6 +2528,80 @@ def preview_carousel():
         
     except Exception as e:
         return jsonify({'error': f'Ошибка генерации превью карусели: {str(e)}'}), 500
+
+@app.route('/api/convert-to-png', methods=['POST'])
+def convert_svg_to_png_api():
+    """Конвертирует SVG URL в PNG"""
+    try:
+        data = request.get_json()
+        svg_url = data.get('svg_url')
+        
+        if not svg_url:
+            return jsonify({'error': 'svg_url обязателен'}), 400
+        
+        print(f"🖼️ Конвертирую SVG в PNG: {svg_url}")
+        
+        # Скачиваем SVG
+        response = requests.get(svg_url, timeout=30)
+        if response.status_code != 200:
+            return jsonify({'error': 'Не удалось скачать SVG'}), 400
+        
+        svg_content = response.text
+        
+        # Генерируем имя PNG файла
+        png_filename = f"converted_{uuid.uuid4().hex[:8]}.png"
+        png_path = os.path.join(OUTPUT_DIR, 'converted', png_filename)
+        os.makedirs(os.path.dirname(png_path), exist_ok=True)
+        
+        # Пробуем конвертировать через Playwright
+        success = False
+        try:
+            from png_preview_with_playwright import svg_to_png_with_playwright
+            success = svg_to_png_with_playwright(svg_content, png_path, 1080, 1350)
+            if success:
+                print(f"✅ PNG создан через Playwright: {png_path}")
+        except Exception as e:
+            print(f"⚠️ Ошибка Playwright: {e}")
+        
+        # Fallback через PIL
+        if not success:
+            try:
+                from PIL import Image, ImageDraw
+                img = Image.new('RGB', (1080, 1350), color='white')
+                draw = ImageDraw.Draw(img)
+                draw.text((540, 675), 'SVG → PNG', fill='black', anchor='mm')
+                img.save(png_path)
+                success = True
+                print(f"✅ PNG создан через PIL fallback: {png_path}")
+            except Exception as e:
+                print(f"❌ Ошибка PIL: {e}")
+        
+        if success:
+            # Загружаем PNG в Supabase
+            with open(png_path, 'rb') as f:
+                png_data = f.read()
+            
+            png_url = upload_to_supabase_storage(png_data, png_filename, "converted")
+            
+            if png_url:
+                return jsonify({
+                    'success': True,
+                    'png_url': png_url,
+                    'filename': png_filename
+                })
+            else:
+                # Возвращаем локальный URL
+                return jsonify({
+                    'success': True,
+                    'png_url': f'/output/converted/{png_filename}',
+                    'filename': png_filename
+                })
+        else:
+            return jsonify({'error': 'Не удалось конвертировать в PNG'}), 500
+            
+    except Exception as e:
+        print(f"❌ Ошибка конвертации: {e}")
+        return jsonify({'error': f'Ошибка конвертации: {str(e)}'}), 500
 
 @app.route('/api/preview/cleanup', methods=['POST'])
 def cleanup_previews():
