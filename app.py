@@ -1386,18 +1386,6 @@ def get_template_preview(template_id):
             preview_svg = generate_svg_preview(svg_content, 400, 600)
             from flask import Response
             return Response(preview_svg, mimetype='image/svg+xml')
-                with open(preview_path, 'wb') as f:
-                    f.write(png_data)
-                
-                print(f"✅ Превью создано: {preview_path}")
-            except Exception as e:
-                print(f"❌ Ошибка генерации превью для {template_id}: {e}")
-                return jsonify({'error': f'Ошибка генерации превью: {str(e)}'}), 500
-        
-        # Возвращаем URL к PNG превью
-        return jsonify({
-            'preview_url': f'/output/previews/{template_id}_preview.png'
-        })
         
     except Exception as e:
         print(f"❌ Ошибка получения превью: {e}")
