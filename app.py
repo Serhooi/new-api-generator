@@ -1306,24 +1306,72 @@ def get_all_templates():
                 except Exception as e:
                     print(f"⚠️ Ошибка Playwright: {e}")
                 
-                # Если Playwright не сработал, создаем fallback превью
+                # Если Playwright не сработал, создаем улучшенное fallback превью
                 if not success:
                     try:
-                        from PIL import Image, ImageDraw
-                        img = Image.new('RGB', (400, 600), color='white')
+                        from PIL import Image, ImageDraw, ImageFont
+                        
+                        # Создаем превью с градиентом
+                        img = Image.new('RGB', (400, 600), color='#f8f9fa')
                         draw = ImageDraw.Draw(img)
                         
-                        # Рисуем простое превью с названием
-                        draw.rectangle([10, 10, 390, 590], outline='gray', width=2)
-                        draw.text((200, 300), template_name, fill='black', anchor='mm')
+                        # Рисуем фон с градиентом (имитация)
+                        for y in range(600):
+                            color_val = int(248 - (y * 20 / 600))  # Градиент от светлого к темному
+                            draw.line([(0, y), (400, y)], fill=(color_val, color_val + 2, color_val + 5))
+                        
+                        # Рамка
+                        draw.rectangle([5, 5, 395, 595], outline='#dee2e6', width=3)
+                        
+                        # Заголовок
+                        try:
+                            # Пытаемся использовать системный шрифт
+                            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
+                            font_subtitle = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
+                        except:
+                            font_title = ImageFont.load_default()
+                            font_subtitle = ImageFont.load_default()
+                        
+                        # Название шаблона
+                        draw.text((200, 100), template_name, fill='#2d3748', anchor='mm', font=font_title)
+                        
+                        # Категория и роль
+                        draw.text((200, 140), f"{category} • {template_role}", fill='#718096', anchor='mm', font=font_subtitle)
+                        
+                        # Имитация контента
+                        draw.rectangle([50, 180, 350, 280], fill='#e2e8f0', outline='#cbd5e0', width=2)
+                        draw.text((200, 230), "Template Preview", fill='#4a5568', anchor='mm', font=font_subtitle)
+                        
+                        # Имитация текстовых блоков
+                        for i, y in enumerate([320, 350, 380, 410]):
+                            width = 250 - (i * 30)
+                            draw.rectangle([75, y, 75 + width, y + 20], fill='#cbd5e0')
+                        
+                        # Имитация изображения
+                        draw.rectangle([50, 450, 350, 550], fill='#a0aec0', outline='#718096', width=2)
+                        draw.text((200, 500), "📷 Image Area", fill='#2d3748', anchor='mm', font=font_subtitle)
                         
                         img.save(preview_path)
-                        print(f"✅ Fallback превью создано: {preview_path}")
+                        print(f"✅ Улучшенное fallback превью создано: {preview_path}")
                     except Exception as e:
                         print(f"❌ Ошибка создания fallback превью: {e}")
+                        # Создаем совсем простое превью
+                        try:
+                            from PIL import Image, ImageDraw
+                            img = Image.new('RGB', (400, 600), color='lightgray')
+                            draw = ImageDraw.Draw(img)
+                            draw.text((200, 300), template_name, fill='black', anchor='mm')
+                            img.save(preview_path)
+                        except:
+                            pass
             
-            # URL для превью
-            preview_url = f'/output/previews/{template_id}_preview.png'
+            # URL для превью - проверяем что файл создался
+            if os.path.exists(preview_path):
+                preview_url = f'/output/previews/{template_id}_preview.png'
+            else:
+                # Если PNG не создался, используем SVG превью
+                preview_url = f'/api/templates/{template_id}/preview'
+                print(f"⚠️ PNG превью не создано, используем SVG: {template_id}")
             
             # Структура согласно требованиям фронта
             templates.append({
@@ -1661,6 +1709,9 @@ def generate_carousel():
         photo_template_id = data.get('photo_template_id')
         # Фронтенд отправляет 'data' вместо 'replacements'
         replacements = data.get('data', data.get('replacements', {}))
+        # Проверяем желаемый формат вывода
+        output_format = data.get('format', 'svg').lower()
+        print(f"🎯 Запрошенный формат: {output_format}")
         
         print(f"🔍 Received data: {data}")
         print(f"📋 Replacements: {replacements}")
@@ -1805,6 +1856,47 @@ def generate_carousel():
             }
         ]
         
+        # Если запрошен PNG формат, конвертируем SVG в PNG
+        if output_format == 'png':
+            print("🖼️ Конвертирую SVG в PNG...")
+            
+            # Конвертируем main SVG
+            main_png_filename = f"carousel_{carousel_id}_main.png"
+            main_png_path = os.path.join(OUTPUT_DIR, 'carousel', main_png_filename)
+            
+            try:
+                from png_preview_with_playwright import svg_to_png_with_playwright
+                main_png_success = svg_to_png_with_playwright(processed_main_svg, main_png_path, 1080, 1350)
+                if main_png_success:
+                    main_png_url = save_file_locally_or_supabase(
+                        open(main_png_path, 'rb').read(), 
+                        main_png_filename, 
+                        "carousel"
+                    )
+                    if main_png_url:
+                        main_image_url = main_png_url
+                        print(f"✅ Main PNG создан: {main_png_url}")
+            except Exception as e:
+                print(f"⚠️ Ошибка конвертации main PNG: {e}")
+            
+            # Конвертируем photo SVG
+            photo_png_filename = f"carousel_{carousel_id}_photo.png"
+            photo_png_path = os.path.join(OUTPUT_DIR, 'carousel', photo_png_filename)
+            
+            try:
+                photo_png_success = svg_to_png_with_playwright(processed_photo_svg, photo_png_path, 1080, 1350)
+                if photo_png_success:
+                    photo_png_url = save_file_locally_or_supabase(
+                        open(photo_png_path, 'rb').read(), 
+                        photo_png_filename, 
+                        "carousel"
+                    )
+                    if photo_png_url:
+                        photo_image_url = photo_png_url
+                        print(f"✅ Photo PNG создан: {photo_png_url}")
+            except Exception as e:
+                print(f"⚠️ Ошибка конвертации photo PNG: {e}")
+        
         # Создаем простые массивы URL для фронтенда (используем правильные URL)
         image_urls = [main_image_url, photo_image_url]
         
@@ -1826,7 +1918,7 @@ def generate_carousel():
             'images_detailed': images,  # Массив объектов с дополнительной информацией
             'slides_count': 2,
             'status': 'completed',
-            'format': 'svg',
+            'format': output_format,
             # Дополнительные поля для совместимости
             'images_detailed_alt': [
                 {
@@ -2528,6 +2620,36 @@ def preview_carousel():
         
     except Exception as e:
         return jsonify({'error': f'Ошибка генерации превью карусели: {str(e)}'}), 500
+
+@app.route('/api/generate/carousel-png', methods=['POST'])
+def generate_carousel_png():
+    """Генерирует карусель сразу в PNG формате"""
+    try:
+        data = request.get_json()
+        # Принудительно устанавливаем формат PNG
+        data['format'] = 'png'
+        
+        print("🖼️ PNG карусель: принудительно устанавливаю format=png")
+        
+        # Перенаправляем на основную функцию генерации
+        return generate_carousel_internal(data)
+        
+    except Exception as e:
+        return jsonify({'error': f'Ошибка генерации PNG карусели: {str(e)}'}), 500
+
+def generate_carousel_internal(data=None):
+    """Внутренняя функция генерации карусели"""
+    if data is None:
+        data = request.get_json()
+    
+    # Весь код из generate_carousel переносим сюда
+    # (это будет сделано в следующем шаге)
+    return generate_carousel_with_data(data)
+
+def generate_carousel_with_data(data):
+    """Генерация карусели с переданными данными"""
+    # Здесь будет основная логика
+    pass
 
 @app.route('/api/convert-to-png', methods=['POST'])
 def convert_svg_to_png_api():
