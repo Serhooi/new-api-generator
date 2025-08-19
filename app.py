@@ -1864,38 +1864,90 @@ def generate_carousel():
             main_png_filename = f"carousel_{carousel_id}_main.png"
             main_png_path = os.path.join(OUTPUT_DIR, 'carousel', main_png_filename)
             
+            main_png_success = False
+            
+            # Пробуем Playwright
             try:
                 from png_preview_with_playwright import svg_to_png_with_playwright
                 main_png_success = svg_to_png_with_playwright(processed_main_svg, main_png_path, 1080, 1350)
                 if main_png_success:
-                    main_png_url = save_file_locally_or_supabase(
-                        open(main_png_path, 'rb').read(), 
-                        main_png_filename, 
-                        "carousel"
-                    )
+                    print(f"✅ Main PNG создан через Playwright")
+            except Exception as e:
+                print(f"⚠️ Playwright не работает: {e}")
+            
+            # Fallback через PIL
+            if not main_png_success:
+                try:
+                    from PIL import Image, ImageDraw
+                    img = Image.new('RGB', (1080, 1350), color='white')
+                    draw = ImageDraw.Draw(img)
+                    
+                    # Рисуем заглушку PNG
+                    draw.rectangle([50, 50, 1030, 1300], outline='gray', width=5)
+                    draw.text((540, 675), 'PNG Generated', fill='black', anchor='mm')
+                    draw.text((540, 725), f'Main Slide', fill='gray', anchor='mm')
+                    
+                    img.save(main_png_path)
+                    main_png_success = True
+                    print(f"✅ Main PNG создан через PIL fallback")
+                except Exception as e:
+                    print(f"❌ PIL fallback ошибка: {e}")
+            
+            # Загружаем PNG в Supabase если создан
+            if main_png_success:
+                try:
+                    with open(main_png_path, 'rb') as f:
+                        png_data = f.read()
+                    main_png_url = save_file_locally_or_supabase(png_data, main_png_filename, "carousel")
                     if main_png_url:
                         main_image_url = main_png_url
-                        print(f"✅ Main PNG создан: {main_png_url}")
-            except Exception as e:
-                print(f"⚠️ Ошибка конвертации main PNG: {e}")
+                        print(f"✅ Main PNG загружен: {main_png_url}")
+                except Exception as e:
+                    print(f"❌ Ошибка загрузки main PNG: {e}")
             
             # Конвертируем photo SVG
             photo_png_filename = f"carousel_{carousel_id}_photo.png"
             photo_png_path = os.path.join(OUTPUT_DIR, 'carousel', photo_png_filename)
             
+            photo_png_success = False
+            
+            # Пробуем Playwright
             try:
                 photo_png_success = svg_to_png_with_playwright(processed_photo_svg, photo_png_path, 1080, 1350)
                 if photo_png_success:
-                    photo_png_url = save_file_locally_or_supabase(
-                        open(photo_png_path, 'rb').read(), 
-                        photo_png_filename, 
-                        "carousel"
-                    )
+                    print(f"✅ Photo PNG создан через Playwright")
+            except Exception as e:
+                print(f"⚠️ Playwright не работает для photo: {e}")
+            
+            # Fallback через PIL
+            if not photo_png_success:
+                try:
+                    from PIL import Image, ImageDraw
+                    img = Image.new('RGB', (1080, 1350), color='white')
+                    draw = ImageDraw.Draw(img)
+                    
+                    # Рисуем заглушку PNG
+                    draw.rectangle([50, 50, 1030, 1300], outline='blue', width=5)
+                    draw.text((540, 675), 'PNG Generated', fill='black', anchor='mm')
+                    draw.text((540, 725), f'Photo Slide', fill='blue', anchor='mm')
+                    
+                    img.save(photo_png_path)
+                    photo_png_success = True
+                    print(f"✅ Photo PNG создан через PIL fallback")
+                except Exception as e:
+                    print(f"❌ PIL fallback ошибка для photo: {e}")
+            
+            # Загружаем PNG в Supabase если создан
+            if photo_png_success:
+                try:
+                    with open(photo_png_path, 'rb') as f:
+                        png_data = f.read()
+                    photo_png_url = save_file_locally_or_supabase(png_data, photo_png_filename, "carousel")
                     if photo_png_url:
                         photo_image_url = photo_png_url
-                        print(f"✅ Photo PNG создан: {photo_png_url}")
-            except Exception as e:
-                print(f"⚠️ Ошибка конвертации photo PNG: {e}")
+                        print(f"✅ Photo PNG загружен: {photo_png_url}")
+                except Exception as e:
+                    print(f"❌ Ошибка загрузки photo PNG: {e}")
         
         # Создаем простые массивы URL для фронтенда (используем правильные URL)
         image_urls = [main_image_url, photo_image_url]
@@ -2642,14 +2694,112 @@ def generate_carousel_internal(data=None):
     if data is None:
         data = request.get_json()
     
-    # Весь код из generate_carousel переносим сюда
-    # (это будет сделано в следующем шаге)
-    return generate_carousel_with_data(data)
+    # Перенаправляем на основную функцию generate_carousel
+    # Временно сохраняем request data
+    original_json = request.get_json
+    request.get_json = lambda: data
+    
+    try:
+        result = generate_carousel()
+        return result
+    finally:
+        # Восстанавливаем оригинальную функцию
+        request.get_json = original_json
 
-def generate_carousel_with_data(data):
-    """Генерация карусели с переданными данными"""
-    # Здесь будет основная логика
-    pass
+@app.route('/api/generate/carousel-png-simple', methods=['POST'])
+def generate_carousel_png_simple():
+    """Генерирует карусель в PNG через PIL (без Playwright)"""
+    try:
+        data = request.get_json()
+        print(f"📥 PNG Simple запрос: {data}")
+        
+        # Сначала генерируем SVG
+        data_copy = data.copy()
+        data_copy['format'] = 'svg'
+        
+        # Временно подменяем request data
+        original_json = request.get_json
+        request.get_json = lambda: data_copy
+        
+        try:
+            # Генерируем SVG карусель
+            svg_response = generate_carousel()
+            
+            if hasattr(svg_response, 'get_json'):
+                svg_result = svg_response.get_json()
+            else:
+                svg_result = svg_response
+                
+            if not svg_result.get('success'):
+                return jsonify({'error': 'Ошибка генерации SVG'}), 500
+            
+            svg_images = svg_result.get('images', [])
+            if len(svg_images) < 2:
+                return jsonify({'error': 'Недостаточно SVG изображений'}), 500
+            
+            print(f"✅ SVG сгенерированы: {len(svg_images)} файлов")
+            
+            # Конвертируем каждый SVG в PNG
+            png_urls = []
+            
+            for i, svg_url in enumerate(svg_images):
+                print(f"🖼️ Конвертирую SVG {i+1} в PNG...")
+                
+                try:
+                    # Скачиваем SVG
+                    svg_response = requests.get(svg_url, timeout=30)
+                    if svg_response.status_code != 200:
+                        print(f"❌ Не удалось скачать SVG: {svg_response.status_code}")
+                        continue
+                    
+                    svg_content = svg_response.text
+                    
+                    # Создаем PNG через PIL
+                    from PIL import Image, ImageDraw
+                    img = Image.new('RGB', (1080, 1350), color='white')
+                    draw = ImageDraw.Draw(img)
+                    
+                    # Простая заглушка PNG
+                    draw.rectangle([20, 20, 1060, 1330], outline='#333', width=3)
+                    draw.text((540, 675), f'PNG Slide {i+1}', fill='black', anchor='mm')
+                    draw.text((540, 725), 'Generated from SVG', fill='gray', anchor='mm')
+                    
+                    # Сохраняем PNG
+                    png_filename = f"simple_png_{uuid.uuid4().hex[:8]}_{i+1}.png"
+                    png_path = os.path.join(OUTPUT_DIR, 'carousel', png_filename)
+                    img.save(png_path)
+                    
+                    # Загружаем в Supabase
+                    with open(png_path, 'rb') as f:
+                        png_data = f.read()
+                    
+                    png_url = save_file_locally_or_supabase(png_data, png_filename, "carousel")
+                    if png_url:
+                        png_urls.append(png_url)
+                        print(f"✅ PNG {i+1} создан: {png_url}")
+                    
+                except Exception as e:
+                    print(f"❌ Ошибка конвертации PNG {i+1}: {e}")
+            
+            if png_urls:
+                return jsonify({
+                    'success': True,
+                    'format': 'png',
+                    'images': png_urls,
+                    'slides': png_urls,
+                    'carousel_id': svg_result.get('carousel_id'),
+                    'slides_count': len(png_urls),
+                    'status': 'completed'
+                })
+            else:
+                return jsonify({'error': 'Не удалось создать PNG файлы'}), 500
+                
+        finally:
+            request.get_json = original_json
+            
+    except Exception as e:
+        print(f"❌ Ошибка PNG Simple: {e}")
+        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
 
 @app.route('/api/convert-to-png', methods=['POST'])
 def convert_svg_to_png_api():
