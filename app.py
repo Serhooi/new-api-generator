@@ -1280,8 +1280,11 @@ def get_all_templates():
                     print(f"❌ Ошибка генерации превью для {template_id}: {preview_error}")
                     success = False
                 
-                # Если улучшенная система не сработала, создаем fallback превью
+                # Если PNG конвертация не сработала, НЕ создаем синие заглушки
+                # Лучше показать SVG превью чем синюю заглушку
                 if not success:
+                    print(f"⚠️ PNG конвертация не удалась для {template_id}, будет использован SVG")
+                    # НЕ создаем PIL fallback - он хуже чем SVG
                     try:
                         from PIL import Image, ImageDraw, ImageFont
                         
@@ -2928,26 +2931,42 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
         except Exception as e:
             print(f"⚠️ rsvg-convert не работает: {e}")
         
-        # Метод 2: CairoSVG (резерв по рекомендации ChatGPT)
+        # Метод 2: resvg-py (современная Rust библиотека, автономная)
+        try:
+            from resvg import render, usvg
+            
+            print("🦀 Конвертирую через resvg-py (Rust)...")
+            
+            # Инициализируем базу шрифтов и опции
+            fontdb = usvg.FontDatabase.default()
+            fontdb.load_system_fonts()
+            opt = usvg.Options.default()
+            
+            # Парсим SVG
+            tree = usvg.Tree.from_str(svg_content, opt, fontdb)
+            
+            # Растеризуем с нужным размером
+            from affine import Affine
+            transform = Affine.scale(width / tree.size.width, height / tree.size.height)
+            png_bytes = bytes(render(tree, transform[0:6], width, height))
+            
+            with open(output_path, 'wb') as f:
+                f.write(png_bytes)
+            
+            print(f"✅ PNG создан через resvg-py: {output_path}")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ resvg-py не работает: {e}")
+        
+        # Метод 3: CairoSVG (резерв)
         try:
             import cairosvg
             
             print("🎨 Конвертирую через CairoSVG...")
             
-            # ОСТОРОЖНАЯ очистка SVG от проблемных символов
-            cleaned_svg = svg_content
-            
-            print("🧹 Применяю осторожную очистку SVG...")
-            
-            # 1. Убираем только самые опасные невидимые символы (не трогаем переносы строк)
-            cleaned_svg = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', cleaned_svg)
-            
-            # 2. Исправляем только неэкранированные амперсанды
-            cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
-            
-            print(f"🧹 SVG осторожно очищен, длина: {len(cleaned_svg)} символов")
-            
-            png_bytes = cairosvg.svg2png(bytestring=cleaned_svg.encode('utf-8'))
+            png_bytes = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'), 
+                                       output_width=width, output_height=height)
             
             with open(output_path, 'wb') as f:
                 f.write(png_bytes)
