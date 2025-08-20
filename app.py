@@ -2937,17 +2937,40 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
             print("🎨 Конвертирую через CairoSVG...")
             
-            png_bytes = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'), 
-                                       output_width=width, output_height=height)
-            
-            with open(output_path, 'wb') as f:
-                f.write(png_bytes)
-            
-            print(f"✅ PNG создан через CairoSVG: {output_path}")
-            return True
+            # Пробуем сначала без очистки
+            try:
+                png_bytes = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'), 
+                                           output_width=width, output_height=height)
+                
+                with open(output_path, 'wb') as f:
+                    f.write(png_bytes)
+                
+                print(f"✅ PNG создан через CairoSVG: {output_path}")
+                return True
+                
+            except Exception as cairo_error:
+                print(f"⚠️ CairoSVG ошибка: {cairo_error}")
+                
+                # Если не работает - пробуем с минимальной очисткой
+                print("🧹 Пробую с минимальной очисткой SVG...")
+                
+                import re
+                cleaned_svg = svg_content
+                
+                # Только самая базовая очистка
+                cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
+                
+                png_bytes = cairosvg.svg2png(bytestring=cleaned_svg.encode('utf-8'), 
+                                           output_width=width, output_height=height)
+                
+                with open(output_path, 'wb') as f:
+                    f.write(png_bytes)
+                
+                print(f"✅ PNG создан через CairoSVG (с очисткой): {output_path}")
+                return True
             
         except Exception as e:
-            print(f"⚠️ CairoSVG не работает: {e}")
+            print(f"⚠️ CairoSVG полностью не работает: {e}")
             # Показываем часть SVG для отладки
             try:
                 svg_preview = svg_content[:200] + "..." if len(svg_content) > 200 else svg_content
