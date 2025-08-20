@@ -2924,17 +2924,33 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
             print("🎨 Конвертирую через CairoSVG...")
             
-            # Очищаем SVG от проблемных символов
+            # АГРЕССИВНАЯ очистка SVG от проблемных символов
             cleaned_svg = svg_content
             
-            # Убираем неэкранированные амперсанды
-            import re
-            cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;)', '&amp;', cleaned_svg)
+            print("🧹 Применяю агрессивную очистку SVG...")
             
-            # Убираем невалидные символы
+            # 1. Убираем все невидимые символы
             cleaned_svg = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', cleaned_svg)
             
-            print(f"🧹 SVG очищен, длина: {len(cleaned_svg)} символов")
+            # 2. Исправляем амперсанды
+            cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
+            
+            # 3. Убираем некорректные атрибуты с невалидными символами
+            cleaned_svg = re.sub(r'\s+[a-zA-Z-]+="[^"]*[\x00-\x1F\x7F][^"]*"', '', cleaned_svg)
+            
+            # 4. Исправляем некорректные значения в атрибутах
+            cleaned_svg = re.sub(r'="([^"]*?)[\x00-\x1F\x7F]([^"]*?)"', r'="\1\2"', cleaned_svg)
+            
+            # 5. Убираем пустые атрибуты
+            cleaned_svg = re.sub(r'\s+[a-zA-Z-]+=""', '', cleaned_svg)
+            
+            # 6. Исправляем двойные кавычки в атрибутах
+            cleaned_svg = re.sub(r'="([^"]*?)"([^"]*?)"([^"]*?)"', r'="\1\2\3"', cleaned_svg)
+            
+            # 7. Убираем некорректные data: URL с невалидными символами
+            cleaned_svg = re.sub(r'data:[^"]*[\x00-\x1F\x7F][^"]*', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', cleaned_svg)
+            
+            print(f"🧹 SVG агрессивно очищен, длина: {len(cleaned_svg)} символов")
             
             png_bytes = cairosvg.svg2png(bytestring=cleaned_svg.encode('utf-8'))
             
