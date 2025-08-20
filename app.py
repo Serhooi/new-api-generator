@@ -2867,7 +2867,41 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
     try:
         print(f"🖼️ Конвертирую SVG в PNG...")
         
-        # Метод 1: Playwright (основной для продакшена)
+        # Метод 1: rsvg-convert (основной для продакшена)
+        try:
+            import subprocess
+            import tempfile
+            
+            # Создаем временный SVG файл
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as svg_file:
+                svg_file.write(svg_content)
+                svg_path = svg_file.name
+            
+            # Конвертируем через rsvg-convert
+            cmd = [
+                'rsvg-convert',
+                '--format', 'png',
+                '--width', str(width),
+                '--height', str(height),
+                '--output', output_path,
+                svg_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            # Удаляем временный SVG
+            os.unlink(svg_path)
+            
+            if result.returncode == 0:
+                print(f"✅ PNG создан через rsvg-convert: {output_path}")
+                return True
+            else:
+                print(f"⚠️ rsvg-convert ошибка: {result.stderr}")
+                
+        except Exception as e:
+            print(f"⚠️ rsvg-convert не работает: {e}")
+        
+        # Метод 2: Playwright (если rsvg-convert не работает)
         try:
             from playwright.sync_api import sync_playwright
             

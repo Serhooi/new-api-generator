@@ -1,18 +1,15 @@
-# Dockerfile для установки rsvg-convert и Playwright
+# Dockerfile с rsvg-convert для продакшена
 FROM python:3.9-slim
 
-# Устанавливаем системные зависимости
+# Устанавливаем системные зависимости включая rsvg-convert
 RUN apt-get update && apt-get install -y \
     librsvg2-bin \
-    libglib2.0-0 \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libdrm2 \
-    libxkbcommon0 \
-    libgtk-3-0 \
-    libgbm1 \
-    libasound2 \
+    librsvg2-dev \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Проверяем что rsvg-convert установлен
+RUN rsvg-convert --version
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
@@ -20,17 +17,17 @@ WORKDIR /app
 # Копируем requirements.txt
 COPY requirements.txt .
 
-# Устанавливаем Python зависимости
+# Устанавливаем Python зависимости (без playwright для экономии места)
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Устанавливаем Playwright браузеры
-RUN python -m playwright install chromium
 
 # Копируем код приложения
 COPY . .
 
+# Устанавливаем переменную окружения для порта
+ENV PORT=5000
+
 # Открываем порт
-EXPOSE 5000
+EXPOSE $PORT
 
 # Запускаем приложение
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+CMD gunicorn --bind 0.0.0.0:$PORT app:app
