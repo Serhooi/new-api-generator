@@ -181,7 +181,7 @@ def safe_escape_for_svg(text):
 
 def generate_svg_preview(svg_content, template_id, width=400, height=300):
     """
-    Генерирует PNG превью из SVG шаблона
+    Генерирует PNG превью из SVG шаблона используя улучшенную систему конвертации
     """
     try:
         print(f"🖼️ Генерирую превью для шаблона: {template_id}")
@@ -197,22 +197,17 @@ def generate_svg_preview(svg_content, template_id, width=400, height=300):
         # Создаем превью SVG с заменой dyno полей на примеры
         preview_svg = create_preview_svg(svg_content)
         
-        # Используем Playwright для PNG превью
-        try:
-            from png_preview_with_playwright import svg_to_png_with_playwright
-            success = svg_to_png_with_playwright(preview_svg, png_path, width, height)
-            if not success:
-                raise Exception("Playwright failed")
-        except Exception as e:
-            print(f"❌ Ошибка Playwright: {e}, создаю заглушку")
-            # Создаем заглушку
-            from PIL import Image, ImageDraw
-            img = Image.new('RGB', (width, height), color='white')
-            draw = ImageDraw.Draw(img)
-            draw.text((width//2, height//2), 'Preview', fill='black', anchor='mm')
-            img.save(png_path)
+        # Используем улучшенную систему PNG конвертации
+        success = convert_svg_to_png_improved(preview_svg, png_path, width, height)
         
-        print(f"✅ Превью создано: {png_filename}")
+        if success:
+            print(f"✅ Превью создано: {png_filename}")
+        else:
+            print(f"❌ Не удалось создать превью для {template_id}")
+            return {
+                'success': False,
+                'error': 'Ошибка создания превью'
+            }
         
         return {
             'success': True,
@@ -1293,20 +1288,14 @@ def get_all_templates():
             # Если превью не существует, генерируем его
             if not os.path.exists(preview_path):
                 print(f"🖼️ Генерирую превью для шаблона: {template_id}")
-                success = False
                 
-                try:
-                    # Пробуем использовать Playwright для PNG превью
-                    from png_preview_with_playwright import svg_to_png_with_playwright
-                    success = svg_to_png_with_playwright(svg_content, preview_path, 400, 600)
-                    if success:
-                        print(f"✅ PNG превью создано: {preview_path}")
-                except ImportError:
-                    print("⚠️ Playwright не установлен")
-                except Exception as e:
-                    print(f"⚠️ Ошибка Playwright: {e}")
+                # Создаем превью SVG с заменой dyno полей на примеры
+                preview_svg = create_preview_svg(svg_content)
                 
-                # Если Playwright не сработал, создаем улучшенное fallback превью
+                # Используем улучшенную систему PNG конвертации
+                success = convert_svg_to_png_improved(preview_svg, preview_path, 400, 600)
+                
+                # Если улучшенная система не сработала, создаем fallback превью
                 if not success:
                     try:
                         from PIL import Image, ImageDraw, ImageFont
@@ -1415,23 +1404,28 @@ def get_template_preview(template_id):
         os.makedirs(preview_dir, exist_ok=True)
         preview_path = os.path.join(preview_dir, f"{template_id}_preview.png")
         
-        # Если превью не существует, возвращаем SVG напрямую (Cairo отключен)
+        # Если превью не существует, генерируем PNG превью
         if not os.path.exists(preview_path):
-            print(f"🖼️ Возвращаю SVG превью для шаблона: {template_id} (Cairo отключен)")
+            print(f"🖼️ Генерирую PNG превью для шаблона: {template_id}")
             
-            # Генерируем SVG превью с правильными размерами
-            preview_svg = generate_svg_preview(svg_content, 400, 600)
+            # Генерируем PNG превью
+            preview_result = generate_svg_preview(svg_content, template_id, 400, 600)
             
-            # Возвращаем SVG как превью
-            from flask import Response
-            return Response(preview_svg, mimetype='image/svg+xml')
+            if preview_result['success']:
+                # PNG превью создано, отправляем его
+                return send_from_directory(preview_dir, f"{template_id}_preview.png")
+            else:
+                # Если не удалось создать PNG, возвращаем SVG
+                preview_svg = create_preview_svg(svg_content)
+                from flask import Response
+                return Response(preview_svg, mimetype='image/svg+xml')
         
         # Если PNG превью существует, отправляем его
         try:
             return send_from_directory(preview_dir, f"{template_id}_preview.png")
         except:
             # Если ошибка с PNG, возвращаем SVG
-            preview_svg = generate_svg_preview(svg_content, 400, 600)
+            preview_svg = create_preview_svg(svg_content)
             from flask import Response
             return Response(preview_svg, mimetype='image/svg+xml')
         
@@ -1866,32 +1860,8 @@ def generate_carousel():
             
             main_png_success = False
             
-            # Пробуем Playwright
-            try:
-                from png_preview_with_playwright import svg_to_png_with_playwright
-                main_png_success = svg_to_png_with_playwright(processed_main_svg, main_png_path, 1080, 1350)
-                if main_png_success:
-                    print(f"✅ Main PNG создан через Playwright")
-            except Exception as e:
-                print(f"⚠️ Playwright не работает: {e}")
-            
-            # Fallback через PIL
-            if not main_png_success:
-                try:
-                    from PIL import Image, ImageDraw
-                    img = Image.new('RGB', (1080, 1350), color='white')
-                    draw = ImageDraw.Draw(img)
-                    
-                    # Рисуем заглушку PNG
-                    draw.rectangle([50, 50, 1030, 1300], outline='gray', width=5)
-                    draw.text((540, 675), 'PNG Generated', fill='black', anchor='mm')
-                    draw.text((540, 725), f'Main Slide', fill='gray', anchor='mm')
-                    
-                    img.save(main_png_path)
-                    main_png_success = True
-                    print(f"✅ Main PNG создан через PIL fallback")
-                except Exception as e:
-                    print(f"❌ PIL fallback ошибка: {e}")
+            # Используем улучшенную систему PNG конвертации
+            main_png_success = convert_svg_to_png_improved(processed_main_svg, main_png_path)
             
             # Загружаем PNG в Supabase если создан
             if main_png_success:
@@ -1911,31 +1881,8 @@ def generate_carousel():
             
             photo_png_success = False
             
-            # Пробуем Playwright
-            try:
-                photo_png_success = svg_to_png_with_playwright(processed_photo_svg, photo_png_path, 1080, 1350)
-                if photo_png_success:
-                    print(f"✅ Photo PNG создан через Playwright")
-            except Exception as e:
-                print(f"⚠️ Playwright не работает для photo: {e}")
-            
-            # Fallback через PIL
-            if not photo_png_success:
-                try:
-                    from PIL import Image, ImageDraw
-                    img = Image.new('RGB', (1080, 1350), color='white')
-                    draw = ImageDraw.Draw(img)
-                    
-                    # Рисуем заглушку PNG
-                    draw.rectangle([50, 50, 1030, 1300], outline='blue', width=5)
-                    draw.text((540, 675), 'PNG Generated', fill='black', anchor='mm')
-                    draw.text((540, 725), f'Photo Slide', fill='blue', anchor='mm')
-                    
-                    img.save(photo_png_path)
-                    photo_png_success = True
-                    print(f"✅ Photo PNG создан через PIL fallback")
-                except Exception as e:
-                    print(f"❌ PIL fallback ошибка для photo: {e}")
+            # Используем улучшенную систему PNG конвертации
+            photo_png_success = convert_svg_to_png_improved(processed_photo_svg, photo_png_path)
             
             # Загружаем PNG в Supabase если создан
             if photo_png_success:
@@ -2835,18 +2782,9 @@ def convert_svg_to_png_api():
         except Exception as e:
             print(f"⚠️ Ошибка Playwright: {e}")
         
-        # Fallback через PIL
+        # Улучшенный fallback через convert_svg_to_png_improved
         if not success:
-            try:
-                from PIL import Image, ImageDraw
-                img = Image.new('RGB', (1080, 1350), color='white')
-                draw = ImageDraw.Draw(img)
-                draw.text((540, 675), 'SVG → PNG', fill='black', anchor='mm')
-                img.save(png_path)
-                success = True
-                print(f"✅ PNG создан через PIL fallback: {png_path}")
-            except Exception as e:
-                print(f"❌ Ошибка PIL: {e}")
+            success = convert_svg_to_png_improved(svg_content, png_path)
         
         if success:
             # Загружаем PNG в Supabase
@@ -2922,26 +2860,187 @@ def convert_svg_to_jpg(svg_content, output_path, width=2400, height=1600, qualit
         print(f"❌ Ошибка конвертации SVG в JPG: {e}")
         return False
 
-def convert_svg_to_png(svg_content, output_path, width=1200, height=800):
+def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=1350):
     """
-    Конвертирует SVG в PNG с высоким качеством
+    Улучшенная конвертация SVG в PNG с Playwright и умным PIL fallback
     """
     try:
-        print(f"🖼️ Конвертирую SVG в PNG: {output_path}")
+        print(f"🖼️ Конвертирую SVG в PNG...")
         
-        # Конвертация отключена (Cairo недоступен)
-        print("⚠️ Cairo недоступен, PNG конвертация отключена")
-        return False
+        # Метод 1: rsvg-convert (самый быстрый нативный)
+        try:
+            import subprocess
+            import tempfile
+            
+            # Создаем временный SVG файл
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as svg_file:
+                svg_file.write(svg_content)
+                svg_path = svg_file.name
+            
+            # Конвертируем через rsvg-convert
+            cmd = [
+                'rsvg-convert',
+                '--format', 'png',
+                '--width', str(width),
+                '--height', str(height),
+                '--output', output_path,
+                svg_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            # Удаляем временный SVG
+            os.unlink(svg_path)
+            
+            if result.returncode == 0:
+                print(f"✅ PNG создан через rsvg-convert: {output_path}")
+                return True
+            else:
+                print(f"⚠️ rsvg-convert ошибка: {result.stderr}")
+                
+        except Exception as e:
+            print(f"⚠️ rsvg-convert не работает: {e}")
         
-        # Сохраняем PNG файл
-        with open(output_path, 'wb') as f:
-            f.write(png_data)
+        # Метод 2: Playwright (если rsvg-convert не работает)
+        try:
+            from playwright.sync_api import sync_playwright
+            
+            # Создаем HTML с SVG
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ 
+                        margin: 0; 
+                        padding: 0; 
+                        background: white;
+                        width: {width}px;
+                        height: {height}px;
+                        overflow: hidden;
+                    }}
+                    svg {{ 
+                        width: {width}px; 
+                        height: {height}px; 
+                        display: block;
+                    }}
+                </style>
+            </head>
+            <body>
+                {svg_content}
+            </body>
+            </html>
+            """
+            
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page(viewport={'width': width, 'height': height})
+                page.set_content(html_content)
+                page.wait_for_load_state('networkidle')
+                page.screenshot(path=output_path, full_page=False)
+                browser.close()
+            
+            print(f"✅ PNG создан через Playwright: {output_path}")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ Playwright не работает: {e}")
         
-        print(f"✅ PNG файл создан: {output_path}")
-        return True
+        # Умный PIL fallback - парсим SVG и создаем осмысленное изображение
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            import re
+            
+            print("🎨 Создаю PNG через умный PIL fallback...")
+            
+            # Создаем изображение
+            img = Image.new('RGB', (width, height), color='white')
+            draw = ImageDraw.Draw(img)
+            
+            # Пытаемся найти цвета в SVG
+            colors = re.findall(r'fill="([^"]+)"', svg_content)
+            bg_colors = [c for c in colors if c not in ['none', 'transparent']]
+            
+            if bg_colors:
+                # Используем первый найденный цвет как фон
+                try:
+                    bg_color = bg_colors[0]
+                    if bg_color.startswith('#'):
+                        img = Image.new('RGB', (width, height), color=bg_color)
+                        draw = ImageDraw.Draw(img)
+                except:
+                    pass
+            
+            # Добавляем градиент
+            for y in range(height):
+                alpha = int(255 * (1 - y / height * 0.1))
+                color = (240, 248, 255, alpha) if len(bg_colors) == 0 else (200, 220, 240, alpha)
+                try:
+                    draw.line([(0, y), (width, y)], fill=color[:3])
+                except:
+                    pass
+            
+            # Ищем текст в SVG
+            texts = re.findall(r'<text[^>]*>([^<]+)</text>', svg_content)
+            
+            # Пытаемся загрузить шрифт
+            try:
+                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 24)
+                small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 16)
+            except:
+                try:
+                    font = ImageFont.load_default()
+                    small_font = font
+                except:
+                    font = None
+                    small_font = None
+            
+            # Добавляем найденный текст
+            y_pos = 50
+            for text in texts[:5]:  # Максимум 5 текстов
+                if text.strip():
+                    try:
+                        if font:
+                            draw.text((50, y_pos), text.strip(), fill='black', font=font)
+                        else:
+                            draw.text((50, y_pos), text.strip(), fill='black')
+                        y_pos += 40
+                    except:
+                        pass
+            
+            # Добавляем рамку
+            draw.rectangle([10, 10, width-10, height-10], outline='gray', width=2)
+            
+            # Добавляем водяной знак
+            if small_font:
+                draw.text((width-150, height-30), "Generated PNG", fill='lightgray', font=small_font)
+            else:
+                draw.text((width-150, height-30), "Generated PNG", fill='lightgray')
+            
+            # Сохраняем
+            img.save(output_path, 'PNG', quality=95)
+            print(f"✅ PNG создан через умный PIL fallback: {output_path}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Ошибка умного PIL fallback: {e}")
+            
+            # Совсем простой fallback
+            try:
+                from PIL import Image, ImageDraw
+                img = Image.new('RGB', (width, height), color='lightblue')
+                draw = ImageDraw.Draw(img)
+                draw.rectangle([20, 20, width-20, height-20], outline='navy', width=3)
+                draw.text((width//2-50, height//2), "PNG Preview", fill='navy')
+                img.save(output_path, 'PNG')
+                print(f"✅ PNG создан через простой fallback: {output_path}")
+                return True
+            except Exception as e2:
+                print(f"❌ Критическая ошибка PNG: {e2}")
+                return False
         
     except Exception as e:
-        print(f"❌ Ошибка конвертации SVG в PNG: {e}")
+        print(f"❌ Общая ошибка конвертации: {e}")
         return False
 
 # API для генерации карусели с множественными photo слайдами
@@ -3049,4 +3148,4 @@ if __name__ == '__main__':
     cleanup_old_previews()
     
     # Для локальной разработки
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5003, debug=True)
