@@ -3048,16 +3048,6 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
         # НЕТ FALLBACK - лучше показать SVG чем синюю заглушку
         print("❌ Все методы PNG конвертации не работают!")
         print("🔍 Будет использован SVG превью вместо PNG")
-            
-            # Совсем простой fallback
-            try:
-                from PIL import Image, ImageDraw
-                img = Image.new('RGB', (width, height), color='lightblue')
-                draw = ImageDraw.Draw(img)
-                draw.rectangle([20, 20, width-20, height-20], outline='navy', width=3)
-                draw.text((width//2-50, height//2), "PNG Preview", fill='navy')
-                img.save(output_path, 'PNG')
-                print(f"✅ PNG создан через простой fallback: {output_path}")
                 return True
             except Exception as e2:
                 print(f"❌ Критическая ошибка PNG: {e2}")
