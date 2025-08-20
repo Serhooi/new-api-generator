@@ -2872,10 +2872,27 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             import subprocess
             import tempfile
             
+            print("🔍 Проверяю доступность rsvg-convert...")
+            
+            # Проверяем что rsvg-convert доступен
+            try:
+                version_result = subprocess.run(['rsvg-convert', '--version'], 
+                                              capture_output=True, text=True, timeout=5)
+                if version_result.returncode == 0:
+                    print(f"✅ rsvg-convert найден: {version_result.stdout.strip()}")
+                else:
+                    print(f"❌ rsvg-convert не отвечает: {version_result.stderr}")
+                    raise Exception("rsvg-convert не работает")
+            except FileNotFoundError:
+                print("❌ rsvg-convert не найден в системе")
+                raise Exception("rsvg-convert не установлен")
+            
             # Создаем временный SVG файл
             with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as svg_file:
                 svg_file.write(svg_content)
                 svg_path = svg_file.name
+            
+            print(f"📝 Создан временный SVG: {svg_path}")
             
             # Конвертируем через rsvg-convert
             cmd = [
@@ -2887,6 +2904,8 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 svg_path
             ]
             
+            print(f"🚀 Запускаю команду: {' '.join(cmd)}")
+            
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
             # Удаляем временный SVG
@@ -2896,7 +2915,8 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 print(f"✅ PNG создан через rsvg-convert: {output_path}")
                 return True
             else:
-                print(f"⚠️ rsvg-convert ошибка: {result.stderr}")
+                print(f"⚠️ rsvg-convert ошибка (код {result.returncode}): {result.stderr}")
+                print(f"⚠️ rsvg-convert stdout: {result.stdout}")
                 
         except Exception as e:
             print(f"⚠️ rsvg-convert не работает: {e}")
