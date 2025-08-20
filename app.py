@@ -2949,7 +2949,19 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
             print("🎨 Конвертирую через CairoSVG...")
             
-            png_bytes = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'))
+            # Очищаем SVG от проблемных символов
+            cleaned_svg = svg_content
+            
+            # Убираем неэкранированные амперсанды
+            import re
+            cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;)', '&amp;', cleaned_svg)
+            
+            # Убираем невалидные символы
+            cleaned_svg = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', cleaned_svg)
+            
+            print(f"🧹 SVG очищен, длина: {len(cleaned_svg)} символов")
+            
+            png_bytes = cairosvg.svg2png(bytestring=cleaned_svg.encode('utf-8'))
             
             with open(output_path, 'wb') as f:
                 f.write(png_bytes)
@@ -2959,6 +2971,12 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
         except Exception as e:
             print(f"⚠️ CairoSVG не работает: {e}")
+            # Показываем часть SVG для отладки
+            try:
+                svg_preview = svg_content[:200] + "..." if len(svg_content) > 200 else svg_content
+                print(f"🔍 SVG начало: {svg_preview}")
+            except:
+                pass
         
         # Метод 3: Playwright (если все остальное не работает)
         try:

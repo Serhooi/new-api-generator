@@ -1,4 +1,4 @@
-# Dockerfile с rsvg-convert и CairoSVG для продакшена
+# Dockerfile с rsvg-convert и CairoSVG для продакшена v2
 FROM python:3.9-slim
 
 # Устанавливаем ВСЕ необходимые зависимости по рекомендации ChatGPT
@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Проверяем что rsvg-convert установлен
 RUN which rsvg-convert && rsvg-convert --version
+RUN echo "DOCKER BUILD SUCCESS - rsvg-convert installed"
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
