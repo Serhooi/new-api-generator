@@ -1,15 +1,17 @@
-# Dockerfile с rsvg-convert для продакшена
+# Dockerfile с rsvg-convert и CairoSVG для продакшена
 FROM python:3.9-slim
 
-# Устанавливаем системные зависимости включая rsvg-convert
-RUN apt-get update && apt-get install -y \
-    librsvg2-bin \
-    librsvg2-dev \
+# Устанавливаем ВСЕ необходимые зависимости по рекомендации ChatGPT
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    librsvg2-bin libgdk-pixbuf2.0-0 \
+    libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
+    libffi-dev python3-dev shared-mime-info \
+    fonts-dejavu-core \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Проверяем что rsvg-convert установлен
-RUN rsvg-convert --version
+RUN which rsvg-convert && rsvg-convert --version
 
 # Устанавливаем рабочую директорию
 WORKDIR /app

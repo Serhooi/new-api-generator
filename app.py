@@ -2906,22 +2906,61 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
             print(f"🚀 Запускаю команду: {' '.join(cmd)}")
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            
-            # Удаляем временный SVG
-            os.unlink(svg_path)
-            
-            if result.returncode == 0:
-                print(f"✅ PNG создан через rsvg-convert: {output_path}")
+            # Альтернативный способ через stdin (по рекомендации ChatGPT)
+            try:
+                result = subprocess.run(
+                    ["rsvg-convert", "-w", str(width), "-h", str(height)],
+                    input=svg_content.encode("utf-8"),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=30,
+                    check=True
+                )
+                
+                # Сохраняем PNG данные
+                with open(output_path, 'wb') as f:
+                    f.write(result.stdout)
+                
+                print(f"✅ PNG создан через rsvg-convert (stdin): {output_path}")
                 return True
-            else:
-                print(f"⚠️ rsvg-convert ошибка (код {result.returncode}): {result.stderr}")
-                print(f"⚠️ rsvg-convert stdout: {result.stdout}")
+                
+            except subprocess.CalledProcessError as e:
+                print(f"⚠️ rsvg-convert ошибка (stdin): {e.stderr.decode()}")
+                
+                # Fallback к файловому методу
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                
+                # Удаляем временный SVG
+                os.unlink(svg_path)
+                
+                if result.returncode == 0:
+                    print(f"✅ PNG создан через rsvg-convert (файл): {output_path}")
+                    return True
+                else:
+                    print(f"⚠️ rsvg-convert ошибка (код {result.returncode}): {result.stderr}")
+                    print(f"⚠️ rsvg-convert stdout: {result.stdout}")
                 
         except Exception as e:
             print(f"⚠️ rsvg-convert не работает: {e}")
         
-        # Метод 2: Playwright (если rsvg-convert не работает)
+        # Метод 2: CairoSVG (резерв по рекомендации ChatGPT)
+        try:
+            import cairosvg
+            
+            print("🎨 Конвертирую через CairoSVG...")
+            
+            png_bytes = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'))
+            
+            with open(output_path, 'wb') as f:
+                f.write(png_bytes)
+            
+            print(f"✅ PNG создан через CairoSVG: {output_path}")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ CairoSVG не работает: {e}")
+        
+        # Метод 3: Playwright (если все остальное не работает)
         try:
             from playwright.sync_api import sync_playwright
             
