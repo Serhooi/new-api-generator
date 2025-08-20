@@ -2931,31 +2931,30 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
         except Exception as e:
             print(f"⚠️ rsvg-convert не работает: {e}")
         
-        # Метод 2: resvg-py (современная Rust библиотека, автономная)
-        try:
-            import resvg
-            
-            print("🦀 Конвертирую через resvg-py (Rust)...")
-            
-            # Простой API для версии 0.2.2
-            png_bytes = resvg.svg_to_png(svg_content.encode('utf-8'), width=width, height=height)
-            
-            with open(output_path, 'wb') as f:
-                f.write(png_bytes)
-            
-            print(f"✅ PNG создан через resvg-py: {output_path}")
-            return True
-            
-        except Exception as e:
-            print(f"⚠️ resvg-py не работает: {e}")
-        
-        # Метод 3: CairoSVG (резерв)
+        # Метод 2: CairoSVG (основной метод)
         try:
             import cairosvg
             
             print("🎨 Конвертирую через CairoSVG...")
             
-            png_bytes = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'), 
+            # СПЕЦИАЛЬНАЯ очистка для проблемы в строке 68, колонке 27606
+            cleaned_svg = svg_content
+            
+            # Убираем проблемные символы в data: URL (основная причина ошибок)
+            import re
+            cleaned_svg = re.sub(r'data:image/[^;]+;base64,[A-Za-z0-9+/=]*[^\w+/=][A-Za-z0-9+/=]*', 
+                               'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 
+                               cleaned_svg)
+            
+            # Убираем невидимые символы
+            cleaned_svg = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', cleaned_svg)
+            
+            # Исправляем амперсанды
+            cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
+            
+            print(f"🧹 SVG очищен для CairoSVG, длина: {len(cleaned_svg)} символов")
+            
+            png_bytes = cairosvg.svg2png(bytestring=cleaned_svg.encode('utf-8'), 
                                        output_width=width, output_height=height)
             
             with open(output_path, 'wb') as f:

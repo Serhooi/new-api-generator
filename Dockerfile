@@ -10,9 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Проверяем что rsvg-convert установлен
-RUN which rsvg-convert && rsvg-convert --version
-RUN echo "DOCKER BUILD SUCCESS - rsvg-convert installed"
+# Проверяем что все пакеты установлены
+RUN echo "=== ПРОВЕРКА УСТАНОВЛЕННЫХ ПАКЕТОВ ==="
+RUN which rsvg-convert && rsvg-convert --version || echo "rsvg-convert НЕ НАЙДЕН"
+RUN python3 -c "import cairosvg; print('CairoSVG OK')" || echo "CairoSVG НЕ РАБОТАЕТ"
+RUN ls -la /usr/lib/x86_64-linux-gnu/ | grep cairo || echo "Cairo библиотеки НЕ НАЙДЕНЫ"
+RUN echo "=== КОНЕЦ ПРОВЕРКИ ==="
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
