@@ -7,7 +7,7 @@ RUN apt-get update
 RUN apt-get install -y --no-install-recommends apt-utils
 RUN apt-get install -y --no-install-recommends \
     librsvg2-bin \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-2.0-0 \
     libcairo2 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
