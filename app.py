@@ -1264,11 +1264,21 @@ def get_all_templates():
             if not os.path.exists(preview_path):
                 print(f"🖼️ Генерирую превью для шаблона: {template_id}")
                 
-                # Создаем превью SVG с заменой dyno полей на примеры
-                preview_svg = create_preview_svg(svg_content)
-                
-                # Используем улучшенную систему PNG конвертации
-                success = convert_svg_to_png_improved(preview_svg, preview_path, 400, 600)
+                try:
+                    # Создаем превью SVG с заменой dyno полей на примеры
+                    preview_svg = create_preview_svg(svg_content)
+                    
+                    # Используем улучшенную систему PNG конвертации
+                    success = convert_svg_to_png_improved(preview_svg, preview_path, 400, 600)
+                    
+                    if success:
+                        print(f"✅ Превью создано для {template_id}")
+                    else:
+                        print(f"⚠️ Не удалось создать превью для {template_id}")
+                        
+                except Exception as preview_error:
+                    print(f"❌ Ошибка генерации превью для {template_id}: {preview_error}")
+                    success = False
                 
                 # Если улучшенная система не сработала, создаем fallback превью
                 if not success:
