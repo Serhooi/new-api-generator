@@ -2937,24 +2937,7 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
             print("🎨 Конвертирую через CairoSVG...")
             
-            # СПЕЦИАЛЬНАЯ очистка для проблемы в строке 68, колонке 27606
-            cleaned_svg = svg_content
-            
-            # Убираем проблемные символы в data: URL (основная причина ошибок)
-            import re
-            cleaned_svg = re.sub(r'data:image/[^;]+;base64,[A-Za-z0-9+/=]*[^\w+/=][A-Za-z0-9+/=]*', 
-                               'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 
-                               cleaned_svg)
-            
-            # Убираем невидимые символы
-            cleaned_svg = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', cleaned_svg)
-            
-            # Исправляем амперсанды
-            cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
-            
-            print(f"🧹 SVG очищен для CairoSVG, длина: {len(cleaned_svg)} символов")
-            
-            png_bytes = cairosvg.svg2png(bytestring=cleaned_svg.encode('utf-8'), 
+            png_bytes = cairosvg.svg2png(bytestring=svg_content.encode('utf-8'), 
                                        output_width=width, output_height=height)
             
             with open(output_path, 'wb') as f:
@@ -3062,84 +3045,9 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
         except Exception as e:
             print(f"⚠️ Playwright не работает: {e}")
         
-        # Умный PIL fallback - парсим SVG и создаем осмысленное изображение
-        try:
-            from PIL import Image, ImageDraw, ImageFont
-            import re
-            
-            print("🎨 Создаю PNG через умный PIL fallback...")
-            
-            # Создаем изображение
-            img = Image.new('RGB', (width, height), color='white')
-            draw = ImageDraw.Draw(img)
-            
-            # Пытаемся найти цвета в SVG
-            colors = re.findall(r'fill="([^"]+)"', svg_content)
-            bg_colors = [c for c in colors if c not in ['none', 'transparent']]
-            
-            if bg_colors:
-                # Используем первый найденный цвет как фон
-                try:
-                    bg_color = bg_colors[0]
-                    if bg_color.startswith('#'):
-                        img = Image.new('RGB', (width, height), color=bg_color)
-                        draw = ImageDraw.Draw(img)
-                except:
-                    pass
-            
-            # Добавляем градиент
-            for y in range(height):
-                alpha = int(255 * (1 - y / height * 0.1))
-                color = (240, 248, 255, alpha) if len(bg_colors) == 0 else (200, 220, 240, alpha)
-                try:
-                    draw.line([(0, y), (width, y)], fill=color[:3])
-                except:
-                    pass
-            
-            # Ищем текст в SVG
-            texts = re.findall(r'<text[^>]*>([^<]+)</text>', svg_content)
-            
-            # Пытаемся загрузить шрифт
-            try:
-                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 24)
-                small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 16)
-            except:
-                try:
-                    font = ImageFont.load_default()
-                    small_font = font
-                except:
-                    font = None
-                    small_font = None
-            
-            # Добавляем найденный текст
-            y_pos = 50
-            for text in texts[:5]:  # Максимум 5 текстов
-                if text.strip():
-                    try:
-                        if font:
-                            draw.text((50, y_pos), text.strip(), fill='black', font=font)
-                        else:
-                            draw.text((50, y_pos), text.strip(), fill='black')
-                        y_pos += 40
-                    except:
-                        pass
-            
-            # Добавляем рамку
-            draw.rectangle([10, 10, width-10, height-10], outline='gray', width=2)
-            
-            # Добавляем водяной знак
-            if small_font:
-                draw.text((width-150, height-30), "Generated PNG", fill='lightgray', font=small_font)
-            else:
-                draw.text((width-150, height-30), "Generated PNG", fill='lightgray')
-            
-            # Сохраняем
-            img.save(output_path, 'PNG', quality=95)
-            print(f"✅ PNG создан через умный PIL fallback: {output_path}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Ошибка умного PIL fallback: {e}")
+        # НЕТ FALLBACK - лучше показать SVG чем синюю заглушку
+        print("❌ Все методы PNG конвертации не работают!")
+        print("🔍 Будет использован SVG превью вместо PNG")
             
             # Совсем простой fallback
             try:
