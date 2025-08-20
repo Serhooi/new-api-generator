@@ -225,47 +225,10 @@ def generate_svg_preview(svg_content, template_id, width=400, height=300):
 
 def create_preview_svg(svg_content):
     """
-    Создает превью SVG заменяя dyno поля на примеры данных
+    Возвращает оригинальный SVG для превью БЕЗ замен
+    Показывает шаблон как есть для выбора пользователями
     """
-    preview_svg = svg_content
-    
-    # Примеры данных для превью
-    preview_data = {
-        'dyno.agentName': 'John Smith',
-        'dyno.propertyAddress': '123 Main Street, Beverly Hills, CA 90210',
-        'dyno.price': '$450,000',
-        'dyno.bedrooms': '3',
-        'dyno.bathrooms': '2',
-        'dyno.sqft': '1,850',
-        'dyno.agentPhone': '(555) 123-4567',
-        'dyno.agentEmail': 'john@realty.com',
-        'dyno.openHouseDate': 'Saturday, June 8th',
-        'dyno.openHouseTime': '2:00 PM - 4:00 PM',
-        'dyno.agentPhoto': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
-        'dyno.propertyImage': 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop',
-        'dyno.propertyimage2': 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=400&h=300&fit=crop',
-        'dyno.propertyimage3': 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
-        'dyno.propertyimage4': 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop',
-        'dyno.propertyimage5': 'https://images.unsplash.com/photo-1560448075-bb485b067938?w=400&h=300&fit=crop',
-        'dyno.companyLogo': 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=200&h=100&fit=crop'
-    }
-    
-    # Заменяем dyno поля на примеры
-    for field, value in preview_data.items():
-        # Различные форматы dyno полей
-        patterns = [
-            f'{{{{{field}}}}}',           # {{dyno.field}}
-            f'{{{field}}}',               # {dyno.field}
-            f'>{field}<',                 # >dyno.field<
-        ]
-        
-        for pattern in patterns:
-            if pattern.startswith('>') and pattern.endswith('<'):
-                preview_svg = preview_svg.replace(pattern, f'>{value}<')
-            else:
-                preview_svg = preview_svg.replace(pattern, value)
-    
-    return preview_svg
+    return svg_content
 
 def replace_headshot_url(svg: str, safe_url: str) -> str:
     """
