@@ -2933,22 +2933,12 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
         
         # Метод 2: resvg-py (современная Rust библиотека, автономная)
         try:
-            from resvg import render, usvg
+            import resvg
             
             print("🦀 Конвертирую через resvg-py (Rust)...")
             
-            # Инициализируем базу шрифтов и опции
-            fontdb = usvg.FontDatabase.default()
-            fontdb.load_system_fonts()
-            opt = usvg.Options.default()
-            
-            # Парсим SVG
-            tree = usvg.Tree.from_str(svg_content, opt, fontdb)
-            
-            # Растеризуем с нужным размером
-            from affine import Affine
-            transform = Affine.scale(width / tree.size.width, height / tree.size.height)
-            png_bytes = bytes(render(tree, transform[0:6], width, height))
+            # Простой API для версии 0.2.2
+            png_bytes = resvg.svg_to_png(svg_content.encode('utf-8'), width=width, height=height)
             
             with open(output_path, 'wb') as f:
                 f.write(png_bytes)
