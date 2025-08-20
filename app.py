@@ -3071,10 +3071,7 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
         # НЕТ FALLBACK - лучше показать SVG чем синюю заглушку
         print("❌ Все методы PNG конвертации не работают!")
         print("🔍 Будет использован SVG превью вместо PNG")
-                return True
-            except Exception as e2:
-                print(f"❌ Критическая ошибка PNG: {e2}")
-                return False
+        return False
         
     except Exception as e:
         print(f"❌ Общая ошибка конвертации: {e}")
