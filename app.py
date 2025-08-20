@@ -685,6 +685,18 @@ def process_svg_font_perfect(svg_content, replacements):
     print(f"\n📊 РЕЗУЛЬТАТ: {successful_replacements}/{total_fields} полей заменено")
     print("🎉 ФИНАЛЬНАЯ обработка SVG завершена!")
     
+    # 🔍 ВАЛИДАЦИЯ XML перед возвратом
+    try:
+        import xml.etree.ElementTree as ET
+        ET.fromstring(processed_svg)
+        print("✅ SVG валидный XML")
+    except ET.ParseError as e:
+        print(f"⚠️ SVG невалидный: {e}")
+        # Дополнительная очистка
+        processed_svg = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', processed_svg)
+        processed_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', processed_svg)
+        print("🧹 SVG дополнительно очищен")
+    
     return processed_svg
 
 def create_dynamic_template(template_id, template_role):
