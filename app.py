@@ -2968,12 +2968,14 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 # Убираем все невалидные символы из base64 (оставляем только валидные)
                 cleaned_base64 = re.sub(r'[^A-Za-z0-9+/=]', '', base64_data)
                 
-                # Обрезаем если слишком длинный (больше 2MB в base64 ≈ 2.6M символов)
-                if len(cleaned_base64) > 2600000:
+                # Обрезаем если слишком длинный (больше 10MB в base64 ≈ 13M символов)
+                if len(cleaned_base64) > 13000000:
                     print(f"⚠️ Base64 слишком длинный ({len(cleaned_base64)} символов), обрезаю...")
                     # Обрезаем но оставляем валидную длину (кратную 4)
-                    target_length = 2600000 - (2600000 % 4)
+                    target_length = 13000000 - (13000000 % 4)
                     cleaned_base64 = cleaned_base64[:target_length]
+                else:
+                    print(f"✅ Base64 размер OK ({len(cleaned_base64)} символов)")
                 
                 # Исправляем padding
                 remainder = len(cleaned_base64) % 4
