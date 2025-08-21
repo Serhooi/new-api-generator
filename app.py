@@ -2922,25 +2922,38 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
             print(f"🔧 Обработано {matches_before} base64 изображений")
             
-            # 4. Исправляем image теги
+            # 4. Исправляем image теги - ТОЛЬКО если они не самозакрывающиеся
             def fix_image_tag(match):
                 tag_content = match.group(1)
-                if tag_content.endswith('/'):
+                # Если уже самозакрывающийся - не трогаем
+                if tag_content.strip().endswith('/'):
                     return match.group(0)
+                # Если не самозакрывающийся - делаем самозакрывающимся
                 return f'<image{tag_content}/>'
             
-            cleaned_svg = re.sub(r'<image([^>]*?)>', fix_image_tag, cleaned_svg)
+            # Ищем только НЕ самозакрывающиеся image теги
+            cleaned_svg = re.sub(r'<image([^>]*?[^/])>', fix_image_tag, cleaned_svg)
             
-            # 5. Исправляем use теги
+            # 5. Исправляем use теги - ТОЛЬКО если они не самозакрывающиеся
             def fix_use_tag(match):
                 tag_content = match.group(1)
-                if tag_content.endswith('/'):
+                # Если уже самозакрывающийся - не трогаем
+                if tag_content.strip().endswith('/'):
                     return match.group(0)
+                # Если не самозакрывающийся - делаем самозакрывающимся
                 return f'<use{tag_content}/>'
             
-            cleaned_svg = re.sub(r'<use([^>]*?)>', fix_use_tag, cleaned_svg)
+            # Ищем только НЕ самозакрывающиеся use теги
+            cleaned_svg = re.sub(r'<use([^>]*?[^/])>', fix_use_tag, cleaned_svg)
             
-            # 6. Убираем лишние пробелы
+            # 6. КРИТИЧЕСКАЯ ПРОВЕРКА: ищем незакрытые теги
+            unclosed_tags = re.findall(r'<(image|use)\s[^>]*[^/>]$', cleaned_svg, re.MULTILINE)
+            if unclosed_tags:
+                print(f"⚠️ Найдены незакрытые теги: {unclosed_tags}")
+                # Исправляем незакрытые теги в конце строк
+                cleaned_svg = re.sub(r'<(image|use)([^>]*[^/>])$', r'<\1\2/>', cleaned_svg, flags=re.MULTILINE)
+            
+            # 7. Убираем лишние пробелы
             cleaned_svg = re.sub(r'\s+', ' ', cleaned_svg)
             
             print(f"🔧 Правильная очистка завершена, длина: {len(cleaned_svg)} символов")
