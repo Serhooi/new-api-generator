@@ -138,11 +138,42 @@ def cleanup_old_previews():
 
 def replace_image_in_svg(svg_content, field_name, image_url):
     """Заменяет изображение в SVG"""
-    try:
-        from preview_system import replace_image_in_svg as original_replace
-        return original_replace(svg_content, field_name, image_url)
-    except ImportError:
-        return svg_content
+    import re
+    
+    print(f"🔄 Заменяю изображение: {field_name}")
+    
+    # Метод 1: Прямой поиск элемента с id и href
+    direct_pattern = rf'(<[^>]*id="{re.escape(field_name)}"[^>]*(?:xlink:href|href)=")[^"]*("[^>]*>)'
+    if re.search(direct_pattern, svg_content):
+        print(f"✅ Найден прямой элемент: {field_name}")
+        return re.sub(direct_pattern, lambda m: m.group(1) + image_url + m.group(2), svg_content)
+    
+    # Метод 2: Поиск через pattern
+    element_pattern = rf'<[^>]*id="{re.escape(field_name)}"[^>]*fill="url\(#([^)]+)\)"[^>]*>'
+    element_match = re.search(element_pattern, svg_content)
+    
+    if element_match:
+        pattern_id = element_match.group(1)
+        print(f"✅ Найден pattern: {pattern_id}")
+        
+        # Ищем pattern и его image
+        pattern_pattern = rf'<pattern[^>]*id="{re.escape(pattern_id)}"[^>]*>(.*?)</pattern>'
+        pattern_content_match = re.search(pattern_pattern, svg_content, re.DOTALL)
+        
+        if pattern_content_match:
+            pattern_content = pattern_content_match.group(1)
+            use_match = re.search(r'<use[^>]*xlink:href="#([^"]+)"[^>]*/?>', pattern_content)
+            
+            if use_match:
+                image_id = use_match.group(1)
+                print(f"✅ Найден image: {image_id}")
+                
+                # Заменяем href в image элементе
+                image_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*(?:xlink:href|href)=")[^"]*("[^>]*>)'
+                return re.sub(image_pattern, lambda m: m.group(1) + image_url + m.group(2), svg_content)
+    
+    print(f"❌ Элемент {field_name} не найден")
+    return svg_content
 
 app = Flask(__name__)
 CORS(app, origins="*")
