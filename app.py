@@ -2875,8 +2875,8 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 print("❌ rsvg-convert не найден в системе")
                 raise Exception("rsvg-convert не установлен")
             
-            # ЭКСТРЕННАЯ ОЧИСТКА SVG - УБИРАЕМ ВСЕ BASE64!
-            print("🚨 ЭКСТРЕННАЯ очистка SVG - убираю все base64 данные...")
+            # ПРАВИЛЬНАЯ ОЧИСТКА BASE64 - ИСПРАВЛЯЕМ СИМВОЛЫ, СОХРАНЯЕМ ИЗОБРАЖЕНИЯ
+            print("🔧 ПРАВИЛЬНАЯ очистка base64 - исправляю символы, сохраняю изображения...")
             cleaned_svg = svg_content
             
             import re
@@ -2887,9 +2887,38 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             # 2. Исправляем амперсанды
             cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
             
-            # 3. РАДИКАЛЬНО УБИРАЕМ ВСЕ BASE64 ДАННЫЕ
-            print("🚨 Убираю все base64 данные полностью...")
-            cleaned_svg = re.sub(r'data:image/[^;]+;base64,[^"\'>\s]+', 'https://via.placeholder.com/400x300/cccccc/666666?text=Image', cleaned_svg)
+            # 3. УМНАЯ очистка base64 данных - исправляем, но НЕ удаляем
+            def clean_base64_data(match):
+                full_match = match.group(0)
+                mime_type = match.group(1)
+                base64_data = match.group(2)
+                
+                # Убираем все невалидные символы из base64 (оставляем только валидные)
+                cleaned_base64 = re.sub(r'[^A-Za-z0-9+/=]', '', base64_data)
+                
+                # Обрезаем если слишком длинный (больше 1MB в base64 ≈ 1.3M символов)
+                if len(cleaned_base64) > 1300000:
+                    print(f"⚠️ Base64 слишком длинный ({len(cleaned_base64)} символов), обрезаю...")
+                    cleaned_base64 = cleaned_base64[:1300000]
+                
+                # Исправляем padding
+                remainder = len(cleaned_base64) % 4
+                if remainder == 2:
+                    cleaned_base64 += '=='
+                elif remainder == 3:
+                    cleaned_base64 += '='
+                elif remainder == 1:
+                    cleaned_base64 = cleaned_base64[:-1]  # Убираем последний символ
+                
+                return f'data:image/{mime_type};base64,{cleaned_base64}'
+            
+            # Очищаем все base64 данные
+            pattern = r'data:image/([^;]+);base64,([^"\'>\s]+)'
+            matches_before = len(re.findall(pattern, cleaned_svg))
+            cleaned_svg = re.sub(pattern, clean_base64_data, cleaned_svg)
+            matches_after = len(re.findall(pattern, cleaned_svg))
+            
+            print(f"🔧 Обработано {matches_before} base64 изображений")
             
             # 4. Исправляем image теги
             def fix_image_tag(match):
@@ -2912,7 +2941,7 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             # 6. Убираем лишние пробелы
             cleaned_svg = re.sub(r'\s+', ' ', cleaned_svg)
             
-            print(f"🚨 Экстренная очистка завершена, длина: {len(cleaned_svg)} символов")
+            print(f"🔧 Правильная очистка завершена, длина: {len(cleaned_svg)} символов")
             
             # Создаем временный SVG файл с очищенным содержимым
             with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as svg_file:
