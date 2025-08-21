@@ -429,7 +429,7 @@ def replace_image_in_svg(svg_content, field_name, new_image_url):
     print(f"🖼️ Обрабатываю изображение: {field_name}")
     
     # Определяем тип изображения для правильного aspect ratio
-    if 'headshot' in field_name.lower():
+    if 'headshot' in field_name.lower() or 'agent' in field_name.lower():
         image_type = 'headshot'
         aspect_ratio = 'xMidYMid meet'  # ИСПРАВЛЕНО: meet для headshot (показывает всё лицо)
     elif 'property' in field_name.lower():
@@ -550,22 +550,25 @@ def replace_via_pattern(svg_content, pattern_id, replacement_data, image_type, a
                         new_svg)
         print(f"🔧 Aspect ratio исправлен на: {aspect_ratio} для {image_type}")
         
-        # Добавляем масштабирование только для headshot (уменьшаем до 70%)
-        transform_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*)(>)'
-        def add_transform(match):
-            element_attrs = match.group(1)
-            closing = match.group(2)
+        # Добавляем масштабирование ТОЛЬКО для headshot (уменьшаем до 70%)
+        if image_type == 'headshot':
+            transform_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*)(>)'
+            def add_transform(match):
+                element_attrs = match.group(1)
+                closing = match.group(2)
+                
+                # Проверяем есть ли уже transform
+                if 'transform=' not in element_attrs:
+                    # Добавляем transform для масштабирования и центрирования
+                    return element_attrs + ' transform="scale(0.7) translate(0.2, 0.1)"' + closing
+                else:
+                    # Если transform уже есть, обновляем его
+                    return re.sub(r'transform="[^"]*"', 'transform="scale(0.7) translate(0.2, 0.1)"', element_attrs) + closing
             
-            # Проверяем есть ли уже transform
-            if 'transform=' not in element_attrs:
-                # Добавляем transform для масштабирования и центрирования
-                return element_attrs + ' transform="scale(0.7) translate(0.2, 0.1)"' + closing
-            else:
-                # Если transform уже есть, обновляем его
-                return re.sub(r'transform="[^"]*"', 'transform="scale(0.7) translate(0.2, 0.1)"', element_attrs) + closing
-        
-        new_svg = re.sub(transform_pattern, add_transform, new_svg)
-        print(f"🔧 Масштабирование добавлено: scale(0.7) для {image_type}")
+            new_svg = re.sub(transform_pattern, add_transform, new_svg)
+            print(f"🔧 Масштабирование добавлено: scale(0.7) для headshot")
+        else:
+            print(f"ℹ️ Масштабирование НЕ применяется для {image_type}")
     
     if new_svg != svg_content:
         print(f"✅ Изображение успешно заменено через pattern!")
