@@ -2875,25 +2875,43 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 print("❌ rsvg-convert не найден в системе")
                 raise Exception("rsvg-convert не установлен")
             
-            # ОЧИЩАЕМ SVG перед rsvg-convert
-            print("🧹 Очищаю SVG для rsvg-convert...")
+            # УЛЬТИМАТИВНАЯ ОЧИСТКА SVG
+            print("🧹 Применяю ультимативную очистку SVG...")
             cleaned_svg = svg_content
             
-            # Исправляем незакрытые теги image
             import re
-            cleaned_svg = re.sub(r'<image([^>]*?)(?<!/)>', r'<image\1/>', cleaned_svg)
             
-            # Убираем невалидные символы
+            # 1. Убираем невалидные символы
             cleaned_svg = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', cleaned_svg)
             
-            # Исправляем амперсанды
+            # 2. Исправляем амперсанды
             cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
             
-            # Исправляем другие самозакрывающиеся теги
-            for tag in ['use', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path']:
-                cleaned_svg = re.sub(f'<{tag}([^>]*?)(?<!/)>', f'<{tag}\\1/>', cleaned_svg)
+            # 3. Агрессивное исправление image тегов (несколько паттернов)
+            patterns = [
+                r'<image([^>]*?)(?<!/)>(?!</image>)',  # <image ...> без закрытия
+                r'<image([^>]*?)\s*>(?!</image>)',     # <image ...> с пробелами
+                r'<image([^>]*?)(?<!/)\s*>',          # <image ...> любые варианты
+            ]
             
-            print(f"🧹 SVG очищен для rsvg-convert, длина: {len(cleaned_svg)} символов")
+            for pattern in patterns:
+                cleaned_svg = re.sub(pattern, r'<image\\1/>', cleaned_svg)
+            
+            # 4. Исправляем другие самозакрывающиеся теги
+            self_closing_tags = ['use', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'stop', 'feOffset', 'feGaussianBlur', 'feFlood', 'feComposite', 'feMorphology']
+            
+            for tag in self_closing_tags:
+                pattern = f'<{tag}([^>]*?)(?<!/)>(?!</{tag}>)'
+                cleaned_svg = re.sub(pattern, f'<{tag}\\1/>', cleaned_svg)
+            
+            # 5. Убираем пустые атрибуты и исправляем кавычки
+            cleaned_svg = re.sub(r'\s+\w+=""', '', cleaned_svg)
+            cleaned_svg = re.sub(r'(\w+)=([^"\s>]+)(?=\s|>)', r'\\1="\\2"', cleaned_svg)
+            
+            # 6. Убираем лишние пробелы
+            cleaned_svg = re.sub(r'\s+', ' ', cleaned_svg)
+            
+            print(f"🧹 Ультимативная очистка завершена, длина: {len(cleaned_svg)} символов")
             
             # Создаем временный SVG файл с очищенным содержимым
             with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as svg_file:
@@ -2907,7 +2925,6 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 'rsvg-convert',
                 '--format', 'png',
                 '--width', str(width),
-                '--height', str(height),
                 '--output', output_path,
                 svg_path
             ]
@@ -2916,8 +2933,9 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
             # Альтернативный способ через stdin (по рекомендации ChatGPT)
             try:
+                # Используем только ширину для сохранения пропорций
                 result = subprocess.run(
-                    ["rsvg-convert", "-w", str(width), "-h", str(height)],
+                    ["rsvg-convert", "-w", str(width)],
                     input=cleaned_svg.encode("utf-8"),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
