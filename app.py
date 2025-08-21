@@ -146,7 +146,34 @@ def replace_image_in_svg(svg_content, field_name, image_url):
     direct_pattern = rf'(<[^>]*id="{re.escape(field_name)}"[^>]*(?:xlink:href|href)=")[^"]*("[^>]*>)'
     if re.search(direct_pattern, svg_content):
         print(f"✅ Найден прямой элемент: {field_name}")
-        return re.sub(direct_pattern, lambda m: m.group(1) + image_url + m.group(2), svg_content)
+        
+        def replace_direct_with_aspect_ratio(match):
+            before_href = match.group(1)
+            after_href = match.group(2)
+            
+            # Определяем тип изображения по field_name
+            field_lower = field_name.lower()
+            if 'headshot' in field_lower or 'agent' in field_lower:
+                # Для headshot - заполняем весь блок, обрезаем если нужно
+                aspect_ratio = 'xMidYMid slice'
+            else:
+                # Для property images - тоже заполняем весь блок
+                aspect_ratio = 'xMidYMid slice'
+            
+            # Заменяем или добавляем preserveAspectRatio
+            new_tag = before_href + image_url + after_href
+            
+            # Если preserveAspectRatio уже есть - заменяем
+            if 'preserveAspectRatio=' in new_tag:
+                new_tag = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_tag)
+            else:
+                # Если нет - добавляем перед закрывающим >
+                new_tag = new_tag.replace('>', f' preserveAspectRatio="{aspect_ratio}">')
+            
+            print(f"🎯 Установлен aspect ratio для {field_name}: {aspect_ratio}")
+            return new_tag
+        
+        return re.sub(direct_pattern, replace_direct_with_aspect_ratio, svg_content)
     
     # Метод 2: Поиск через pattern
     element_pattern = rf'<[^>]*id="{re.escape(field_name)}"[^>]*fill="url\(#([^)]+)\)"[^>]*>'
@@ -168,9 +195,35 @@ def replace_image_in_svg(svg_content, field_name, image_url):
                 image_id = use_match.group(1)
                 print(f"✅ Найден image: {image_id}")
                 
-                # Заменяем href в image элементе
+                # Заменяем href в image элементе И устанавливаем правильный preserveAspectRatio
+                def replace_image_with_aspect_ratio(match):
+                    before_href = match.group(1)
+                    after_href = match.group(2)
+                    
+                    # Определяем тип изображения по field_name
+                    field_lower = field_name.lower()
+                    if 'headshot' in field_lower or 'agent' in field_lower:
+                        # Для headshot - заполняем весь блок, обрезаем если нужно
+                        aspect_ratio = 'xMidYMid slice'
+                    else:
+                        # Для property images - тоже заполняем весь блок
+                        aspect_ratio = 'xMidYMid slice'
+                    
+                    # Заменяем или добавляем preserveAspectRatio
+                    new_tag = before_href + image_url + after_href
+                    
+                    # Если preserveAspectRatio уже есть - заменяем
+                    if 'preserveAspectRatio=' in new_tag:
+                        new_tag = re.sub(r'preserveAspectRatio="[^"]*"', f'preserveAspectRatio="{aspect_ratio}"', new_tag)
+                    else:
+                        # Если нет - добавляем перед закрывающим >
+                        new_tag = new_tag.replace('>', f' preserveAspectRatio="{aspect_ratio}">')
+                    
+                    print(f"🎯 Установлен aspect ratio для {field_name}: {aspect_ratio}")
+                    return new_tag
+                
                 image_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*(?:xlink:href|href)=")[^"]*("[^>]*>)'
-                return re.sub(image_pattern, lambda m: m.group(1) + image_url + m.group(2), svg_content)
+                return re.sub(image_pattern, replace_image_with_aspect_ratio, svg_content)
     
     print(f"❌ Элемент {field_name} не найден")
     return svg_content
@@ -455,8 +508,8 @@ def process_svg_font_perfect(svg_content, replacements):
     def get_aspect_ratio_for_image(image_type, element_shape):
         """Возвращает правильный preserveAspectRatio для типа изображения"""
         if image_type == 'headshot':
-            # Для headshot - НЕ ТРОГАЕМ aspect ratio (оставляем как есть в шаблоне)
-            return None
+            # Для headshot - заполняем весь блок, обрезаем если нужно (как property)
+            return 'xMidYMid slice'
         elif image_type == 'property':
             # Для property images - заполняем весь блок, обрезаем если нужно
             return 'xMidYMid slice'
