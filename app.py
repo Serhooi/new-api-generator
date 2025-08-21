@@ -2875,9 +2875,9 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 print("❌ rsvg-convert не найден в системе")
                 raise Exception("rsvg-convert не установлен")
             
-            # Создаем временный SVG файл
+            # Создаем временный SVG файл с очищенным содержимым
             with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as svg_file:
-                svg_file.write(svg_content)
+                svg_file.write(cleaned_svg)
                 svg_path = svg_file.name
             
             print(f"📝 Создан временный SVG: {svg_path}")
@@ -2894,11 +2894,30 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
             print(f"🚀 Запускаю команду: {' '.join(cmd)}")
             
+            # ОЧИЩАЕМ SVG перед rsvg-convert
+            print("🧹 Очищаю SVG для rsvg-convert...")
+            cleaned_svg = svg_content
+            
+            # Исправляем незакрытые теги image
+            import re
+            cleaned_svg = re.sub(r'<image([^>]*?)(?<!/)>', r'<image\1/>', cleaned_svg)
+            
+            # Убираем невалидные символы
+            cleaned_svg = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', cleaned_svg)
+            
+            # Исправляем амперсанды
+            cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
+            
+            # Исправляем другие проблемные теги
+            cleaned_svg = re.sub(r'<([^/>]+?)(?<!/)>', lambda m: f'<{m.group(1)}/>' if m.group(1).split()[0] in ['image', 'use', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path'] and '>' not in m.group(1) else m.group(0), cleaned_svg)
+            
+            print(f"🧹 SVG очищен для rsvg-convert, длина: {len(cleaned_svg)} символов")
+            
             # Альтернативный способ через stdin (по рекомендации ChatGPT)
             try:
                 result = subprocess.run(
                     ["rsvg-convert", "-w", str(width), "-h", str(height)],
-                    input=svg_content.encode("utf-8"),
+                    input=cleaned_svg.encode("utf-8"),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     timeout=30,
@@ -2951,14 +2970,24 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             except Exception as cairo_error:
                 print(f"⚠️ CairoSVG ошибка: {cairo_error}")
                 
-                # Если не работает - пробуем с минимальной очисткой
-                print("🧹 Пробую с минимальной очисткой SVG...")
+                # Если не работает - пробуем с агрессивной очисткой
+                print("🧹 Пробую с агрессивной очисткой SVG...")
                 
                 import re
                 cleaned_svg = svg_content
                 
-                # Только самая базовая очистка
+                # Исправляем незакрытые теги image
+                cleaned_svg = re.sub(r'<image([^>]*?)(?<!/)>', r'<image\1/>', cleaned_svg)
+                
+                # Убираем невалидные символы
+                cleaned_svg = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', cleaned_svg)
+                
+                # Исправляем амперсанды
                 cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
+                
+                # Исправляем другие самозакрывающиеся теги
+                for tag in ['use', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path']:
+                    cleaned_svg = re.sub(f'<{tag}([^>]*?)(?<!/)>', f'<{tag}\\1/>', cleaned_svg)
                 
                 png_bytes = cairosvg.svg2png(bytestring=cleaned_svg.encode('utf-8'), 
                                            output_width=width, output_height=height)
