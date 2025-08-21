@@ -24,6 +24,85 @@ from PIL import Image
 from supabase import create_client, Client
 # from preview_system import generate_svg_preview, create_preview_with_data, cleanup_old_previews, replace_image_in_svg  # Отключено из-за Cairo
 
+def sanitize_svg(svg: str) -> str:
+    """
+    Санитайзер SVG - исправляет проблемы с <image> тегами
+    Основано на рекомендациях ChatGPT 5
+    """
+    print("🛡️ Санитизирую SVG...")
+    
+    # 1) Убираем лишние переводы строк и пробелы внутри data:base64
+    def _clean_data_uri(m):
+        full_match = m.group(0)
+        # убираем все пробелы/переводы строк из data: URI
+        cleaned = re.sub(r'\s+', '', full_match)
+        return cleaned
+    
+    svg = re.sub(r'(?:href|xlink:href)=(["\'])\s*(data:image/[^;]+;base64,[^"\']+)\1',
+                 _clean_data_uri, svg)
+    
+    # 2) Экранируем & в URL (НЕ в data:base64!)
+    def _escape_url_entities(m):
+        quote = m.group(1)
+        url = m.group(2)
+        if url.startswith('data:'):
+            return m.group(0)  # не трогаем data:
+        # экранируем амперсанды
+        url = url.replace('&', '&amp;')
+        # если есть кавычки — заменим на %22/%27
+        url = url.replace('"', '%22').replace("'", '%27')
+        return f'href={quote}{url}{quote}'
+    
+    svg = re.sub(r'href=(["\'])([^"\']+)\1', _escape_url_entities, svg)
+    svg = re.sub(r'xlink:href=(["\'])([^"\']+)\1', _escape_url_entities, svg)
+    
+    # 3) Следим, чтобы <image ...> был самозакрывающимся (/>) 
+    def _ensure_self_closed(m):
+        tag = m.group(0)
+        if tag.endswith('/>'):
+            return tag
+        return tag[:-1] + ' />'
+    
+    svg = re.sub(r'<image\b[^>]*?(?<!/)>', _ensure_self_closed, svg)
+    
+    # 4) То же для <use> тегов
+    svg = re.sub(r'<use\b[^>]*?(?<!/)>', _ensure_self_closed, svg)
+    
+    print("✅ SVG санитизирован")
+    return svg
+
+def validate_xml(svg: str) -> bool:
+    """
+    Валидирует XML и выводит диагностику ошибок
+    """
+    try:
+        ET.fromstring(svg)
+        print("✅ XML валидация прошла успешно")
+        return True
+    except ET.ParseError as e:
+        print(f"❌ XML parse error: {e}")
+        
+        # Пытаемся найти проблемное место
+        msg = str(e)
+        if 'line' in msg and 'column' in msg:
+            # Извлекаем номер колонки из сообщения
+            import re
+            col_match = re.search(r'column (\d+)', msg)
+            if col_match:
+                col = int(col_match.group(1))
+                start = max(0, col - 120)
+                end = min(len(svg), col + 120)
+                snippet = svg[start:end]
+                print("\n=== XML ERROR CONTEXT ===")
+                print(f"Позиция: колонка {col}")
+                print(f"Контекст: ...{snippet}...")
+                print("=" * 50)
+        
+        return False
+    except Exception as e:
+        print(f"❌ Другая ошибка валидации: {e}")
+        return False
+
 # Рабочие функции preview_system без Cairo
 def generate_svg_preview(svg_content, width=400, height=600):
     """Генерирует SVG превью"""
@@ -2760,15 +2839,8 @@ def convert_svg_to_png_api():
         png_path = os.path.join(OUTPUT_DIR, 'converted', png_filename)
         os.makedirs(os.path.dirname(png_path), exist_ok=True)
         
-        # Пробуем конвертировать через Playwright
+        # PLAYWRIGHT УДАЛЕН - используем только rsvg-convert
         success = False
-        try:
-            from png_preview_with_playwright import svg_to_png_with_playwright
-            success = svg_to_png_with_playwright(svg_content, png_path, 1080, 1350)
-            if success:
-                print(f"✅ PNG создан через Playwright: {png_path}")
-        except Exception as e:
-            print(f"⚠️ Ошибка Playwright: {e}")
         
         # Улучшенный fallback через convert_svg_to_png_improved
         if not success:
@@ -2958,9 +3030,18 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             
             print(f"🔧 Правильная очистка завершена, длина: {len(cleaned_svg)} символов")
             
-            # Создаем временный SVG файл с очищенным содержимым
+            # САНИТАЙЗЕР SVG - исправляем проблемы с <image> тегами
+            print("🛡️ Применяю санитайзер SVG...")
+            sanitized_svg = sanitize_svg(cleaned_svg)
+            
+            # Валидируем XML перед конвертацией
+            if not validate_xml(sanitized_svg):
+                print("❌ SVG не прошел валидацию XML")
+                raise Exception("Невалидный SVG после санитизации")
+            
+            # Создаем временный SVG файл с санитизированным содержимым
             with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as svg_file:
-                svg_file.write(cleaned_svg)
+                svg_file.write(sanitized_svg)
                 svg_path = svg_file.name
             
             print(f"📝 Создан временный SVG: {svg_path}")
@@ -3033,97 +3114,8 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
         except Exception as e:
             print(f"⚠️ CairoSVG тоже не работает: {e}")
         
-        # Метод 3: Playwright (если все остальное не работает)
-        try:
-            from playwright.sync_api import sync_playwright
-            
-            # Создаем HTML с SVG
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>
-                    body {{ 
-                        margin: 0; 
-                        padding: 0; 
-                        background: white;
-                        width: {width}px;
-                        height: {height}px;
-                        overflow: hidden;
-                    }}
-                    svg {{ 
-                        width: {width}px; 
-                        height: {height}px; 
-                        display: block;
-                    }}
-                </style>
-            </head>
-            <body>
-                {svg_content}
-            </body>
-            </html>
-            """
-            
-            with sync_playwright() as p:
-                browser = p.chromium.launch()
-                page = browser.new_page(viewport={'width': width, 'height': height})
-                page.set_content(html_content)
-                page.wait_for_load_state('networkidle')
-                page.screenshot(path=output_path, full_page=False)
-                browser.close()
-            
-            print(f"✅ PNG создан через Playwright: {output_path}")
-            return True
-            
-        except Exception as e:
-            print(f"⚠️ Playwright не работает: {e}")
-        
-        # Метод 2: rsvg-convert (если Playwright не работает)
-        try:
-            from playwright.sync_api import sync_playwright
-            
-            # Создаем HTML с SVG
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>
-                    body {{ 
-                        margin: 0; 
-                        padding: 0; 
-                        background: white;
-                        width: {width}px;
-                        height: {height}px;
-                        overflow: hidden;
-                    }}
-                    svg {{ 
-                        width: {width}px; 
-                        height: {height}px; 
-                        display: block;
-                    }}
-                </style>
-            </head>
-            <body>
-                {svg_content}
-            </body>
-            </html>
-            """
-            
-            with sync_playwright() as p:
-                browser = p.chromium.launch()
-                page = browser.new_page(viewport={'width': width, 'height': height})
-                page.set_content(html_content)
-                page.wait_for_load_state('networkidle')
-                page.screenshot(path=output_path, full_page=False)
-                browser.close()
-            
-            print(f"✅ PNG создан через Playwright: {output_path}")
-            return True
-            
-        except Exception as e:
-            print(f"⚠️ Playwright не работает: {e}")
-        
-        # НЕТ FALLBACK - лучше показать SVG чем синюю заглушку
+        # PLAYWRIGHT FALLBACK УДАЛЕН - он не нужен и только мешает отладке
+        # Фокусируемся на исправлении SVG для rsvg-convert
         print("❌ Все методы PNG конвертации не работают!")
         print("🔍 Будет использован SVG превью вместо PNG")
         return False
