@@ -2875,8 +2875,8 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 print("❌ rsvg-convert не найден в системе")
                 raise Exception("rsvg-convert не установлен")
             
-            # УЛЬТИМАТИВНАЯ ОЧИСТКА SVG
-            print("🧹 Применяю ультимативную очистку SVG...")
+            # РАДИКАЛЬНАЯ ОЧИСТКА SVG - УБИРАЕМ ВСЕ ПРОБЛЕМНЫЕ ТЕГИ
+            print("🔥 РАДИКАЛЬНАЯ очистка SVG - убираю все проблемные теги...")
             cleaned_svg = svg_content
             
             import re
@@ -2887,31 +2887,24 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             # 2. Исправляем амперсанды
             cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
             
-            # 3. Агрессивное исправление image тегов (несколько паттернов)
-            patterns = [
-                r'<image([^>]*?)(?<!/)>(?!</image>)',  # <image ...> без закрытия
-                r'<image([^>]*?)\s*>(?!</image>)',     # <image ...> с пробелами
-                r'<image([^>]*?)(?<!/)\s*>',          # <image ...> любые варианты
-            ]
+            # 3. РАДИКАЛЬНО - УБИРАЕМ ВСЕ IMAGE ТЕГИ ПОЛНОСТЬЮ
+            print("🚨 Убираю все image теги полностью...")
+            cleaned_svg = re.sub(r'<image[^>]*/?>', '', cleaned_svg)
             
-            for pattern in patterns:
-                cleaned_svg = re.sub(pattern, r'<image\\1/>', cleaned_svg)
+            # 4. УБИРАЕМ ВСЕ USE ТЕГИ ПОЛНОСТЬЮ
+            print("🚨 Убираю все use теги полностью...")
+            cleaned_svg = re.sub(r'<use[^>]*/?>', '', cleaned_svg)
             
-            # 4. Исправляем другие самозакрывающиеся теги
-            self_closing_tags = ['use', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'stop', 'feOffset', 'feGaussianBlur', 'feFlood', 'feComposite', 'feMorphology']
+            # 5. Исправляем оставшиеся самозакрывающиеся теги
+            self_closing_tags = ['rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'stop']
             
             for tag in self_closing_tags:
-                pattern = f'<{tag}([^>]*?)(?<!/)>(?!</{tag}>)'
-                cleaned_svg = re.sub(pattern, f'<{tag}\\1/>', cleaned_svg)
-            
-            # 5. Убираем пустые атрибуты и исправляем кавычки
-            cleaned_svg = re.sub(r'\s+\w+=""', '', cleaned_svg)
-            cleaned_svg = re.sub(r'(\w+)=([^"\s>]+)(?=\s|>)', r'\\1="\\2"', cleaned_svg)
+                cleaned_svg = re.sub(f'<{tag}([^>]*?)(?<!/)>', f'<{tag}\\1/>', cleaned_svg)
             
             # 6. Убираем лишние пробелы
             cleaned_svg = re.sub(r'\s+', ' ', cleaned_svg)
             
-            print(f"🧹 Ультимативная очистка завершена, длина: {len(cleaned_svg)} символов")
+            print(f"🔥 Радикальная очистка завершена, длина: {len(cleaned_svg)} символов")
             
             # Создаем временный SVG файл с очищенным содержимым
             with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as svg_file:
@@ -2969,8 +2962,24 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
         except Exception as e:
             print(f"⚠️ rsvg-convert не работает: {e}")
         
-        # Метод 2: CairoSVG отключен (создает искаженные PNG)
-        print("⚠️ CairoSVG отключен - создает искаженные изображения")
+        # Метод 2: CairoSVG (fallback с правильными размерами)
+        try:
+            import cairosvg
+            
+            print("🎨 Пробую CairoSVG как fallback...")
+            
+            # Используем очищенный SVG
+            png_bytes = cairosvg.svg2png(bytestring=cleaned_svg.encode('utf-8'), 
+                                       output_width=width)  # Только ширина для сохранения пропорций
+            
+            with open(output_path, 'wb') as f:
+                f.write(png_bytes)
+            
+            print(f"✅ PNG создан через CairoSVG: {output_path}")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ CairoSVG тоже не работает: {e}")
         
         # Метод 3: Playwright (если все остальное не работает)
         try:
