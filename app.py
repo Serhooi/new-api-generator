@@ -873,6 +873,18 @@ def upload_to_supabase_storage(file_content, filename, folder="generated"):
     try:
         # Создаем путь к файлу
         file_path = f"{folder}/{filename}"
+        print(f"☁️ Загружаю в Supabase: {file_path}")
+        
+        # Проверяем размер контента
+        content_size = len(file_content) if file_content else 0
+        print(f"📊 Размер файла: {content_size} байт")
+        
+        if content_size == 0:
+            print("❌ Пустой контент файла")
+            return None
+        
+        if content_size > 50 * 1024 * 1024:  # 50MB
+            print(f"⚠️ Файл очень большой: {content_size / 1024 / 1024:.1f}MB")
         
         # Определяем content-type и обработку файла
         if filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg'):
@@ -888,14 +900,20 @@ def upload_to_supabase_storage(file_content, filename, folder="generated"):
             file_data = file_content.encode('utf-8') if isinstance(file_content, str) else file_content
             content_type = "image/svg+xml"
         
+        print(f"📄 Content-Type: {content_type}")
+        print(f"📊 Размер данных для загрузки: {len(file_data)} байт")
+        
         # Загружаем файл в Storage
+        print("🚀 Начинаю загрузку в Supabase...")
         result = supabase.storage.from_("carousel-assets").upload(
             path=file_path,
             file=file_data,
             file_options={"content-type": content_type}
         )
+        print(f"📤 Результат загрузки: {result}")
         
         # Получаем публичный URL
+        print("🔗 Получаю публичный URL...")
         public_url = supabase.storage.from_("carousel-assets").get_public_url(file_path)
         
         # Исправляем URL - убираем лишний знак вопроса в конце
@@ -907,21 +925,43 @@ def upload_to_supabase_storage(file_content, filename, folder="generated"):
         
     except Exception as e:
         print(f"❌ Ошибка загрузки в Supabase: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def save_file_locally_or_supabase(content, filename, folder="carousel"):
     """
     Сохраняет файл локально (для разработки) или в Supabase (для продакшена)
     """
+    print(f"💾 Сохраняю файл: {filename} в папку: {folder}")
+    print(f"🔍 Размер контента: {len(content) if content else 0} символов/байт")
+    
     # Определяем, работаем ли мы на Render или есть Supabase
     is_render = os.environ.get('RENDER', False) or bool(os.environ.get('SUPABASE_URL'))
+    print(f"🌐 Режим: {'Render/Supabase' if is_render else 'Локальный'}")
     
     if is_render and supabase:
         # На Render - загружаем в Supabase
-        return upload_to_supabase_storage(content, filename, folder)
+        print(f"☁️ Загружаю в Supabase: {filename}")
+        result = upload_to_supabase_storage(content, filename, folder)
+        if result:
+            print(f"✅ Успешно загружено в Supabase: {result}")
+        else:
+            print(f"❌ Не удалось загрузить в Supabase: {filename}")
+        return result
     else:
         # Локально - сохраняем в файл
-        local_path = os.path.join(OUTPUT_DIR, folder, filename)
+        folder_path = os.path.join(OUTPUT_DIR, folder)
+        
+        # Создаем папку если не существует
+        try:
+            os.makedirs(folder_path, exist_ok=True)
+            print(f"📁 Папка создана/проверена: {folder_path}")
+        except Exception as e:
+            print(f"❌ Ошибка создания папки {folder_path}: {e}")
+            return None
+        
+        local_path = os.path.join(folder_path, filename)
         try:
             # Определяем режим записи в зависимости от типа контента
             mode = 'wb' if isinstance(content, bytes) else 'w'
@@ -932,7 +972,9 @@ def save_file_locally_or_supabase(content, filename, folder="carousel"):
             print(f"✅ Файл сохранен локально: {local_path}")
             return f"/output/{folder}/{filename}"
         except Exception as e:
-            print(f"❌ Ошибка сохранения локально: {e}")
+            print(f"❌ Ошибка сохранения локально {local_path}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 def create_app():
@@ -2215,6 +2257,7 @@ def generate_carousel_by_name():
 
 # API для создания и генерации полноценной карусели (до 10 слайдов)
 @app.route('/api/carousel/create-and-generate', methods=['POST'])
+@app.route('/generate-carousel', methods=['POST'])  # Алиас для фронтенда
 def create_and_generate_carousel():
     """
     Создает полноценную карусель с main слайдом + до 9 фото слайдов
@@ -2845,6 +2888,74 @@ def generate_carousel_png_simple():
     except Exception as e:
         print(f"❌ Ошибка PNG Simple: {e}")
         return jsonify({'error': f'Ошибка: {str(e)}'}), 500
+
+# АДАПТЕР ДЛЯ ФРОНТЕНДА: Простая генерация карусели по template_id
+@app.route('/generate-carousel', methods=['POST'])
+def generate_carousel_simple():
+    """Простой адаптер для фронтенда - создает карусель из одного шаблона"""
+    try:
+        data = request.get_json()
+        print(f"📥 Простой запрос карусели: {data}")
+        
+        template_id = data.get('template_id')
+        replacements = data.get('data', {})
+        
+        if not template_id:
+            return jsonify({'error': 'template_id обязателен'}), 400
+        
+        print(f"🎯 Создаю карусель из шаблона: {template_id}")
+        print(f"📋 Данные для замены: {replacements}")
+        
+        # Получаем шаблон из базы данных
+        ensure_db_exists()
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT name, svg_content FROM templates WHERE id = ?', [template_id])
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            return jsonify({'error': f'Шаблон {template_id} не найден'}), 404
+        
+        template_name, svg_content = result
+        print(f"✅ Найден шаблон: {template_name}")
+        
+        # Обрабатываем SVG с заменами
+        processed_svg = process_svg_with_replacements(svg_content, replacements)
+        
+        # Создаем уникальный ID карусели
+        carousel_id = f"carousel_{uuid.uuid4().hex[:8]}"
+        
+        # Сохраняем SVG файл
+        svg_filename = f"{carousel_id}_slide_1.svg"
+        svg_path = os.path.join(OUTPUT_DIR, svg_filename)
+        
+        with open(svg_path, 'w', encoding='utf-8') as f:
+            f.write(processed_svg)
+        
+        print(f"💾 Сохранен SVG: {svg_filename}")
+        
+        # Формируем ответ в формате, ожидаемом фронтендом
+        result = {
+            'carousel_id': carousel_id,
+            'files': [{
+                'filename': svg_filename,
+                'url': f"/output/{svg_filename}",
+                'slide_number': 1,
+                'template_name': template_name
+            }],
+            'message': 'Карусель создана успешно'
+        }
+        
+        print(f"✅ Карусель создана: {carousel_id}")
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"💥 Ошибка создания простой карусели: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Ошибка создания карусели: {str(e)}'}), 500
 
 @app.route('/api/convert-to-png', methods=['POST'])
 def convert_svg_to_png_api():
