@@ -697,7 +697,7 @@ def create_dynamic_template(template_id, template_role):
             <rect id="dyno.propertyimage1" x="100" y="250" width="600" height="300" fill="url(#property_pattern)"/>
             <defs>
                 <pattern id="property_pattern" patternUnits="objectBoundingBox" width="1" height="1">
-                    <image id="property_image" href="https://via.placeholder.com/600x300/cccccc/666666?text=Property+Image" preserveAspectRatio="xMidYMid slice"/>
+                    <image id="property_image" href="https://via.placeholder.com/600x300/cccccc/666666?text=Property+Image" preserveAspectRatio="none"/>
                 </pattern>
             </defs>
         </svg>'''

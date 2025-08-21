@@ -431,10 +431,10 @@ def replace_image_in_svg(svg_content, field_name, new_image_url):
     # Определяем тип изображения для правильного aspect ratio
     if 'headshot' in field_name.lower():
         image_type = 'headshot'
-        aspect_ratio = 'xMidYMid slice'  # ИСПРАВЛЕНО: slice вместо meet для headshot
+        aspect_ratio = 'xMidYMid meet'  # ИСПРАВЛЕНО: meet для headshot (показывает всё лицо)
     elif 'property' in field_name.lower():
         image_type = 'property'
-        aspect_ratio = 'xMidYMid slice'
+        aspect_ratio = 'xMidYMid slice'  # slice для property (заполняет область)
     else:
         image_type = 'other'
         aspect_ratio = 'xMidYMid meet'
@@ -460,13 +460,13 @@ def replace_image_in_svg(svg_content, field_name, new_image_url):
                         lambda m: m.group(1) + replacement_data + m.group(2), 
                         svg_content)
         
-        # ИСПРАВЛЕНО: Исправляем aspect ratio если нужно
-        if image_type == 'headshot':
+        # ИСПРАВЛЕНО: Исправляем aspect ratio для всех типов изображений
+        if image_type in ['headshot', 'property']:
             aspect_pattern = rf'(<[^>]*id="{re.escape(field_name)}"[^>]*preserveAspectRatio=")[^"]*("[^>]*>)'
             new_svg = re.sub(aspect_pattern,
                             lambda m: m.group(1) + aspect_ratio + m.group(2),
                             new_svg)
-            print(f"🔧 Aspect ratio исправлен на: {aspect_ratio}")
+            print(f"🔧 Aspect ratio исправлен на: {aspect_ratio} для {image_type}")
         
         if new_svg != svg_content:
             print(f"✅ Изображение {field_name} заменено!")
@@ -542,13 +542,13 @@ def replace_via_pattern(svg_content, pattern_id, replacement_data, image_type, a
     
     new_svg = re.sub(image_pattern, replace_image_href, svg_content)
     
-    # ИСПРАВЛЕНО: Исправляем aspect ratio и масштаб если это headshot
-    if image_type == 'headshot':
+    # ИСПРАВЛЕНО: Исправляем aspect ratio для всех типов изображений
+    if image_type in ['headshot', 'property']:
         aspect_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*preserveAspectRatio=")[^"]*("[^>]*>)'
         new_svg = re.sub(aspect_pattern,
                         lambda m: m.group(1) + aspect_ratio + m.group(2),
                         new_svg)
-        print(f"🔧 Aspect ratio исправлен на: {aspect_ratio}")
+        print(f"🔧 Aspect ratio исправлен на: {aspect_ratio} для {image_type}")
         
         # Добавляем масштабирование для headshot (уменьшаем до 70%)
         transform_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*)(>)'
