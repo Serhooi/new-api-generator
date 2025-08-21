@@ -2948,7 +2948,7 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 raise Exception("rsvg-convert не установлен")
             
             # ПРАВИЛЬНАЯ ОЧИСТКА BASE64 - ИСПРАВЛЯЕМ СИМВОЛЫ, СОХРАНЯЕМ ИЗОБРАЖЕНИЯ
-            print("🔧 ПРАВИЛЬНАЯ очистка base64 - исправляю символы, сохраняю изображения...")
+            print("🔧 Очистка base64...")
             cleaned_svg = svg_content
             
             import re
@@ -2975,7 +2975,7 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                     target_length = 13000000 - (13000000 % 4)
                     cleaned_base64 = cleaned_base64[:target_length]
                 else:
-                    print(f"✅ Base64 размер OK ({len(cleaned_base64)} символов)")
+                    print(f"✅ Base64 OK ({len(cleaned_base64)} симв.)")
                 
                 # Исправляем padding
                 remainder = len(cleaned_base64) % 4
@@ -3030,10 +3030,10 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             # 7. Убираем лишние пробелы
             cleaned_svg = re.sub(r'\s+', ' ', cleaned_svg)
             
-            print(f"🔧 Правильная очистка завершена, длина: {len(cleaned_svg)} символов")
+            print(f"🔧 Очистка завершена: {len(cleaned_svg)} симв.")
             
             # САНИТАЙЗЕР SVG - исправляем проблемы с <image> тегами
-            print("🛡️ Применяю санитайзер SVG...")
+            print("🛡️ Санитизация...")
             sanitized_svg = sanitize_svg(cleaned_svg)
             
             # Валидируем XML перед конвертацией
