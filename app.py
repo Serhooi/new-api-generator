@@ -345,8 +345,8 @@ def process_svg_font_perfect(svg_content, replacements):
     def get_aspect_ratio_for_image(image_type, element_shape):
         """Возвращает правильный preserveAspectRatio для типа изображения"""
         if image_type == 'headshot':
-            # Для headshot - показываем всё лицо, центрируем
-            return 'xMidYMid meet'
+            # Для headshot - НЕ ТРОГАЕМ aspect ratio (оставляем как есть в шаблоне)
+            return None
         elif image_type == 'property':
             # Для property images - заполняем весь блок, обрезаем если нужно
             return 'xMidYMid slice'

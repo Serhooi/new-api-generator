@@ -428,16 +428,16 @@ def replace_image_in_svg(svg_content, field_name, new_image_url):
     """
     print(f"🖼️ Обрабатываю изображение: {field_name}")
     
-    # Определяем тип изображения для правильного aspect ratio
+    # Определяем тип изображения
     if 'headshot' in field_name.lower() or 'agent' in field_name.lower():
         image_type = 'headshot'
-        aspect_ratio = 'xMidYMid meet'  # ИСПРАВЛЕНО: meet для headshot (показывает всё лицо)
+        aspect_ratio = None  # Не трогаем aspect ratio для headshot
     elif 'property' in field_name.lower():
         image_type = 'property'
         aspect_ratio = 'xMidYMid slice'  # slice для property (заполняет область)
     else:
         image_type = 'other'
-        aspect_ratio = 'xMidYMid meet'
+        aspect_ratio = None  # Не трогаем aspect ratio для других
     
     print(f"🎯 Тип изображения: {image_type}, aspect ratio: {aspect_ratio}")
     
@@ -460,13 +460,15 @@ def replace_image_in_svg(svg_content, field_name, new_image_url):
                         lambda m: m.group(1) + replacement_data + m.group(2), 
                         svg_content)
         
-        # ИСПРАВЛЕНО: Исправляем aspect ratio для всех типов изображений
-        if image_type in ['headshot', 'property']:
+        # Исправляем aspect ratio только для property изображений
+        if image_type == 'property' and aspect_ratio:
             aspect_pattern = rf'(<[^>]*id="{re.escape(field_name)}"[^>]*preserveAspectRatio=")[^"]*("[^>]*>)'
             new_svg = re.sub(aspect_pattern,
                             lambda m: m.group(1) + aspect_ratio + m.group(2),
                             new_svg)
             print(f"🔧 Aspect ratio исправлен на: {aspect_ratio} для {image_type}")
+        elif image_type == 'headshot':
+            print(f"ℹ️ Aspect ratio для headshot НЕ изменяется (оставляем как есть)")
         
         if new_svg != svg_content:
             print(f"✅ Изображение {field_name} заменено!")
@@ -542,33 +544,15 @@ def replace_via_pattern(svg_content, pattern_id, replacement_data, image_type, a
     
     new_svg = re.sub(image_pattern, replace_image_href, svg_content)
     
-    # ИСПРАВЛЕНО: Исправляем aspect ratio для всех типов изображений
-    if image_type in ['headshot', 'property']:
+    # Исправляем aspect ratio только для property изображений
+    if image_type == 'property' and aspect_ratio:
         aspect_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*preserveAspectRatio=")[^"]*("[^>]*>)'
         new_svg = re.sub(aspect_pattern,
                         lambda m: m.group(1) + aspect_ratio + m.group(2),
                         new_svg)
         print(f"🔧 Aspect ratio исправлен на: {aspect_ratio} для {image_type}")
-        
-        # Добавляем масштабирование ТОЛЬКО для headshot (уменьшаем до 70%)
-        if image_type == 'headshot':
-            transform_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*)(>)'
-            def add_transform(match):
-                element_attrs = match.group(1)
-                closing = match.group(2)
-                
-                # Проверяем есть ли уже transform
-                if 'transform=' not in element_attrs:
-                    # Добавляем transform для масштабирования и центрирования
-                    return element_attrs + ' transform="scale(0.7) translate(0.2, 0.1)"' + closing
-                else:
-                    # Если transform уже есть, обновляем его
-                    return re.sub(r'transform="[^"]*"', 'transform="scale(0.7) translate(0.2, 0.1)"', element_attrs) + closing
-            
-            new_svg = re.sub(transform_pattern, add_transform, new_svg)
-            print(f"🔧 Масштабирование добавлено: scale(0.7) для headshot")
-        else:
-            print(f"ℹ️ Масштабирование НЕ применяется для {image_type}")
+    elif image_type == 'headshot':
+        print(f"ℹ️ Headshot aspect ratio и масштабирование НЕ изменяются (оставляем как есть)")
     
     if new_svg != svg_content:
         print(f"✅ Изображение успешно заменено через pattern!")
@@ -579,7 +563,7 @@ def replace_via_pattern(svg_content, pattern_id, replacement_data, image_type, a
 
 def process_image_replacements(svg_content, image_data):
     """
-    Обрабатывает замену всех изображений в SVG
+    Обрабатывает замену изображений в SVG (ИСКЛЮЧАЯ headshot - показываем оригинальный)
     
     Args:
         svg_content: Содержимое SVG
@@ -596,9 +580,18 @@ def process_image_replacements(svg_content, image_data):
     modified_svg = svg_content
     successful_replacements = 0
     
-    # Определяем поля изображений
-    image_fields = {k: v for k, v in image_data.items() 
-                   if any(word in k.lower() for word in ['image', 'photo', 'picture', 'logo', 'headshot'])}
+    # Определяем поля изображений, НО ИСКЛЮЧАЕМ headshot
+    image_fields = {}
+    for k, v in image_data.items():
+        # Проверяем является ли поле изображением
+        is_image = any(word in k.lower() for word in ['image', 'photo', 'picture', 'logo', 'headshot'])
+        
+        if is_image:
+            # ИСКЛЮЧАЕМ headshot поля - показываем оригинальный хедшот из шаблона
+            if any(word in k.lower() for word in ['headshot', 'agent']):
+                print(f"⏭️ Пропускаю {k} (headshot) - показываю оригинальный из шаблона")
+            else:
+                image_fields[k] = v
     
     for field_name, image_url in image_fields.items():
         print(f"\n🔄 Обрабатываю: {field_name}")
@@ -612,6 +605,7 @@ def process_image_replacements(svg_content, image_data):
             print(f"📊 Изменение размера: {new_size - original_size:+d} символов")
     
     print(f"\n✅ Заменено изображений: {successful_replacements}/{len(image_fields)}")
+    print(f"ℹ️ Headshot изображения показываются как в оригинальном шаблоне")
     return modified_svg
 
 # ========================================
