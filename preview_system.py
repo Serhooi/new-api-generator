@@ -550,7 +550,7 @@ def replace_via_pattern(svg_content, pattern_id, replacement_data, image_type, a
                         new_svg)
         print(f"🔧 Aspect ratio исправлен на: {aspect_ratio} для {image_type}")
         
-        # Добавляем масштабирование для headshot (уменьшаем до 70%)
+        # Добавляем масштабирование только для headshot (уменьшаем до 70%)
         transform_pattern = rf'(<image[^>]*id="{re.escape(image_id)}"[^>]*)(>)'
         def add_transform(match):
             element_attrs = match.group(1)
@@ -565,7 +565,7 @@ def replace_via_pattern(svg_content, pattern_id, replacement_data, image_type, a
                 return re.sub(r'transform="[^"]*"', 'transform="scale(0.7) translate(0.2, 0.1)"', element_attrs) + closing
         
         new_svg = re.sub(transform_pattern, add_transform, new_svg)
-        print(f"🔧 Масштабирование добавлено: scale(0.7) для headshot")
+        print(f"🔧 Масштабирование добавлено: scale(0.7) для {image_type}")
     
     if new_svg != svg_content:
         print(f"✅ Изображение успешно заменено через pattern!")

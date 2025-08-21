@@ -2875,8 +2875,8 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
                 print("❌ rsvg-convert не найден в системе")
                 raise Exception("rsvg-convert не установлен")
             
-            # УЛЬТИМАТИВНАЯ ОЧИСТКА SVG + BASE64
-            print("🧹 УЛЬТИМАТИВНАЯ очистка SVG + base64 данных...")
+            # ЭКСТРЕННАЯ ОЧИСТКА SVG - УБИРАЕМ ВСЕ BASE64!
+            print("🚨 ЭКСТРЕННАЯ очистка SVG - убираю все base64 данные...")
             cleaned_svg = svg_content
             
             import re
@@ -2887,24 +2887,9 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             # 2. Исправляем амперсанды
             cleaned_svg = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)', '&amp;', cleaned_svg)
             
-            # 3. АГРЕССИВНАЯ очистка base64 данных
-            def clean_base64_data(match):
-                base64_data = match.group(1)
-                # Убираем все невалидные символы из base64
-                cleaned_base64 = re.sub(r'[^A-Za-z0-9+/=]', '', base64_data)
-                # Убираем лишние = в конце
-                cleaned_base64 = re.sub(r'=+$', '', cleaned_base64)
-                # Добавляем правильное количество = для выравнивания
-                remainder = len(cleaned_base64) % 4
-                if remainder == 2:
-                    cleaned_base64 += '=='
-                elif remainder == 3:
-                    cleaned_base64 += '='
-                return f'data:image/jpeg;base64,{cleaned_base64}'
-            
-            # Очищаем все base64 данные
-            pattern = r'data:image/[^;]+;base64,([^"\'>\s]+)'
-            cleaned_svg = re.sub(pattern, clean_base64_data, cleaned_svg)
+            # 3. РАДИКАЛЬНО УБИРАЕМ ВСЕ BASE64 ДАННЫЕ
+            print("🚨 Убираю все base64 данные полностью...")
+            cleaned_svg = re.sub(r'data:image/[^;]+;base64,[^"\'>\s]+', 'https://via.placeholder.com/400x300/cccccc/666666?text=Image', cleaned_svg)
             
             # 4. Исправляем image теги
             def fix_image_tag(match):
@@ -2927,7 +2912,7 @@ def convert_svg_to_png_improved(svg_content, output_path, width=1080, height=135
             # 6. Убираем лишние пробелы
             cleaned_svg = re.sub(r'\s+', ' ', cleaned_svg)
             
-            print(f"🧹 Ультимативная очистка завершена, длина: {len(cleaned_svg)} символов")
+            print(f"🚨 Экстренная очистка завершена, длина: {len(cleaned_svg)} символов")
             
             # Создаем временный SVG файл с очищенным содержимым
             with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as svg_file:
